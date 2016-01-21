@@ -62,7 +62,19 @@ abstract module Main_s {
         ensures  forall i :: 0 <= i < |sb| ==> Service_Correspondence(db[i].environment.sentPackets, sb[i][0]);
     */
 
-    lemma RefinementProof(config:ConcreteConfiguration, db:seq<DS_State>) returns (sb:seq<ServiceState>, cm:seq<int>)
+    lemma UltimateRefinementProof(config:ConcreteConfiguration, qb:seq<QS_State>) returns (sb:seq<ServiceState>, cm:seq<int>)
+        requires |db| > 0;
+        requires QS_Init(qb[0], config);
+        requires forall i {:trigger QS_Next(qb[i], qb[i+1])} :: 0 <= i < |qb| - 1 ==> QS_Next(qb[i], qb[i+1]);
+        ensures  |qb| == |cm|;
+        ensures  cm[0] == 0;                                            // Beginnings match
+        ensures  forall i :: 0 <= i < |cm| ==> 0 <= cm[i] < |sb|;       // Mappings are in bounds
+        ensures  forall i {:trigger cm[i], cm[i+1]} :: 0 <= i < |cm| - 1 ==> cm[i] <= cm[i+1];    // Mapping is monotonic
+        ensures  Service_Init(sb[0], Collections__Maps2_s.mapdomain(qb[0].servers));
+        ensures  forall i {:trigger Service_Next(sb[i], sb[i+1])} :: 0 <= i < |sb| - 1 ==> Service_Next(sb[i], sb[i+1]);
+        ensures  forall i :: 0 <= i < |qb| ==> Service_Correspondence(qb[i].environment.sentPackets, sb[cm[i]]);
+
+    lemma SecondStepRefinementProof(config:ConcreteConfiguration, db:seq<DS_State>) returns (sb:seq<ServiceState>, cm:seq<int>)
         requires |db| > 0;
         requires DS_Init(db[0], config);
         requires forall i {:trigger DS_Next(db[i], db[i+1])} :: 0 <= i < |db| - 1 ==> DS_Next(db[i], db[i+1]);

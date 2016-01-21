@@ -61,9 +61,8 @@ abstract module QuantizedSystem_s {
         reads *;
     {
            id in s'.servers
-        && HostNext(s.servers[id], s'.servers[id], ios)
-        && |ios| <= 1
-        && s'.servers == s.servers[id := s'.servers[id]]
+        && QuantizedHostNext(s.servers[id], s'.servers[id], ios)
+        && ((|ios| == 1 && s.servers == s'.servers) || (|ios| == 0 && s'.servers == s.servers[id := s'.servers[id]]))
     }
 
     predicate QS_Next(s:QS_State, s':QS_State)
@@ -79,19 +78,37 @@ abstract module QuantizedSystem_s {
                s'.servers == s.servers
     }
 
-    lemma ReductionProof(config:ConcreteConfiguration, qb:seq<QS_State>) returns (db:seq<DS_State>, cm:seq<int>)
+    lemma BryansProof(config:ConcreteConfiguration, qb:seq<QS_State>, P:Predicate) returns (qb':seq<QS_State, db':seq<DS_State>, cm:seq<int>)
         requires |qb| > 0;
         requires QS_Init(qb[0], config);
         requires forall i {:trigger QS_Next(qb[i], qb[i+1])} :: 0 <= i < |qb| - 1 ==> QS_Next(qb[i], qb[i+1]);
-        requires forall host :: host in foo ==> exists io_partition, behavior:seq<State> :: SeqCat(io_partition) == Restrict(trace, host) && forall i :: 0 <= i < |io_partition| ==> HostNext(behavior[i], behavior[i+1], io_partition[i]);
+                
+        requires 
+                 var trace:seq<IO> := ComputeTrace(qb);
+            forall host :: host in .servers ==> exists io_partition:seq<seq<IO>>, behavior:seq<DS_State> :: SeqCat(io_partition) == Restrict(trace, host) && |io_partition| == | behavior| && forall i :: 0 <= i < |io_partition| ==> HostNext(behavior[i], behavior[i+1], io_partition[i]);
+
         ensures  |qb| == |cm|;
         ensures  cm[0] == 0;                                            // Beginnings match
-        ensures  forall i :: 0 <= i < |cm| ==> 0 <= cm[i] < |db|;       // Mappings are in bounds
+        ensures  forall i :: 0 <= i < |cm| ==> 0 <= cm[i] < |db'|;       // Mappings are in bounds
         ensures  forall i {:trigger cm[i], cm[i+1]} :: 0 <= i < |cm| - 1 ==> cm[i] <= cm[i+1];    // Mapping is monotonic
-        ensures  DB_Init(db[0], config);
-        ensures  forall i {:trigger DS_Next(db[i], db[i+1])} :: 0 <= i < |db| - 1 ==> DS_Next(db[i], db[i+1]);
-        ensures  forall i :: 0 <= i < |qb| ==> Service_Correspondence(qb[i].environment.sentPackets, db[cm[i]]);
+        ensures  DB_Init(db'[0], config);
+        ensures  forall i {:trigger DS_Next(db'[i], db'[i+1])} :: 0 <= i < |db'| - 1 ==> DS_Next(db'[i], db'[i+1]);
 
+        ensures  forall i :: 0 <= i < |qb| ==> Correspondence(qb[i].environment.sentPackets, db'[cm[i]]);
 
+        ensures forall i :: 0 <= i < |qb'| ==> 
+                    (
+                     (forall p :: p in qb'[i].sentPackets ==> predicate P(p))
+                     <==>
+                     (forall p :: p in qb[i].sentPackets ==> predicate P(p))
+                    )
+        ensures forall i :: 0 <= i < |qb'| ==> 
+                    (
+                     (predicate P(qb'[i].sentPackets))
+                     <==>
+                     (predicate P(qb[i].sentPackets))
+                    )
+        ensures forall packets, packets' :: packets <= packets' ==> (P(packets) ==> P(packets'))        # Probably not true
+        ensures forall packets, packets' :: packets <= packets' ==> (P(packets) <== P(packets'))
 }
 
