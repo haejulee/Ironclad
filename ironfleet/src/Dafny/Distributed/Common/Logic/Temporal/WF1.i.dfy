@@ -97,7 +97,7 @@ import opened Temporal__Time_i
                 assert !sat(k+1, Q);
                 var m := imap b :: b > k;
                 var x := or(P, stepmap(m));
-                forall a | TLe(j, a)
+                forall a {:trigger sat(a, x), sat(a+1, x)} | TLe(j, a)
                     ensures sat(a, x) ==> sat(a+1, x);
                 {
                     if a < k

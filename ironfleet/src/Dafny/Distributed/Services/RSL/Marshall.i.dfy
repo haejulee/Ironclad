@@ -136,7 +136,7 @@ module MarshallProof_i {
     {
     }
 
-    lemma {:timeLimitMultiplier 5} {:fuel ValInGrammar,3} lemma_ParseMarshallRequest(bytes:seq<byte>, msg:RslMessage)
+    lemma {:timeLimitMultiplier 6} {:fuel ValInGrammar,3} lemma_ParseMarshallRequest(bytes:seq<byte>, msg:RslMessage)
         requires msg.RslMessage_Request?;
         requires CMessageIsAbstractable(PaxosDemarshallData(bytes));
         requires AbstractifyCMessageToRslMessage(PaxosDemarshallData(bytes)) == msg;
@@ -240,6 +240,8 @@ module MarshallProof_i {
                 data[0..24];
                     { assert |data| >= 24; ByteConcat24(data); }
                 data[0..8] + data[8..16] + data[16..24];
+                [ 0, 0, 0, 0, 0, 0, 0, 0] + data[8..16] + data[16..24];
+                [ 0, 0, 0, 0, 0, 0, 0, 0] + Uint64ToSeqByte(uint64(msg.seqno_req)) + data[16..24];
                 [ 0, 0, 0, 0, 0, 0, 0, 0] + Uint64ToSeqByte(uint64(msg.seqno_req)) + [ 0, 0, 0, 0, 0, 0, 0, 2]; 
             }
             assert data[0..24] == [ 0, 0, 0, 0, 0, 0, 0, 0] + Uint64ToSeqByte(uint64(msg.seqno_req)) + [ 0, 0, 0, 0, 0, 0, 0, 2]; 

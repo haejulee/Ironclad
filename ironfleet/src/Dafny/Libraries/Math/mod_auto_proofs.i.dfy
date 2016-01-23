@@ -71,13 +71,13 @@ lemma lemma_mod_auto_basics(n:int)
     ensures  forall x:int {:trigger (x - n) / n} :: (x - n) / n == x / n - 1;
     ensures  forall x:int {:trigger x % n} :: 0 <= x < n <==> x % n == x;
 {
-    forall x:int
+    forall x:int {:trigger x%n}
         ensures 0 <= x < n <==> x % n == x;
     {
         if (0 <= x < n) { lemma_small_mod(x, n); }
         lemma_mod_range(x, n);
     }
-    forall x:int
+    forall x:int {:trigger (x+n)%n}{:trigger (x-n)%n}{:trigger (x+n)/n}{:trigger (x-n)/n}
         ensures (x + n) % n == x % n;
         ensures (x - n) % n == x % n;
         ensures (x + n) / n == x / n + 1;

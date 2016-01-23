@@ -36,7 +36,7 @@ lemma lemma_mul_induction_forall(f:imap<int,bool>)
 lemma lemma_mul_auto_commutes()
     ensures  forall x:int, y:int {:trigger x * y} :: x * y == y * x;
 {
-    forall x:int, y:int ensures x * y == y * x;
+    forall x:int, y:int {:trigger x * y} ensures x * y == y * x;
     {
         lemma_mul_induction_forall(imap i :: x * i == i * x);
     }
@@ -47,7 +47,7 @@ lemma lemma_mul_auto_succ()
     ensures  forall x:int, y:int {:trigger (x - 1) * y} :: (x - 1) * y == x * y - y;
 {
     lemma_mul_auto_commutes();
-    forall x:int, y:int
+    forall x:int, y:int {:trigger (x+1)*y} {:trigger (x-1)*y}
         ensures  (x + 1) * y == x * y + y;
         ensures  (x - 1) * y == x * y - y;
     {
@@ -61,7 +61,7 @@ lemma lemma_mul_auto_distributes()
     ensures  forall x:int, y:int, z:int {:trigger (x - y) * z} :: (x - y) * z == x * z - y * z;
 {
     lemma_mul_auto_succ();
-    forall x:int, y:int, z:int
+    forall x:int, y:int, z:int {:trigger (x+y) * z} {:trigger (x-y) * z}
         ensures (x + y) * z == x * z + y * z;
         ensures (x - y) * z == x * z - y * z;
     {

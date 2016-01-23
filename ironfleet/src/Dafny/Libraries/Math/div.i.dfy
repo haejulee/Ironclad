@@ -36,7 +36,7 @@ lemma lemma_div_basics(x:int)
 lemma lemma_small_div_converse()
     ensures forall x, d {:trigger x/d} :: 0<=x && 0<d && x/d==0 ==> x < d;
 {
-    forall x, d | 0<=x && 0<d && x/d==0 ensures x < d;
+    forall x, d {:trigger x/d} | 0<=x && 0<d && x/d==0 ensures x < d;
     {
         lemma_div_auto_induction(d, x, imap u :: 0<=u && 0<d && u/d==0 ==> u < d);
     }
@@ -138,13 +138,13 @@ lemma lemma_div_basics_forall()
     ensures forall x, y {:trigger x/y} :: x >= 0 && y > 0 ==> x/y >= 0;
     ensures forall x, y {:trigger x/y} :: x >= 0 && y > 0 ==> x/y <= x;
 {
-    forall (x:int)
+    forall x:int {:trigger 0 / x}{:trigger x / 1}
         ensures x != 0 ==> 0 / x == 0;
         ensures x / 1 == x;
     {
         lemma_div_basics(x);
     }
-    forall x:int, y:int | x >= 0 && y > 0
+    forall x:int, y:int {:trigger x / y} | x >= 0 && y > 0
         ensures x / y >= 0;
         ensures x / y <= x;
     {
@@ -199,12 +199,12 @@ lemma lemma_mod_basics()
     ensures forall m:int {:trigger m % m} :: m > 0 ==> m % m == 0;
     ensures forall x:int, m:int {:trigger (x%m) % m} :: m > 0 ==> (x%m) % m == x%m;
 {
-    forall m:int | m > 0
+    forall m:int {:trigger m % m} | m > 0
         ensures m % m == 0;
     {
         lemma_mod_auto(m);
     }
-    forall x:int, m:int | m > 0
+    forall x:int, m:int {:trigger (x%m) % m} | m > 0
         ensures (x % m) % m == x % m;
     {
         lemma_mod_auto(m);
@@ -218,7 +218,7 @@ lemma lemma_mod_properties()
 {
     lemma_mod_basics();
 
-    forall x:int, m:int | m > 0
+    forall x:int, m:int {:trigger x%m} | m > 0
         ensures m > 0 ==> 0 <= x%m < m;
     {
         lemma_mod_auto(m);
@@ -1073,7 +1073,7 @@ lemma lemma_div_denominator_forall()
         ==> (x/c)/d == x/(c*d);
 {
     lemma_mul_nonzero_forall();
-    forall (x:int,c:nat,d:nat | 0 <= x && 0 < c && 0 < d)
+    forall x:int,c:nat,d:nat | 0 <= x && 0 < c && 0 < d
         ensures c * d != 0;
         ensures (x/c)/d == x/(c*d);
     {

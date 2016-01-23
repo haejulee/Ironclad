@@ -428,7 +428,7 @@ lemma lemma_pull_out_powers_of_2(x:nat, y:nat, z:nat)
 lemma lemma_rebase_powers_of_2()
     ensures forall n:nat, e:nat {:trigger power(power2(n), e)} :: 0 <= n * e && power(power2(n), e) == power2(n * e);
 {
-    forall n:nat, e:nat
+    forall n:nat, e:nat {:trigger n * e}
         ensures 0 <= n * e && power(power2(n), e) == power2(n * e);
     {
         lemma_pull_out_powers_of_2(1, n, e);

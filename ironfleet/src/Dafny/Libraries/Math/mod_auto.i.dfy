@@ -51,7 +51,7 @@ lemma lemma_mod_auto(n:int)
                      (   (0 <= z < n && (xy.0 + xy.1) % n == z)
                       || (n <= z < 2 * n && (xy.0 + xy.1) % n == z - n)));
 
-        forall i, j | 0 <= i < n && 0 <= j < n
+        forall i, j {:trigger (i+j)%n} | 0 <= i < n && 0 <= j < n
             ensures (var z := (i % n) + (j % n);
                      (   (0 <= z < n && (i + j) % n == z)
                       || (n <= z < 2 * n && (i + j) % n == z - n)));
@@ -72,7 +72,7 @@ lemma lemma_mod_auto(n:int)
                      (   (0 <= z < n && (xy.0 - xy.1) % n == z)
                       || (-n <= z < 0 && (xy.0 - xy.1) % n == z + n)));
 
-        forall i, j | 0 <= i < n && 0 <= j < n
+        forall i, j {:trigger (i-j)%n} | 0 <= i < n && 0 <= j < n
             ensures (var z := (i % n) - (j % n);
                      (   (0 <= z < n && (i - j) % n == z)
                       || (-n <= z < 0 && (i - j) % n == z + n)));

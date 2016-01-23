@@ -14,7 +14,7 @@ lemma lemma_div_auto_basics(n:int)
     lemma_mod_auto_basics(n);
     lemma_small_div();
     lemma_div_by_self(n);
-    forall x:int | x / n == 0 ensures 0 <= x < n;
+    forall x:int {:trigger x/n} | x / n == 0 ensures 0 <= x < n;
     {
         lemma_fundamental_div_mod(x, n);
     }

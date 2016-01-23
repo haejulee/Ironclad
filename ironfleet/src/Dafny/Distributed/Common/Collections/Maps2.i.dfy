@@ -77,7 +77,7 @@ lemma Lemma_imapInductionRange(start:int, end:int, f:imap<int, bool>)
 {
     if (start != end) {
         assert TLe(start, start) && TLe(start + 1, end);
-        forall i | TLe(start + 1, i) && TLe(i + 1, end)
+        forall i {:trigger f[i],f[i+1]} | TLe(start + 1, i) && TLe(i + 1, end)
             ensures f[i] ==> f[i+1];
         {
             assert TLe(start, i) && TLe(i + 1, end);

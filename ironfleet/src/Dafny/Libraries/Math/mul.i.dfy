@@ -66,7 +66,7 @@ lemma lemma_mul_is_commutative(x:int, y:int)
 lemma lemma_mul_ordering_general()
     ensures forall x:int, y:int {:trigger x*y} :: (0 < x && 0 < y && 0 <= x*y) ==> x <= x*y && y <= x*y;
 {
-    forall x:int, y:int | 0 < x && 0 < y && 0 <= x*y
+    forall x:int, y:int {:trigger x*y} | 0 < x && 0 < y && 0 <= x*y
         ensures x <= x*y && y <= x*y;
     {
         lemma_mul_ordering(x, y);
@@ -260,7 +260,7 @@ lemma lemma_mul_ordering_forall()
         0 < x && 0 < y && 0 <= x*y
         ==> x <= x*y && y <= x*y;
 {
-    forall x:int, y:int | 0 < x && 0 < y && 0 <= x*y
+    forall x:int, y:int {:trigger x*y} | 0 < x && 0 < y && 0 <= x*y
         ensures x <= x*y && y <= x*y;
     {
         lemma_mul_ordering(x,y);
@@ -271,7 +271,7 @@ lemma lemma_mul_strict_inequality_forall()
     ensures  forall x:int, y:int, z:int {:trigger x*z, y*z} ::
         x < y && z>0 ==> x*z < y*z;
 {
-    forall (x:int, y:int, z:int | x < y && z>0)
+    forall x:int, y:int, z:int {:trigger x*z, y*z} | x < y && z>0
         ensures x*z < y*z;
     {
         lemma_mul_strict_inequality(x, y, z);
@@ -282,7 +282,7 @@ lemma lemma_mul_inequality_forall()
     ensures  forall x:int, y:int, z:int {:trigger x*z, y*z} ::
         x <= y && z>=0 ==> x*z <= y*z;
 {
-    forall (x:int, y:int, z:int | x <= y && z>=0)
+    forall x:int, y:int, z:int {:trigger x*z, y*z} | x <= y && z>=0
         ensures x*z <= y*z;
     {
         lemma_mul_inequality(x, y, z);
@@ -293,7 +293,7 @@ lemma lemma_mul_strict_inequality_converse_forall()
     ensures  forall x:int, y:int, z:int {:trigger x*z, y*z} ::
         x*z < y*z && z>=0 ==> x < y;
 {
-    forall (x:int, y:int, z:int | x*z < y*z && z>=0)
+    forall x:int, y:int, z:int {:trigger x*z, y*z} | x*z < y*z && z>=0
         ensures x < y;
     {
         lemma_mul_strict_inequality_converse(x,y,z);
@@ -304,7 +304,7 @@ lemma lemma_mul_inequality_converse_forall()
     ensures  forall x:int, y:int, z:int {:trigger x*z, y*z} ::
         x*z <= y*z && z>0 ==> x <= y;
 {
-    forall (x:int, y:int, z:int | x*z <= y*z && z>0)
+    forall x:int, y:int, z:int {:trigger x*z, y*z} | x*z <= y*z && z>0
         ensures x <= y;
     {
         lemma_mul_inequality_converse(x,y,z);
@@ -314,7 +314,7 @@ lemma lemma_mul_inequality_converse_forall()
 lemma lemma_mul_is_distributive_add_forall()
     ensures forall x:int, y:int, z:int {:trigger x*(y + z)} :: x*(y + z) == x*y + x*z;
 {
-    forall (x:int, y:int, z:int)
+    forall x:int, y:int, z:int {:trigger x*(y+z)}
         ensures x*(y + z) == x*y + x*z;
     {
         lemma_mul_is_distributive_add(x,y,z);
@@ -324,7 +324,7 @@ lemma lemma_mul_is_distributive_add_forall()
 lemma lemma_mul_is_distributive_sub_forall()
     ensures forall x:int, y:int, z:int {:trigger x*(y - z)} :: x*(y - z) == x*y - x*z;
 {
-    forall (x:int, y:int, z:int)
+    forall x:int, y:int, z:int {:trigger x*(y-z)}
         ensures x*(y - z) == x*y - x*z;
     {
         lemma_mul_is_distributive_sub(x,y,z);
@@ -345,7 +345,7 @@ lemma lemma_mul_is_distributive_forall()
 lemma lemma_mul_is_associative_forall()
     ensures forall x:int, y:int, z:int {:trigger x * (y * z)}{:trigger (x * y) * z} :: x * (y * z) == (x * y) * z;
 {
-    forall (x:int, y:int, z:int)
+    forall x:int, y:int, z:int {:trigger x * (y * z)} {:trigger (x * y) * z}
         ensures x * (y * z) == (x * y) * z;
     {
         lemma_mul_is_associative(x,y,z);
@@ -355,7 +355,7 @@ lemma lemma_mul_is_associative_forall()
 lemma lemma_mul_nonzero_forall()
     ensures forall x:int, y:int {:trigger x*y} :: x*y != 0 <==> x != 0 && y != 0;
 {
-    forall (x:int, y:int)
+    forall x:int, y:int {:trigger x*y}
         ensures x*y != 0 <==> x != 0 && y != 0;
     {
         lemma_mul_nonzero(x,y);
@@ -365,7 +365,7 @@ lemma lemma_mul_nonzero_forall()
 lemma lemma_mul_nonnegative_forall()
     ensures forall x:int, y:int {:trigger x*y} :: 0 <= x && 0 <= y ==> 0 <= x*y;
 {
-    forall (x:int, y:int | 0 <= x && 0 <= y)
+    forall x:int, y:int {:trigger x*y} | 0 <= x && 0 <= y
         ensures 0 <= x*y;
     {
         lemma_mul_nonnegative(x,y);
@@ -375,7 +375,7 @@ lemma lemma_mul_nonnegative_forall()
 lemma lemma_mul_unary_negation_forall()
     ensures forall x:int, y:int {:trigger (-x)*y}{:trigger x*(-y)} :: (-x)*y == -(x*y) == x*(-y);
 {
-    forall (x:int, y:int) 
+    forall x:int, y:int {:trigger (-x)*y}{:trigger x*(-y)}
         ensures (-x)*y == -(x*y) == x*(-y);
     {
         lemma_mul_unary_negation(x,y);
@@ -385,7 +385,7 @@ lemma lemma_mul_unary_negation_forall()
 lemma lemma_mul_strictly_increases_forall()
     ensures forall x:int, y:int {:trigger x*y} :: (1 < x && 0 < y) ==> (y < x*y);
 {
-    forall (x:int, y:int | 1 < x && 0 < y)
+    forall x:int, y:int {:trigger x*y} | 1 < x && 0 < y
         ensures y < x*y;
     {
         lemma_mul_strictly_increases(x,y);
@@ -395,7 +395,7 @@ lemma lemma_mul_strictly_increases_forall()
 lemma lemma_mul_increases_forall()
     ensures forall x:int, y:int {:trigger x*y} :: (0 < x && 0 < y) ==> (y <= x*y);
 {
-    forall (x:int, y:int | 0 < x && 0 < y)
+    forall x:int, y:int {:trigger x*y} | 0 < x && 0 < y
         ensures y <= x*y;
     {
         lemma_mul_increases(x,y);
@@ -405,7 +405,7 @@ lemma lemma_mul_increases_forall()
 lemma lemma_mul_strictly_positive_forall()
     ensures forall x:int, y:int {:trigger x*y} :: (0 < x && 0 < y) ==> (0 < x*y);
 {
-    forall (x:int, y:int | 0 < x && 0 < y)
+    forall x:int, y:int {:trigger x*y} | 0 < x && 0 < y
         ensures 0 < x*y;
     {
         lemma_mul_strictly_positive(x,y);
@@ -415,7 +415,7 @@ lemma lemma_mul_strictly_positive_forall()
 lemma lemma_mul_one_to_one_forall()
     ensures forall m:int, x:int, y:int {:trigger m*x, m*y} :: (m!=0 && m*x == m*y) ==> x==y;
 {
-    forall (m:int, x:int, y:int | m!=0 && m*x == m*y)
+    forall m:int, x:int, y:int {:trigger m*x, m*y} | m!=0 && m*x == m*y
         ensures x==y;
     {
         lemma_mul_one_to_one(m, x, y);

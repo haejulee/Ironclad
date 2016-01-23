@@ -86,7 +86,7 @@ lemma Lemma_IfOpSeqIsCompatibleWithReductionThenSoIsSuffix<IdType, MessageType>(
     requires 0 <= j <= |ios|;
     ensures  LIoOpSeqCompatibleWithReduction(ios[j..]);
 {
-    forall i | 0 <= i < |ios[j..]| - 1
+    forall i {:trigger ios[j..][i], ios[j..][i+1]} | 0 <= i < |ios[j..]| - 1
         ensures LIoOpOrderingOKForAction(ios[j..][i], ios[j..][i+1]);
     {
         assert ios[j..][i] == ios[j+i];

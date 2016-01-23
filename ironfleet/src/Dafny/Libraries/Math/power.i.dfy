@@ -163,15 +163,21 @@ lemma lemma_power_auto()
         lemma_power_0(x);
         lemma_power_1(x);
     }
-    forall x:int, y:int, z:nat
+    forall x:int, y:int, z:nat {:trigger power(x * y, z)}
         ensures power(x * y, z) == power(x, z) * power(y, z);
     {
         lemma_power_distributes(x, y, z);
     }
-    forall x:int, y:nat, z:nat
+    forall x:int, y:nat, z:nat {:trigger power(x, y+z)}
         ensures power(x, y + z) == power(x, y) * power(x, z);
     {
         lemma_power_adds(x, y, z);
+    }
+    forall x:int, y:nat, z:nat {:trigger power(x, y-z)} | y >= z
+        ensures power(x, y - z) * power(x, z) == power(x, y);
+    {
+        var w := y - z;
+        assert power(x, w + z) == power(x, w) * power(x, z);
     }
     lemma_mul_auto();
     lemma_mul_increases_forall();

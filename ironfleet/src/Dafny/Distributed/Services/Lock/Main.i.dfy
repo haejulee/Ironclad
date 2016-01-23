@@ -275,7 +275,7 @@ module Main_i exclusively refines Main_s {
             var rest := RefinementToLSState(config, all_but_last(db));
             
             sb := rest + [ls'];
-            forall i | 0 <= i < |sb| - 1 
+            forall i {:trigger sb[i], sb[i+1]} | 0 <= i < |sb| - 1 
                 ensures LS_Next(sb[i], sb[i+1]);
             {
                 if (0 <= i < |sb|-2) {

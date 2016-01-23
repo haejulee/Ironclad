@@ -98,7 +98,7 @@ predicate NextGetRequest_Reply(s:Host, s':Host, src:NodeIdentity, seqno:int, k:K
         && sm.dst == src
         && out == {Packet(src, s.me, sm)}
     else
-        s' == s[receivedPacket := s'.receivedPacket]
+        s' == s.(receivedPacket := s'.receivedPacket)
         && out == {}
 }
 
@@ -135,7 +135,7 @@ predicate NextSetRequest_Complete(s:Host, s':Host, src:NodeIdentity, seqno:int, 
         && sm.dst == src
         && out == {Packet(src, s.me, sm)}
     else
-           s' == s[receivedPacket := s'.receivedPacket]
+           s' == s.(receivedPacket := s'.receivedPacket)
         && out == {}
 }
 
@@ -203,7 +203,7 @@ predicate NextShard_Wrapper(s:Host, s':Host, pkt:Packet, out:set<Packet>)
            || pkt.msg.m.recipient !in s.constants.hostIds 
            || !DelegateForKeyRangeIsHost(s.delegationMap, pkt.msg.m.kr, s.me)
            || |ExtractRange(s.h, pkt.msg.m.kr)| >= max_hashtable_size()) then 
-            s' == s[receivedPacket := s'.receivedPacket] && out == {}   
+            s' == s.(receivedPacket := s'.receivedPacket) && out == {}   
        else 
             exists sm,b :: NextShard(s, s', out, pkt.msg.m.kr, pkt.msg.m.recipient, sm, b)
 }
@@ -214,7 +214,7 @@ predicate NextReply(s:Host, s':Host, pkt:Packet, out:set<Packet>)
 {
        pkt.msg.m.Reply?
     && out == {}
-    && s' == s[receivedPacket := s'.receivedPacket]
+    && s' == s.(receivedPacket := s'.receivedPacket)
 }
 
 predicate NextRedirect(s:Host, s':Host, pkt:Packet, out:set<Packet>)
@@ -223,7 +223,7 @@ predicate NextRedirect(s:Host, s':Host, pkt:Packet, out:set<Packet>)
 {
        pkt.msg.m.Redirect?
     && out == {}
-    && s' == s[receivedPacket := s'.receivedPacket]
+    && s' == s.(receivedPacket := s'.receivedPacket)
 }
 
 predicate ShouldProcessReceivedMessage(s:Host)
@@ -256,7 +256,7 @@ predicate ReceivePacket(s:Host, s':Host, pkt:Packet, out:set<Packet>, ack:Packet
                s'.receivedPacket == Some(pkt)   // Enqueue this packet for processing
             else
                s'.receivedPacket.None?)
-        && s' == s[sd := s'.sd][receivedPacket := s'.receivedPacket]  // Nothing else changes
+        && s' == s.(sd := s'.sd, receivedPacket := s'.receivedPacket)  // Nothing else changes
     else 
         s' == s && out == {}
 }
