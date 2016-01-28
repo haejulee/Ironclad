@@ -49,19 +49,20 @@ abstract module Main_s {
         }
     }
 
-    /*
-    lemma RefinementProof(config:ConcreteConfiguration, db:seq<DS_State>) returns (sb:seq<seq<<ServiceState>>)
+    lemma RefinementProof(config:ConcreteConfiguration, db:seq<DS_State>) returns (sb:seq<ServiceState>, cm:seq<int>)
         requires |db| > 0;
         requires DS_Init(db[0], config);
-        requires forall i :: 0 <= i < |db| - 1 ==> DS_Next(db[i], db[i+1]);
-        ensures  |sb| == |db|;
-        ensures  forall i :: 0 <= i < |sb| ==> |sb[i]| >= 1;
-        ensures  Service_Init(sb[0][0]);
-        ensures  forall i :: 0 <= i < |sb| - 1 ==> last(sb[i]) == sb[i+1][0];
-        ensures  forall i,j :: 0 <= i < |sb| && 0 <= j < |sb[i]| - 1 ==> Service_Next(sb[i][j], sb[i][j+1]);
-        ensures  forall i :: 0 <= i < |sb| ==> Service_Correspondence(db[i].environment.sentPackets, sb[i][0]);
-    */
+        requires forall i {:trigger DS_Next(db[i], db[i+1])} :: 0 <= i < |db| - 1 ==> DS_Next(db[i], db[i+1]);
+        ensures  |db| == |cm|;
+        ensures  cm[0] == 0;                                            // Beginnings match
+        ensures  forall i :: 0 <= i < |cm| ==> 0 <= cm[i] < |sb|;       // Mappings are in bounds
+        ensures  forall i {:trigger cm[i], cm[i+1]} :: 0 <= i < |cm| - 1 ==> cm[i] <= cm[i+1];    // Mapping is monotonic
+        ensures  Service_Init(sb[0], Collections__Maps2_s.mapdomain(db[0].servers));
+        ensures  forall i {:trigger Service_Next(sb[i], sb[i+1])} :: 0 <= i < |sb| - 1 ==> Service_Next(sb[i], sb[i+1]);
+        ensures  forall i :: 0 <= i < |db| ==> Service_Correspondence(db[i].environment.nextStep, sb[cm[i]]);
 
+
+    /*
     lemma UltimateRefinementProof(config:ConcreteConfiguration, qb:seq<QS_State>) returns (sb:seq<ServiceState>, cm:seq<int>)
         requires |db| > 0;
         requires QS_Init(qb[0], config);
@@ -85,7 +86,7 @@ abstract module Main_s {
         ensures  Service_Init(sb[0], Collections__Maps2_s.mapdomain(db[0].servers));
         ensures  forall i {:trigger Service_Next(sb[i], sb[i+1])} :: 0 <= i < |sb| - 1 ==> Service_Next(sb[i], sb[i+1]);
         ensures  forall i :: 0 <= i < |db| ==> Service_Correspondence(db[i].environment.sentPackets, sb[cm[i]]);
-
+        */
 
     /*
     lemma DistributedSystemRefinesSpec_Init(s:DS_State, config:ProtocolConfiguration)

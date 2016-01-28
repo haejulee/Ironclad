@@ -44,6 +44,7 @@ function MarshallLockMsg(epoch:int) : seq<byte>
       [ 1 ]
 }
 
+/*
 predicate Service_Correspondence(concretePkts:set<LPacket<EndPoint, seq<byte>>>, serviceState:ServiceState) 
 {
     forall p, epoch :: 
@@ -55,5 +56,19 @@ predicate Service_Correspondence(concretePkts:set<LPacket<EndPoint, seq<byte>>>,
         1 <= epoch <= |serviceState.history|
      && p.src == serviceState.history[epoch-1]               
 }
+*/
 
+predicate Service_Correspondence(concrete_step:LEnvStep<EndPoint, seq<byte>>, serviceState:ServiceState) 
+{
+    forall io, epoch ::
+        concrete_step.LEnvStepHostIos? 
+     && io in concrete_step.ios
+     && io.LIoOpReceive?
+     && io.r.msg == MarshallLockMsg(epoch) 
+     && io.r.src in serviceState.hosts 
+     && io.r.dst !in serviceState.hosts
+     ==> 
+        1 <= epoch <= |serviceState.history|
+     && io.r.src == serviceState.history[epoch-1]     
+  }          
 }

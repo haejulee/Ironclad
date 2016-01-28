@@ -13,6 +13,6 @@ type ServiceState
 predicate Service_Init(s:ServiceState, serverAddresses:set<EndPoint>) 
 predicate Service_Next(s:ServiceState, s':ServiceState) 
 
-predicate Service_Correspondence(concretePkts:set<LPacket<EndPoint, seq<byte>>>, serviceState:ServiceState)
+predicate Service_Correspondence(concrete_step:LEnvStep<EndPoint, seq<byte>>, serviceState:ServiceState)
 
 }

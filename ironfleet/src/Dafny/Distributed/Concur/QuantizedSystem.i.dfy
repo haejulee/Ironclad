@@ -1,10 +1,7 @@
-include "../Common/Framework/Host.s.dfy"
-include "../Common/Framework/DistributedSystem.s.dfy"
-include "../Common/Collections/Maps2.s.dfy"
-include "../Common/Collections/Seqs.i.dfy"
+include "QuantizedSystem.s.dfy"
 
-abstract module QuantizedSystem_s {
-    import opened Host_s
+abstract module QuantizedSystem_i refines QuantizedSystem_s {
+    import opened QuantizedSystem_s Host_s
     import opened Collections__Maps2_s
     import opened DistributedSystem_s
     import opened Collections__Seqs_i
@@ -166,13 +163,13 @@ abstract module QuantizedSystem_s {
         ensures  external_io.requires(config) && forall io :: external_io(config).requires(io);  // Needed for the next line       
         ensures  ProjectExternalIO(qb, external_io(config)) == ProjectExternalIO(qb', external_io(config)) == ProjectDsExternalIO(db', external_io(config));
         ensures  |qb| == |cm|;     
-        //ensures  cm[0] == 0;                                             // Beginnings match
-        //ensures  forall i :: 0 <= i < |cm| && IsFixedStep(qb[i], external_io(config)) ==> 0 <= cm[i] < |db'|;       // Mappings we care about are in bounds
-        //ensures  forall i, j :: 0 <= i < j < |cm| && IsFixedStep(qb[i], external_io(config)) && IsFixedStep(qb[j], external_io(config)) ==> cm[i] <= cm[j];    // Mapping is monotonic for the external IOs        
+        ensures  cm[0] == 0;                                             // Beginnings match
+        ensures  forall i :: 0 <= i < |cm| && IsFixedStep(qb[i], external_io(config)) ==> 0 <= cm[i] < |db'|;       // Mappings we care about are in bounds
+        ensures  forall i, j :: 0 <= i < j < |cm| && IsFixedStep(qb[i], external_io(config)) && IsFixedStep(qb[j], external_io(config)) ==> cm[i] <= cm[j];    // Mapping is monotonic for the external IOs        
         ensures  |db'| > 0;
         ensures  DS_Init(db'[0], config);
         ensures  forall i {:trigger DS_Next(db'[i], db'[i+1])} :: 0 <= i < |db'| - 1 ==> DS_Next(db'[i], db'[i+1]);
-/*
+
     lemma SecondStepRefinementProof(config:ConcreteConfiguration, db:seq<DS_State>) returns (sb:seq<ServiceState>, cm:seq<int>)
         requires |db| > 0;
         requires DS_Init(db[0], config);
@@ -196,7 +193,7 @@ abstract module QuantizedSystem_s {
         ensures  Service_Init(sb[0], Collections__Maps2_s.mapdomain(qb[0].servers));
         ensures  forall i {:trigger Service_Next(sb[i], sb[i+1])} :: 0 <= i < |sb| - 1 ==> Service_Next(sb[i], sb[i+1]);
         ensures  forall i :: 0 <= i < |qb| ==> Lease_Service_Correspondence(qb[i].environment.sentPackets, sb[cm[i]]);
-        */
+
 }
 
 
