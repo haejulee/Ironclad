@@ -149,7 +149,7 @@ abstract module QuantizedSystem_s {
     }
 
     // TODO: Maybe we don't need ConcreteConfiguration
-    lemma BryansProof(config:ConcreteConfiguration, qb:seq<QS_State>, external_io:SpecIoFilter) returns (qb':seq<QS_State>, db':seq<DS_State>, cm:seq<int>)
+    lemma BryansProof(config:ConcreteConfiguration, qb:seq<QS_State>, external_io:SpecIoFilter) returns (qb':seq<QS_State>, db':seq<DS_State>) //, cm:seq<int>)
         requires |qb| > 0;
         requires QS_Init(qb[0], config);
         requires forall i {:trigger QS_Next(qb[i], qb[i+1])} :: 0 <= i < |qb| - 1 ==> QS_Next(qb[i], qb[i+1]);
@@ -165,7 +165,9 @@ abstract module QuantizedSystem_s {
         //ensures  forall i {:trigger QS_Next(qb'[i], qb'[i+1])} :: 0 <= i < |qb'| - 1 ==> QS_Next(qb'[i], qb'[i+1]);    // REVIEW: Needed?
         ensures  external_io.requires(config) && forall io :: external_io(config).requires(io);  // Needed for the next line       
         ensures  ProjectExternalIO(qb, external_io(config)) == ProjectExternalIO(qb', external_io(config)) == ProjectDsExternalIO(db', external_io(config));
-        ensures  |qb| == |cm|;     
+        ensures  |qb| == |db'|;
+        ensures  Collections__Maps2_s.mapdomain(qb[0].servers) == Collections__Maps2_s.mapdomain(qb'[0].servers) == Collections__Maps2_s.mapdomain(db'[0].servers);
+        //ensures  |qb| == |cm|;     
         //ensures  cm[0] == 0;                                             // Beginnings match
         //ensures  forall i :: 0 <= i < |cm| && IsFixedStep(qb[i], external_io(config)) ==> 0 <= cm[i] < |db'|;       // Mappings we care about are in bounds
         //ensures  forall i, j :: 0 <= i < j < |cm| && IsFixedStep(qb[i], external_io(config)) && IsFixedStep(qb[j], external_io(config)) ==> cm[i] <= cm[j];    // Mapping is monotonic for the external IOs        

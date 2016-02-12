@@ -56,7 +56,7 @@ abstract module Main_s {
         ensures  |db| == |sb|;
         ensures  Service_Init(sb[0], Collections__Maps2_s.mapdomain(db[0].servers));
         ensures  forall i {:trigger Service_Next(sb[i], sb[i+1])} :: 0 <= i < |sb| - 1 ==> sb[i] == sb[i+1] || Service_Next(sb[i], sb[i+1]);
-        ensures  forall i :: 0 <= i < |db| ==> Service_Correspondence(db[i].environment.sentPackets, sb[i]);
+        ensures  forall i :: 0 <= i < |db| ==> Service_Correspondence(db[i].environment.nextStep, sb[i]);
 
     /*
     lemma UltimateRefinementProof(config:ConcreteConfiguration, qb:seq<QS_State>) returns (sb:seq<ServiceState>)

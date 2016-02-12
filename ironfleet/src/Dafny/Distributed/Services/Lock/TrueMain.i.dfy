@@ -13,7 +13,8 @@ module TrueMain_i {
                                   && io.r.dst !in config
     }
 
-    ghost method GenerateQbToDbMapping(config:ConcreteConfiguration, qb:seq<QS_State>, db:seq<DS_State>, external_io:IoPred) returns (cm:seq<int>)
+    /*
+    ghost method GenerateQbToDbMapping(config:ConcreteConfiguration, qb:seq<QS_State>, db:seq<DS_State>, external_io:IoPredicate) returns (cm:seq<int>)
         requires |qb| > 0;
         requires QS_Init(qb[0], config);
         requires forall i {:trigger QS_Next(qb[i], qb[i+1])} :: 0 <= i < |qb| - 1 ==> QS_Next(qb[i], qb[i+1]);
@@ -33,8 +34,9 @@ module TrueMain_i {
         }
 
     }
+    */
 
-    lemma UltimateRefinementProof(config:ConcreteConfiguration, qb:seq<QS_State>) returns (sb:seq<ServiceState>, cm:seq<int>)
+    lemma UltimateRefinementProof(config:ConcreteConfiguration, qb:seq<QS_State>) returns (sb:seq<ServiceState>)
         requires |qb| > 0;
         requires QS_Init(qb[0], config);
         requires forall i {:trigger QS_Next(qb[i], qb[i+1])} :: 0 <= i < |qb| - 1 ==> QS_Next(qb[i], qb[i+1]);
@@ -44,21 +46,32 @@ module TrueMain_i {
                          SeqCat(io_partition) == ProjectStepTraceToHostIos(trace, host) 
                       && |io_partition| == |behavior| - 1
                       && (forall i :: 0 <= i < |io_partition| ==> HostNext(behavior[i], behavior[i+1], io_partition[i])); 
-        ensures  |qb| == |cm|;
-        ensures  cm[0] == 0;                                            // Beginnings match
-        ensures  forall i :: 0 <= i < |cm| ==> 0 <= cm[i] < |sb|;       // Mappings are in bounds
-        ensures  forall i {:trigger cm[i], cm[i+1]} :: 0 <= i < |cm| - 1 ==> cm[i] <= cm[i+1];    // Mapping is monotonic
+        ensures  |qb| == |sb|;
         ensures  Service_Init(sb[0], Collections__Maps2_s.mapdomain(qb[0].servers));
-        ensures  forall i {:trigger Service_Next(sb[i], sb[i+1])} :: 0 <= i < |sb| - 1 ==> Service_Next(sb[i], sb[i+1]);
-        ensures  forall i :: 0 <= i < |qb| ==> Service_Correspondence(qb[i].environment.nextStep, sb[cm[i]]);
+        //ensures  forall i {:trigger Service_Next(sb[i], sb[i+1])} :: 0 <= i < |sb| - 1 ==> (sb[i] == sb[i+1]) || Service_Next(sb[i], sb[i+1]);
+        //ensures  forall i :: 0 <= i < |qb| ==> Service_Correspondence(qb[i].environment.nextStep, sb[i]);
     {
-        var qb', db', cm_step1 := BryansProof(config, qb, LeaseSpecIoFilter); 
+        var qb', db' := BryansProof(config, qb, LeaseSpecIoFilter); 
 
-        var cm_step2;
-        sb, cm_step2 := RefinementProof(config, db');
+        sb := RefinementProof(config, db');
 
+        calc ==> {
+            true;
+            Service_Init(sb[0], Collections__Maps2_s.mapdomain(db'[0].servers));
+            Service_Init(sb[0], Collections__Maps2_s.mapdomain(qb'[0].servers));
+            Service_Init(sb[0], Collections__Maps2_s.mapdomain(qb[0].servers));
+        }
+        assert |qb| == |sb|;
 
-        assume false;
+        assert Service_Init(sb[0], Collections__Maps2_s.mapdomain(qb[0].servers));        
+
+        forall i {:trigger Service_Correspondence(qb[i].environment.nextStep, sb[i])} | 0 <= i < |qb| 
+          ensures Service_Correspondence(qb[i].environment.nextStep, sb[i]);
+        {
+          assume false;
+        }
+
+        
 
 
     }
