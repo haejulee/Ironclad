@@ -156,12 +156,18 @@ module TrueMain_i {
     }
 
     ghost method FindProjectDsExternalIOIndex(db:seq<DS_State>, external_io:IoPredicate, projected_index:int) returns (db_index:int)
-        requires 0 <= db_index < |db|;
         requires forall io :: external_io.requires(io);
-        requires var step := db[db_index].environment.nextStep;
-                 step.LEnvStepHostIos? && |step.ios| == 1 && external_io(step.ios[0])
         ensures  0 <= projected_index < |ProjectDsExternalIO(db, external_io)|;
+        ensures  0 <= db_index < |db|;
+        ensures  var step := db[db_index].environment.nextStep;
+                 step.LEnvStepHostIos? && |step.ios| == 1 && external_io(step.ios[0])
         ensures  ProjectDsExternalIO(db, external_io)[projected_index] == db[db_index].environment.nextStep.ios[0];
+    {
+        if qb == [] then
+
+
+    }
+
 
     lemma UltimateRefinementProof(config:ConcreteConfiguration, qb:seq<QS_State>) returns (sb:seq<ServiceState>)
         requires |qb| > 0;
