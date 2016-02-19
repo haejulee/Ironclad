@@ -13,7 +13,7 @@ predicate SendSingleValid<MT>(s:SingleDeliveryAcct, s':SingleDeliveryAcct, sm:Si
        new_seqno <= params.max_seqno
 }
 
-lemma Lemma_PacketSentEventuallyReceivedAndNotDiscarded(
+lemma {:timeLimitMultiplier 2} Lemma_PacketSentEventuallyReceivedAndNotDiscarded(
     b:Behavior<LSHT_State>,
     asp:AssumptionParameters,
     src_idx:int,
@@ -58,7 +58,9 @@ lemma Lemma_PacketSentEventuallyReceivedAndNotDiscarded(
     Lemma_ConstantsAllConsistent(b, asp.c, prev_step);
     var p2 := ap2.ios[0].r;
 
-    Lemma_PacketStaysInSentPackets(b, asp.c, send_step+1, prev_step, p1);
+    if prev_step > send_step {
+        Lemma_PacketStaysInSentPackets(b, asp.c, send_step+1, prev_step, p1);
+    }
     Lemma_PacketsHaveSenderUniqueSeqnos(b, asp.c, prev_step, p1, p2);
     received_step := prev_step + 1;
 }

@@ -575,9 +575,9 @@ lemma ReceivePacket_EachKeyClaimed(s:SHT_State, s':SHT_State, id:NodeIdentity, r
 
                     if NewSingleMessage(s.hosts[id].sd, pkt) {
                         assert s'.hosts[id].receivedPacket.v == pkt;
-                        var last_seqno := TombstoneTableLookup(pkt.src, h.sd.receiveState);
-                        assert pkt.msg.seqno == last_seqno + 1;
-                        assert h'.sd == h.sd.(receiveState := h.sd.receiveState[pkt.src := nat_t(last_seqno + 1)]);
+                        var last_seqno_local := TombstoneTableLookup(pkt.src, h.sd.receiveState);
+                        assert pkt.msg.seqno == last_seqno_local + 1;
+                        assert h'.sd == h.sd.(receiveState := h.sd.receiveState[pkt.src := nat_t(last_seqno_local + 1)]);
                         assert !NewSingleMessage(s'.hosts[id].sd, pkt);
                         assert BufferedPacketClaimsKey(s'.hosts[id], k);
                         assert HostClaimsKey(s'.hosts[id], k);
@@ -620,7 +620,7 @@ lemma ReceivePacket_EachKeyClaimed(s:SHT_State, s':SHT_State, id:NodeIdentity, r
                 assert NoInFlightPacketClaimsKey(s', k);
 
                 assert SomeHostClaimsKey(s, k);
-                assert exists id :: id in AllHostIdentities(s) && HostClaimsKey(s.hosts[id], k);
+                assert exists id1 :: id1 in AllHostIdentities(s) && HostClaimsKey(s.hosts[id1], k);
                 var i :| i in AllHostIdentities(s) && HostClaimsKey(s.hosts[i], k);
                 assert HostClaimsKey(s'.hosts[i], k);
 
@@ -818,14 +818,14 @@ lemma DelegateStabilitySpecific(s:SHT_State, s':SHT_State, k:Key, id:NodeIdentit
     requires MapComplete(s) && InvConstants(s);
     requires MapComplete(s') && InvConstants(s');
     requires NoConfigChanged(s, s');
-    requires forall id :: id in AllHostIdentities(s) && DelegationPacket(s.hosts[id].receivedPacket) 
-              ==> s'.hosts[id].receivedPacket == s.hosts[id].receivedPacket
-               && NewSingleMessage(s.hosts[id].sd, s.hosts[id].receivedPacket.v) ==
-                  NewSingleMessage(s'.hosts[id].sd, s'.hosts[id].receivedPacket.v);
-    requires forall id :: id in AllHostIdentities(s) && !DelegationPacket(s.hosts[id].receivedPacket) 
-              ==> s'.hosts[id].receivedPacket.None?; 
-    requires forall id :: id in AllHostIdentities(s)
-        ==> s'.hosts[id].delegationMap == s.hosts[id].delegationMap;
+    requires forall id1 :: id1 in AllHostIdentities(s) && DelegationPacket(s.hosts[id1].receivedPacket) 
+              ==> s'.hosts[id1].receivedPacket == s.hosts[id1].receivedPacket
+               && NewSingleMessage(s.hosts[id1].sd, s.hosts[id1].receivedPacket.v) ==
+                  NewSingleMessage(s'.hosts[id1].sd, s'.hosts[id1].receivedPacket.v);
+    requires forall id1 :: id1 in AllHostIdentities(s) && !DelegationPacket(s.hosts[id1].receivedPacket) 
+              ==> s'.hosts[id1].receivedPacket.None?; 
+    requires forall id1 :: id1 in AllHostIdentities(s)
+        ==> s'.hosts[id1].delegationMap == s.hosts[id1].delegationMap;
     requires id in AllHostIdentities(s);
     ensures HostClaimsKey(s.hosts[id], k) <==> HostClaimsKey(s'.hosts[id],k);
 {
@@ -899,7 +899,7 @@ lemma NonDelegationsEachKeyClaimedInExactlyOnePlace_case1(s:SHT_State, s':SHT_St
 //    assert exists pkt :: InFlightPacketClaimsKey(s, pkt, k);
     var pkt :| InFlightPacketClaimsKey(s, pkt, k);
     assert InFlightPacketClaimsKey(s', pkt, k);
-    assert exists pkt :: InFlightPacketClaimsKey(s', pkt, k);
+    assert exists pkt1 :: InFlightPacketClaimsKey(s', pkt1, k);
 
 //    assert SomePacketClaimsKey(s', k);
 
@@ -1087,25 +1087,25 @@ lemma {:timeLimitMultiplier 3} NextInv_Get(s:SHT_State, s':SHT_State, id:NodeIde
 
         // Prove UnAckedListInNetwork 
         reveal_UnAckedListInNetwork();
-        forall id,msg,dst |
-                id  in AllHostIdentities(s)
-             && msg in AckStateLookup(dst, s'.hosts[id].sd.sendState).unAcked
-             && NoAcksInUnAckedLists(s'.hosts[id].sd)
+        forall id1,msg,dst |
+                id1  in AllHostIdentities(s)
+             && msg in AckStateLookup(dst, s'.hosts[id1].sd.sendState).unAcked
+             && NoAcksInUnAckedLists(s'.hosts[id1].sd)
              && dst == msg.dst
-            ensures Packet(msg.dst, s'.hosts[id].me, msg) in s'.network;
+            ensures Packet(msg.dst, s'.hosts[id1].me, msg) in s'.network;
         {
-            var unAcked  := AckStateLookup(dst, s.hosts[id].sd.sendState).unAcked;
-            var unAcked' := AckStateLookup(dst, s'.hosts[id].sd.sendState).unAcked;
+            var unAcked  := AckStateLookup(dst, s.hosts[id1].sd.sendState).unAcked;
+            var unAcked' := AckStateLookup(dst, s'.hosts[id1].sd.sendState).unAcked;
             var i :| 0 <= i < |unAcked'| && unAcked'[i] == msg;
             if i < |unAcked| {
-                assert msg in AckStateLookup(dst, s.hosts[id].sd.sendState).unAcked;
+                assert msg in AckStateLookup(dst, s.hosts[id1].sd.sendState).unAcked;
             } else {
-                var oldAckState := AckStateLookup(dst, s.hosts[id].sd.sendState); 
+                var oldAckState := AckStateLookup(dst, s.hosts[id1].sd.sendState); 
                 var new_seqno := oldAckState.numPacketsAcked + |oldAckState.unAcked| + 1;
-                if new_seqno > s.hosts[id].constants.params.max_seqno {
+                if new_seqno > s.hosts[id1].constants.params.max_seqno {
                     assert out == {};
                 } else {
-                    assert out == {Packet(msg.dst, s'.hosts[id].me, msg)};
+                    assert out == {Packet(msg.dst, s'.hosts[id1].me, msg)};
                 }
             }
         }
@@ -1166,25 +1166,25 @@ lemma NextInv_Set(s:SHT_State, s':SHT_State, id:NodeIdentity, recv:set<Packet>, 
 
         // Prove UnAckedListInNetwork 
         reveal_UnAckedListInNetwork();
-        forall id,msg,dst |
-                id  in AllHostIdentities(s)
-             && msg in AckStateLookup(dst, s'.hosts[id].sd.sendState).unAcked
-             && NoAcksInUnAckedLists(s'.hosts[id].sd)
+        forall id1,msg,dst |
+                id1  in AllHostIdentities(s)
+             && msg in AckStateLookup(dst, s'.hosts[id1].sd.sendState).unAcked
+             && NoAcksInUnAckedLists(s'.hosts[id1].sd)
              && dst == msg.dst
-            ensures Packet(msg.dst, s'.hosts[id].me, msg) in s'.network;
+            ensures Packet(msg.dst, s'.hosts[id1].me, msg) in s'.network;
         {
-            var unAcked  := AckStateLookup(dst, s.hosts[id].sd.sendState).unAcked;
-            var unAcked' := AckStateLookup(dst, s'.hosts[id].sd.sendState).unAcked;
+            var unAcked  := AckStateLookup(dst, s.hosts[id1].sd.sendState).unAcked;
+            var unAcked' := AckStateLookup(dst, s'.hosts[id1].sd.sendState).unAcked;
             var i :| 0 <= i < |unAcked'| && unAcked'[i] == msg;
             if i < |unAcked| {
-                assert msg in AckStateLookup(dst, s.hosts[id].sd.sendState).unAcked;
+                assert msg in AckStateLookup(dst, s.hosts[id1].sd.sendState).unAcked;
             } else {
-                var oldAckState := AckStateLookup(dst, s.hosts[id].sd.sendState); 
+                var oldAckState := AckStateLookup(dst, s.hosts[id1].sd.sendState); 
                 var new_seqno := oldAckState.numPacketsAcked + |oldAckState.unAcked| + 1;
-                if new_seqno > s.hosts[id].constants.params.max_seqno {
+                if new_seqno > s.hosts[id1].constants.params.max_seqno {
                     assert out == {};
                 } else {
-                    assert out == {Packet(msg.dst, s'.hosts[id].me, msg)};
+                    assert out == {Packet(msg.dst, s'.hosts[id1].me, msg)};
                 }
             }
         }
@@ -1282,9 +1282,9 @@ lemma NextInv_Delegate_EachKeyClaimedInExactlyOnePlace_NoInFlightPacketClaimsKey
             }
         }
     }
-    assert forall pkt :: !InFlightPacketClaimsKey(s', pkt, k);   // OBSERVE unfortunate trigger
-    assert exists id
-        :: id in AllHostIdentities(s) && HostClaimsKey(s'.hosts[id], k);   // OBSERVE unfortunate trigger
+    assert forall pkt1 :: !InFlightPacketClaimsKey(s', pkt1, k);   // OBSERVE unfortunate trigger
+    assert exists id1
+        :: id1 in AllHostIdentities(s) && HostClaimsKey(s'.hosts[id1], k);   // OBSERVE unfortunate trigger
     assert forall i1,i2
         :: i1 in AllHostIdentities(s) && HostClaimsKey(s.hosts[i1], k)
         && i2 in AllHostIdentities(s) && HostClaimsKey(s.hosts[i2], k)
@@ -1414,10 +1414,10 @@ lemma NextInv_Delegate(s:SHT_State, s':SHT_State, id:NodeIdentity, recv:set<Pack
         }
     }
 
-    forall id,k:Key | id in AllHostIdentities(s)
-        ensures DelegateForKey(s'.hosts[id].delegationMap, k) in AllHostIdentities(s);
+    forall id1,k:Key | id1 in AllHostIdentities(s)
+        ensures DelegateForKey(s'.hosts[id1].delegationMap, k) in AllHostIdentities(s);
     {
-        assert DelegateForKey(s.hosts[id].delegationMap, k) in AllHostIdentities(s); // OBSERVE trigger
+        assert DelegateForKey(s.hosts[id1].delegationMap, k) in AllHostIdentities(s); // OBSERVE trigger
     }
 
     forall i,k | i in AllHostIdentities(s) && k in s'.hosts[i].h
@@ -1540,11 +1540,11 @@ lemma NextInv_Shard(s:SHT_State, s':SHT_State, id:NodeIdentity, recv:set<Packet>
         reveal_EachKeyClaimedInExactlyOnePlace();
     }
 
-    forall id,k:Key | id in AllHostIdentities(s)
-        ensures DelegateForKey(s'.hosts[id].delegationMap, k) in AllHostIdentities(s);
+    forall id1,k:Key | id1 in AllHostIdentities(s)
+        ensures DelegateForKey(s'.hosts[id1].delegationMap, k) in AllHostIdentities(s);
     {
         assert AllDelegationsToKnownHosts(s);
-        assert DelegateForKey(s.hosts[id].delegationMap, k) in AllHostIdentities(s); // OBSERVE trigger
+        assert DelegateForKey(s.hosts[id1].delegationMap, k) in AllHostIdentities(s); // OBSERVE trigger
     } //assert AllDelegationsToKnownHosts(s');
 
     forall dst, src, seqno ensures ReceiverHasNotCanceledUnsentSeqno(s', dst, src, seqno);
@@ -1556,25 +1556,25 @@ lemma NextInv_Shard(s:SHT_State, s':SHT_State, id:NodeIdentity, recv:set<Packet>
 
     // Prove UnAckedListInNetwork
     reveal_UnAckedListInNetwork();
-    forall id,msg,dst |
-            id  in AllHostIdentities(s)
-         && msg in AckStateLookup(dst, s'.hosts[id].sd.sendState).unAcked
-         && NoAcksInUnAckedLists(s'.hosts[id].sd)
+    forall id1,msg,dst |
+            id1  in AllHostIdentities(s)
+         && msg in AckStateLookup(dst, s'.hosts[id1].sd.sendState).unAcked
+         && NoAcksInUnAckedLists(s'.hosts[id1].sd)
          && dst == msg.dst
-        ensures Packet(msg.dst, s'.hosts[id].me, msg) in s'.network;
+        ensures Packet(msg.dst, s'.hosts[id1].me, msg) in s'.network;
     {
-        var unAcked  := AckStateLookup(dst, s.hosts[id].sd.sendState).unAcked;
-        var unAcked' := AckStateLookup(dst, s'.hosts[id].sd.sendState).unAcked;
+        var unAcked  := AckStateLookup(dst, s.hosts[id1].sd.sendState).unAcked;
+        var unAcked' := AckStateLookup(dst, s'.hosts[id1].sd.sendState).unAcked;
         var i :| 0 <= i < |unAcked'| && unAcked'[i] == msg;
         if i < |unAcked| {
-            assert msg in AckStateLookup(dst, s.hosts[id].sd.sendState).unAcked;
+            assert msg in AckStateLookup(dst, s.hosts[id1].sd.sendState).unAcked;
         } else {
-            var oldAckState := AckStateLookup(dst, s.hosts[id].sd.sendState); 
+            var oldAckState := AckStateLookup(dst, s.hosts[id1].sd.sendState); 
             var new_seqno := oldAckState.numPacketsAcked + |oldAckState.unAcked| + 1;
-            if new_seqno > s.hosts[id].constants.params.max_seqno {
+            if new_seqno > s.hosts[id1].constants.params.max_seqno {
                 assert out == {};
             } else {
-                assert out == {Packet(msg.dst, s'.hosts[id].me, msg)};
+                assert out == {Packet(msg.dst, s'.hosts[id1].me, msg)};
             }
         }
     }

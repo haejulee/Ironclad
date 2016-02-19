@@ -543,6 +543,14 @@ import opened Math__mul_i
                         }
                         assert countWithin(i2', i3, x) <= count;
 
+                        calc {
+                            actionsWithin(i2, i2', x);
+                            (set i | i == i2 && sat(i, x));
+                            ({});
+                        }
+
+                        assert actionsWithin(i1, i3, x) == actionsWithin(i1, i2, x) + actionsWithin(i2, i3, x);
+                        assert actionsWithin(i2, i3, x) == actionsWithin(i2, i2', x) + actionsWithin(i2', i3, x);
                         assert actionsWithin(i1, i3, x) == actionsWithin(i1, i2, x) + actionsWithin(i2', i3, x);
                         assert |actionsWithin(i1, i3, x)| >= |actionsWithin(i1, i2, x)| + |actionsWithin(i2', i3, x)|;
                     }

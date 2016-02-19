@@ -206,10 +206,14 @@ method DelegateForKeyRangeIsHostImpl(m:CDelegationMap, kr:KeyRange, id:EndPoint)
                  InBounds(i, int(lo_index), int(index), |m'.lows|)
             ensures m'.lows[i].id == id;
         {
-            if i < int(old_index) {
-                assert InBounds(i, int(lo_index), int(old_index), |m'.lows|) ==> m'.lows[i].id == id;
-            } else {
+             if i < int(old_index) {
+                assert InBounds(i, int(lo_index), int(old_index), |m'.lows|);
             }
+            else {
+                assert index == old_index + 1;
+                assert int(old_index) <= i < int(index);
+                assert i == int(old_index);
+             }
         }
 
     }

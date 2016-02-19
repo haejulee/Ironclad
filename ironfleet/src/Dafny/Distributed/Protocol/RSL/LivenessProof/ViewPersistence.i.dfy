@@ -65,7 +65,7 @@ function{:opaque} NoLiveReplicaSuspectsViewBeforeTemporal(
     stepmap(imap i :: NoLiveReplicaSuspectsViewBefore(b[i], live_quorum, view, endTime, max_clock_ambiguity))
 }
 
-lemma{:timeLimitMultiplier 2} lemma_NoLiveReplicaSuspectsViewBeforeStableOneStep(
+lemma {:timeLimitMultiplier 4} lemma_NoLiveReplicaSuspectsViewBeforeStableOneStep(
     b:Behavior<RslState>,
     asp:AssumptionParameters,
     i:int,
@@ -252,7 +252,7 @@ function{:opaque} SomeReplicaInLiveQuorumReachedViewTemporal(
     stepmap(imap i :: SomeReplicaInLiveQuorumReachedView(b[i], live_quorum, view))
 }
 
-lemma lemma_FirstStepWithLiveReplicaInQuorumHasNoLiveReplicaSuspectingBeforeIfHeartbeat(
+lemma {:timeLimitMultiplier 2} lemma_FirstStepWithLiveReplicaInQuorumHasNoLiveReplicaSuspectingBeforeIfHeartbeat(
     b:Behavior<RslState>,
     asp:AssumptionParameters,
     view:Ballot,

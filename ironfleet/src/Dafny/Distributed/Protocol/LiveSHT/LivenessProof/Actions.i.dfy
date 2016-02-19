@@ -166,8 +166,8 @@ lemma Lemma_GetParametersOfAction0(
 
     assert LSHT_Next(b[i], b[i+1]);
     //assert !LSHT_NextEnvironment(b[i], b[i+1]);
-    assert !(exists idx, ios :: LSHT_NextExternal(b[i], b[i+1], idx, ios));
-    assert exists idx, ios :: LSHT_NextOneHost(b[i], b[i+1], idx, ios);
+    assert !(exists idx1, ios :: LSHT_NextExternal(b[i], b[i+1], idx1, ios));
+    assert exists idx1, ios :: LSHT_NextOneHost(b[i], b[i+1], idx1, ios);
 
     var other_idx, ios :| LSHT_NextOneHost(b[i], b[i+1], other_idx, ios);
     assert HostsDistinct(c.hostIds, idx, other_idx);

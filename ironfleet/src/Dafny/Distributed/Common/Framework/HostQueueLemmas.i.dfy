@@ -164,6 +164,7 @@ lemma{:timeLimitMultiplier 2} Lemma_ReceiveRemovesPacketFromHostQueue<IdType, Me
         calc {
             hostQueue;
             [hostQueue[0]] + hostQueue[1..];
+            [hostQueue[0]] + (s1' + [p] + s2 + hostQueue');
             [hostQueue[0]] + s1' + [p] + s2 + hostQueue';
         }
         var s1 := [hostQueue[0]] + s1';

@@ -114,7 +114,7 @@ import opened LiveRSL__CClockReading_i
         reveal_Q_LReplica_Next_ReadClock_CheckForViewTimeout();
     }
 
-    method {:fuel ReplicaStateIsValid,0,0}{:timeLimitMultiplier 3} ReplicaNoReceiveReadClockNextCheckForViewTimeout(r:ReplicaImpl)
+    method {:fuel ReplicaStateIsValid,0,0}{:timeLimitMultiplier 4} ReplicaNoReceiveReadClockNextCheckForViewTimeout(r:ReplicaImpl)
         returns
         (ok:bool,
          ghost udpEventLog:seq<UdpEvent>,
@@ -176,7 +176,7 @@ import opened LiveRSL__CClockReading_i
         reveal_Q_LReplica_Next_ReadClock_CheckForQuorumOfViewSuspicions();
     }
 
-    method {:fuel ReplicaStateIsValid,0,0}{:timeLimitMultiplier 3} ReplicaNoReceiveReadClockNextCheckForQuorumOfViewSuspicions(r:ReplicaImpl)
+    method {:fuel ReplicaStateIsValid,0,0}{:timeLimitMultiplier 10} ReplicaNoReceiveReadClockNextCheckForQuorumOfViewSuspicions(r:ReplicaImpl)
         returns
         (ok:bool,
          ghost udpEventLog:seq<UdpEvent>,

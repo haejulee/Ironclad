@@ -91,7 +91,7 @@ lemma lemma_MaxBalReflectedInvariantHolds(
         lemma_AssumptionsMakeValidTransition(b, asp.c, i-1);
         lemma_MaxBalReflectedInvariantHolds(b, asp, i-1);
 
-        forall idx | 0 <= idx < |b[i].replicas|
+        forall idx {:trigger PrimaryHasReachedState2OfBallot(b[i], b[i].replicas[idx].replica.executor.max_bal_reflected)} | 0 <= idx < |b[i].replicas|
             ensures PrimaryHasReachedState2OfBallot(b[i], b[i].replicas[idx].replica.executor.max_bal_reflected);
         {
             var max_bal_reflected := b[i-1].replicas[idx].replica.executor.max_bal_reflected;

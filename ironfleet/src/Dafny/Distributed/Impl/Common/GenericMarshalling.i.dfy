@@ -1309,7 +1309,7 @@ method{:timeLimitMultiplier 4} MarshallArrayContents(contents:seq<V>, eltType:G,
         invariant 0 <= int(i) <= |contents|;
         invariant 0 <= int(index) <= int(index) + SeqSum(contents[..i]) <= data.Length;
         invariant int(cur_index) == int(index) + SeqSum(contents[..i]);
-        invariant forall j :: 0 <= j < index ==> data[j] == old(data[j]);
+        invariant forall j {:trigger 0 <= j, j < index} :: 0 <= j < index ==> data[j] == old(data[j]);
         invariant forall j :: int(index) + SeqSum(contents) <= j < data.Length ==> data[j] == old(data[j]);
         invariant marshalled_bytes == data[index..cur_index];
         invariant marshalled_bytes == SeqCatRev(trace);
@@ -1378,6 +1378,12 @@ method{:timeLimitMultiplier 4} MarshallArrayContents(contents:seq<V>, eltType:G,
         }
         assert int(cur_index) == int(index) + SeqSum(contents[..i]);
         assert marshalled_bytes == data[index..cur_index];
+
+        forall j | 0 <= j < |trace|
+            ensures var (val, rest) := parse_Val(trace[j], eltType);
+                    val.Some? && val.v == contents[j];
+        {
+        }
     }
 
     // Prove that parsing will produce the correct result
@@ -1405,7 +1411,7 @@ method MarshallArray(val:V, grammar:G, data:array<byte>, index:uint64) returns (
     decreases grammar, -1;
     ensures  parse_Val(data[index..int(index) + SizeOfV(val)], grammar).0.Some? &&
              parse_Val(data[index..int(index) + SizeOfV(val)], grammar).0.v == val;
-    ensures  forall i :: 0 <= i < index ==> data[i] == old(data[i]);
+    ensures  forall i {:trigger 0 <= i, i < index} :: 0 <= i < index ==> data[i] == old(data[i]);
     ensures  forall i :: int(index) + SizeOfV(val) <= i < data.Length ==> data[i] == old(data[i]);
     ensures  int(size) == SizeOfV(val);
 {
@@ -1538,7 +1544,7 @@ method{:timeLimitMultiplier 2} MarshallTupleContents(contents:seq<V>, eltTypes:s
         invariant 0 <= int(i) <= |contents|;
         invariant 0 <= int(index) <= int(index) + SeqSum(contents[..i]) <= data.Length;
         invariant int(cur_index) == int(index) + SeqSum(contents[..i]);
-        invariant forall j :: 0 <= j < index ==> data[j] == old(data[j]);
+        invariant forall j {:trigger 0 <= j, j < index} :: 0 <= j < index ==> data[j] == old(data[j]);
         invariant forall j :: int(index) + SeqSum(contents) <= j < data.Length ==> data[j] == old(data[j]);
         invariant marshalled_bytes == data[index..cur_index];
         invariant marshalled_bytes == SeqCatRev(trace);
@@ -1646,7 +1652,7 @@ method MarshallTuple(val:V, grammar:G, data:array<byte>, index:uint64) returns (
     decreases grammar, -1;
     ensures  parse_Val(data[index..int(index) + SizeOfV(val)], grammar).0.Some? &&
              parse_Val(data[index..int(index) + SizeOfV(val)], grammar).0.v == val;
-    ensures  forall i :: 0 <= i < index ==> data[i] == old(data[i]);
+    ensures  forall i {:trigger 0 <= i, i < index} :: 0 <= i < index ==> data[i] == old(data[i]);
     ensures  forall i :: int(index) + SizeOfV(val) <= i < data.Length ==> data[i] == old(data[i]);
     ensures  int(size) == SizeOfV(val);
 {

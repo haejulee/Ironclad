@@ -136,6 +136,15 @@ module MarshallProof_i {
     {
     }
 
+    lemma lemma_DataCorrespondsToMarshallServiceRequest(data:seq<byte>, seqno:int, request:AppMessage)
+        requires |data| == 32;
+        requires 0 <= seqno < 0x10000000000000000;
+        requires request.AppIncrementReply?;
+        requires data == [ 0, 0, 0, 0, 0, 0, 0, 0] + Uint64ToSeqByte(uint64(seqno)) + [ 0, 0, 0, 0, 0, 0, 0, 1] + Uint64ToSeqByte(uint64(request.response));
+        ensures  data == MarshallServiceRequest(seqno, request)
+    {
+    }
+
     lemma {:timeLimitMultiplier 6} {:fuel ValInGrammar,3} lemma_ParseMarshallRequest(bytes:seq<byte>, msg:RslMessage)
         requires msg.RslMessage_Request?;
         requires CMessageIsAbstractable(PaxosDemarshallData(bytes));
@@ -218,7 +227,7 @@ module MarshallProof_i {
                 data[0..32];
                     { assert |data| >= 32; ByteConcat32(data); }
                 data[0..8] + data[8..16] + data[16..24] + data[24..32];
-                [ 0, 0, 0, 0, 0, 0, 0, 0] + Uint64ToSeqByte(uint64(msg.seqno_req)) + [ 0, 0, 0, 0, 0, 0, 0, 1] + Uint64ToSeqByte(uint64(msg.val.response)); 
+                [ 0, 0, 0, 0, 0, 0, 0, 0] + Uint64ToSeqByte(uint64(msg.seqno_req)) + [ 0, 0, 0, 0, 0, 0, 0, 1] + Uint64ToSeqByte(uint64(msg.val.response));
             }
             //assert data[0..32] == [ 0, 0, 0, 0, 0, 0, 0, 0] + Uint64ToSeqByte(uint64(msg.seqno_req)) + [ 0, 0, 0, 0, 0, 0, 0, 1] + Uint64ToSeqByte(uint64(msg.val.response));
             lemma_SizeOfCMessageRequest1(v);
@@ -229,6 +238,7 @@ module MarshallProof_i {
                 assert false;
             }
             assert |data| == 32;
+            lemma_DataCorrespondsToMarshallServiceRequest(data, msg.seqno_req, msg.val);
             assert data == MarshallServiceRequest(msg.seqno_req, msg.val);
         } else {
             assert cmsg.val.CAppInvalid?;
@@ -242,6 +252,7 @@ module MarshallProof_i {
                 data[0..8] + data[8..16] + data[16..24];
                 [ 0, 0, 0, 0, 0, 0, 0, 0] + data[8..16] + data[16..24];
                 [ 0, 0, 0, 0, 0, 0, 0, 0] + Uint64ToSeqByte(uint64(msg.seqno_req)) + data[16..24];
+                [ 0, 0, 0, 0, 0, 0, 0, 0] + (Uint64ToSeqByte(uint64(msg.seqno_req)) + [ 0, 0, 0, 0, 0, 0, 0, 2]);
                 [ 0, 0, 0, 0, 0, 0, 0, 0] + Uint64ToSeqByte(uint64(msg.seqno_req)) + [ 0, 0, 0, 0, 0, 0, 0, 2]; 
             }
             assert data[0..24] == [ 0, 0, 0, 0, 0, 0, 0, 0] + Uint64ToSeqByte(uint64(msg.seqno_req)) + [ 0, 0, 0, 0, 0, 0, 0, 2]; 

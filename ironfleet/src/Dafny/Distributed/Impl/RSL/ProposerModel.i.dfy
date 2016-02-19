@@ -86,7 +86,7 @@ method InitProposerState(constants:ReplicaConstantsState) returns (proposer:Prop
 //    set k | k in m :: m[k]
 //}
 
-method {:timeLimitMultiplier 2} ProposerProcessRequest(proposer:ProposerState, packet:CPacket, cur_req_set:MutableSet<CRequestHeader>, prev_req_set:MutableSet<CRequestHeader>) returns (proposer':ProposerState)
+method {:timeLimitMultiplier 3} ProposerProcessRequest(proposer:ProposerState, packet:CPacket, cur_req_set:MutableSet<CRequestHeader>, prev_req_set:MutableSet<CRequestHeader>) returns (proposer':ProposerState)
     requires ProposerIsValid(proposer);
     requires CPacketIsAbstractable(packet);
     requires packet.msg.CMessage_Request?;
@@ -1301,7 +1301,7 @@ method ProposerCheckForViewTimeout(proposer:ProposerState, clock:uint64, cur_req
     proposer' := proposer.(election_state := election_state');
 }
 
-method ProposerCheckForQuorumOfViewSuspicions(proposer:ProposerState, clock:uint64, cur_req_set:MutableSet<CRequestHeader>, prev_req_set:MutableSet<CRequestHeader>) returns (proposer':ProposerState)
+method {:timeLimitMultiplier 2} ProposerCheckForQuorumOfViewSuspicions(proposer:ProposerState, clock:uint64, cur_req_set:MutableSet<CRequestHeader>, prev_req_set:MutableSet<CRequestHeader>) returns (proposer':ProposerState)
     requires ProposerIsValid(proposer);
     requires cur_req_set != null && prev_req_set != null;
     requires MutableSet.SetOf(cur_req_set) == proposer.election_state.cur_req_set;

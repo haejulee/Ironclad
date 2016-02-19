@@ -114,20 +114,20 @@ method ReceiveAckImpl(acct:CSingleDeliveryAcct, pkt:CPacket, ghost params:CParam
     if pkt.msg.ack_seqno > oldAckState.numPacketsAcked {
         var newUnAcked := TruncateUnAckListImpl(oldAckState.unAcked, pkt.msg.ack_seqno, pkt.src, int(oldAckState.numPacketsAcked), int(params.max_seqno));
         assert CUnAckedListValidForDst(newUnAcked, pkt.src);
-        var newAckState := oldAckState[numPacketsAcked := pkt.msg.ack_seqno]
-                                      [unAcked := newUnAcked];
+        var newAckState := oldAckState.(numPacketsAcked := pkt.msg.ack_seqno,
+                                       unAcked := newUnAcked);
         lemma_AbstractifyEndPointToNodeIdentity_injective_forall();
         lemma_AbstractifyMap_properties(acct.sendState, AbstractifyEndPointToNodeIdentity, AbstractifyCAskStateToAckState, RefineNodeIdentityToEndPoint);
         assert AbstractifyCAskStateToAckState(newAckState) == 
-               AbstractifyCAskStateToAckState(oldAckState)[numPacketsAcked := AbstractifyCPacketToShtPacket(pkt).msg.ack_seqno]
-                                            [unAcked := AbstractifySeqOfCSingleMessageToSeqOfSingleMessage(newUnAcked)];
+               AbstractifyCAskStateToAckState(oldAckState).(numPacketsAcked := AbstractifyCPacketToShtPacket(pkt).msg.ack_seqno,
+                                                            unAcked := AbstractifySeqOfCSingleMessageToSeqOfSingleMessage(newUnAcked));
 //        if newAckState.unAcked == [] {
 //            assert int(pkt.msg.ack_seqno) < int(params.max_seqno);
 //            assert int(newAckState.numPacketsAcked) + |newAckState.unAcked| <= int(params.max_seqno);
 //        } else {
 //            assert int(newAckState.numPacketsAcked) + |newAckState.unAcked| <= int(params.max_seqno);
 //        }
-        acct' := acct[sendState := acct.sendState[pkt.src := newAckState]];
+        acct' := acct.(sendState := acct.sendState[pkt.src := newAckState]);
     } else {
         acct' := acct;
     }
@@ -183,7 +183,7 @@ method ReceiveRealPacketImpl(acct:CSingleDeliveryAcct, pkt:CPacket, ghost params
     var b := NewSingleMessageImpl(acct, pkt, params);
     if b {
         var last_seqno := CTombstoneTableLookup(pkt.src, acct.receiveState);
-        acct' := acct[receiveState := acct.receiveState[pkt.src := last_seqno + 1]];
+        acct' := acct.(receiveState := acct.receiveState[pkt.src := last_seqno + 1]);
 
         lemma_AbstractifyEndPointToNodeIdentity_injective_forall();
         lemma_AbstractifyMap_properties(acct.receiveState, AbstractifyEndPointToNodeIdentity, uint64_to_nat_t, RefineNodeIdentityToEndPoint);
@@ -252,9 +252,9 @@ method SendSingleCMessage(acct:CSingleDeliveryAcct, m:CMessage, dst:EndPoint, pa
         assert MapSeqToSeq(oldAckState.unAcked + [sm_new], AbstractifyCSingleMessageToSingleMessage) == 
                MapSeqToSeq(oldAckState.unAcked, AbstractifyCSingleMessageToSingleMessage) + [AbstractifyCSingleMessageToSingleMessage(sm_new)];
 
-        var newAckState := oldAckState[unAcked := oldAckState.unAcked + [sm_new]];
+        var newAckState := oldAckState.(unAcked := oldAckState.unAcked + [sm_new]);
         var acctInt := acct.sendState[dst := newAckState];
-        acct' := acct[sendState := acctInt];
+        acct' := acct.(sendState := acctInt);
         sm := sm_new;
         shouldSend := true;
         UnAckedListFinalEntry(AbstractifySeqOfCSingleMessageToSeqOfSingleMessage(oldAckState.unAcked), int(oldAckState.numPacketsAcked));

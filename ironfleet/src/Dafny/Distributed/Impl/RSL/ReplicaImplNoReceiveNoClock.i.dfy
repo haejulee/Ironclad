@@ -33,7 +33,7 @@ import opened LiveRSL__CClockReading_i
         reveal_Q_LReplica_Next_Spontaneous_MaybeEnterNewViewAndSend1a();
     }
 
-    method ReplicaNoReceiveNoClockNextSpontaneousMaybeEnterNewViewAndSend1a(r:ReplicaImpl)
+    method {:timeLimitMultiplier 2} ReplicaNoReceiveNoClockNextSpontaneousMaybeEnterNewViewAndSend1a(r:ReplicaImpl)
         returns (ok:bool, ghost udpEventLog:seq<UdpEvent>, ghost ios:seq<RslIo>)
         requires r != null;
         requires r.nextActionIndex==1;
@@ -217,7 +217,7 @@ import opened LiveRSL__CClockReading_i
         reveal_Q_LReplica_Next_Spontaneous_MaybeExecute();
     }
 
-    method ReplicaNoReceiveNoClockNextSpontaneousMaybeExecute(r:ReplicaImpl)
+    method {:timeLimitMultiplier 6} ReplicaNoReceiveNoClockNextSpontaneousMaybeExecute(r:ReplicaImpl)
         returns (ok:bool, ghost udpEventLog:seq<UdpEvent>, ghost ios:seq<RslIo>)
         requires r != null;
         requires r.nextActionIndex==6;

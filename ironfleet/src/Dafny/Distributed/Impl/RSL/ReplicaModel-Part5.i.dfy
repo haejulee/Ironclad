@@ -291,7 +291,7 @@ method ReplicaNextSpontaneousMaybeMakeDecisionActual(replica:ReplicaState) retur
     assert ValidRequestBatch(replica.learner.unexecuted_ops[opn].candidate_learned_value);
     var newExecutor := ExecutorGetDecision(replica.executor, replica.learner.max_ballot_seen, opn, candValue);
 
-    replica' := replica[executor := newExecutor];
+    replica' := replica.(executor := newExecutor);
 
     packets_sent := Broadcast(CBroadcastNop);
     lemma_AbstractifyCRequestToRequest_isInjective();

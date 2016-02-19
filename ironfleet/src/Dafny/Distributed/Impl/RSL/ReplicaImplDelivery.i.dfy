@@ -83,7 +83,7 @@ import opened LiveRSL__CClockReading_i
         RecordTimingSeq("DeliverPacketSequence", start_time, end_time);
     }
 
-    method{:timeLimitMultiplier 2} DeliverBroadcast(r:ReplicaImpl, broadcast:CBroadcast) returns (ok:bool, ghost udpEventLog:seq<UdpEvent>, ghost ios:seq<RslIo>)
+    method{:timeLimitMultiplier 8} DeliverBroadcast(r:ReplicaImpl, broadcast:CBroadcast) returns (ok:bool, ghost udpEventLog:seq<UdpEvent>, ghost ios:seq<RslIo>)
         requires r != null;
         requires r.Valid();
         requires CBroadcastIsValid(broadcast);

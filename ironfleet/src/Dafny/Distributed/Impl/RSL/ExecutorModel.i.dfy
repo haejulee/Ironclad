@@ -575,7 +575,7 @@ lemma lemma_OutboundPackets(cout:OutboundPackets, me:EndPoint)
 {
 }
 
-method {:timeLimitMultiplier 4} ExecutorExecute(cs:ExecutorState, reply_cache_mutable:MutableMap<EndPoint, CReply>) returns(cs':ExecutorState, cout:OutboundPackets)
+method {:timeLimitMultiplier 15} ExecutorExecute(cs:ExecutorState, reply_cache_mutable:MutableMap<EndPoint, CReply>) returns(cs':ExecutorState, cout:OutboundPackets)
     requires ExecutorState_IsValid(cs);
     requires cs.ops_complete.n < cs.constants.all.params.max_integer_val;
     requires cs.next_op_to_execute.COutstandingOpKnown?;
@@ -629,8 +629,8 @@ method {:timeLimitMultiplier 4} ExecutorExecute(cs:ExecutorState, reply_cache_mu
     cs' := cs.(app := final_state,
                ops_complete := COperationNumber(cs.ops_complete.n + 1),
                max_bal_reflected := newMaxBalReflected,
-               next_op_to_execute := COutstandingOpUnknown())
-              [reply_cache := newReplyCache];
+               next_op_to_execute := COutstandingOpUnknown(),
+               reply_cache := newReplyCache);
    
     assert cs'.ops_complete.COperationNumber?;
     assert COperationNumberIsAbstractable(cs'.ops_complete);

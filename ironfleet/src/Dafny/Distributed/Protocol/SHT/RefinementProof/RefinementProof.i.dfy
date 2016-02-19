@@ -222,7 +222,7 @@ lemma SetPreservesRefinement_koNotk(s:SHT_State, s':SHT_State, id:NodeIdentity, 
     requires rpkt in s.network && rpkt.msg.SingleMessage? && rpkt.msg.m.SetRequest? && NextSetRequest(s.hosts[id], s'.hosts[id], rpkt, out);
     requires k==rpkt.msg.m.k_setrequest;
     requires HostClaimsKey(s.hosts[id], k);
-    requires exists pkt :: InFlightPacketClaimsKey(s,pkt,ko);
+    requires exists pkt1 :: InFlightPacketClaimsKey(s,pkt1,ko);
     requires pkt == ThePacketThatClaimsKey(s,ko);
     requires !SpontaneouslyRetransmit(s.hosts[id], s'.hosts[id], out);
     ensures ko!=k;
@@ -274,11 +274,11 @@ lemma {:timeLimitMultiplier 2} NondelegatingReadonlyStepPreservesRefinement_guts
     requires HiddenInv(s') && InvBasics(s');
     requires SHT_Next(s, s');
     requires NotADelegateStep(s, s');
-    requires forall id :: id in AllHostIdentities(s) ==>
-           s'.hosts[id].h==s.hosts[id].h
-        && s'.hosts[id].delegationMap==s.hosts[id].delegationMap;
-    requires forall id :: id in AllHostIdentities(s) && DelegationPacket(s.hosts[id].receivedPacket) 
-                ==> DelegationPacketStable(s, s', id);
+    requires forall id1 :: id1 in AllHostIdentities(s) ==>
+           s'.hosts[id1].h==s.hosts[id1].h
+        && s'.hosts[id1].delegationMap==s.hosts[id1].delegationMap;
+    requires forall id1 :: id1 in AllHostIdentities(s) && DelegationPacket(s.hosts[id1].receivedPacket) 
+                ==> DelegationPacketStable(s, s', id1);
     ensures forall k :: FindHashTable(s,k)==FindHashTable(s',k);
 {
     reveal_HiddenInv();
@@ -328,11 +328,11 @@ lemma NondelegatingReadonlyStepPreservesRefinement(s:SHT_State, s':SHT_State, id
     requires SHT_Next(s, s');
     requires NotADelegateStep(s, s');
     requires NoNewDelegationMessages(s, s');
-    requires forall id :: id in AllHostIdentities(s) ==>
-           s'.hosts[id].h==s.hosts[id].h
-        && s'.hosts[id].delegationMap==s.hosts[id].delegationMap;
-    requires forall id :: id in AllHostIdentities(s) && DelegationPacket(s.hosts[id].receivedPacket) 
-                ==> DelegationPacketStable(s, s', id);
+    requires forall id1 :: id1 in AllHostIdentities(s) ==>
+           s'.hosts[id1].h==s.hosts[id1].h
+        && s'.hosts[id1].delegationMap==s.hosts[id1].delegationMap;
+    requires forall id1 :: id1 in AllHostIdentities(s) && DelegationPacket(s.hosts[id1].receivedPacket) 
+                ==> DelegationPacketStable(s, s', id1);
     ensures Refinement(s).ht == Refinement(s').ht;
 {
 
@@ -533,7 +533,7 @@ lemma SetPreservesRefinement_ExpandFindHashTable(s:SHT_State, s':SHT_State, id:N
     requires kid in AllHostIdentities(s) && HostClaimsKey(s.hosts[kid], ko);
     requires !SpontaneouslyRetransmit(s.hosts[id], s'.hosts[id], out);
     requires s'.hosts[id].receivedPacket.None?;
-    ensures exists id :: id in AllHostIdentities(s) && HostClaimsKey(s'.hosts[id], ko);
+    ensures exists id1 :: id1 in AllHostIdentities(s) && HostClaimsKey(s'.hosts[id1], ko);
     ensures FindHashTable(s',ko) == FindHostHashTable(s', ko); //s'.hosts[TheHostThatClaimsKey(s', ko)].h;
 {
     reveal_HiddenInv();
@@ -550,7 +550,7 @@ lemma SetPreservesRefinement_ExpandFindHashTable(s:SHT_State, s':SHT_State, id:N
 
     assert NoInFlightPacketClaimsKey(s', ko);   // OBSERVE trigger
     assert !(exists pkt :: InFlightPacketClaimsKey(s',pkt,ko));
-    assert (exists id :: id in AllHostIdentities(s) && HostClaimsKey(s'.hosts[id], ko));
+    assert (exists id1 :: id1 in AllHostIdentities(s) && HostClaimsKey(s'.hosts[id1], ko));
     assert !FooFHT1(s',ko);
     assert FooFHT2(s',ko);
     assert !BufferedPacketClaimsKey(s'.hosts[id], ko);
@@ -621,8 +621,8 @@ lemma SetPreservesRefinement_HostClaims(s:SHT_State, s':SHT_State, id:NodeIdenti
             forall opkt | opkt in out
                 ensures !opkt.msg.m.Delegate?;
             {
-                var sm,m,b :| NextSetRequest_Complete(s.hosts[id], s'.hosts[id], rpkt.src, rpkt.msg.seqno, rpkt.msg.m, sm, m, out, b);   // OBSERVE skolemize
-                var tpkt := Packet(rpkt.src, s.hosts[id].me, sm);
+                var sm1,m1,b :| NextSetRequest_Complete(s.hosts[id], s'.hosts[id], rpkt.src, rpkt.msg.seqno, rpkt.msg.m, sm1, m1, out, b);   // OBSERVE skolemize
+                var tpkt := Packet(rpkt.src, s.hosts[id].me, sm1);
                 ItIsASingletonSet(out, tpkt);   
                 ThingsIKnowAboutASingletonSet(out, tpkt, opkt);
             }
@@ -806,7 +806,7 @@ lemma SetPreservesRefinement_main(s:SHT_State, s':SHT_State, id:NodeIdentity, re
     var R := HiddenRefinement(s);
     var R' := HiddenRefinement(s');
 
-    var sm,m,b :| NextSetRequest_Complete(s.hosts[id], s'.hosts[id], rpkt.src, rpkt.msg.seqno, rpkt.msg.m, sm, m, out, b);
+    var sm1,m1,b :| NextSetRequest_Complete(s.hosts[id], s'.hosts[id], rpkt.src, rpkt.msg.seqno, rpkt.msg.m, sm1, m1, out, b);
 
     if(b) {
         if (DelegateForKey(s.hosts[id].delegationMap, k)==id)
@@ -826,7 +826,7 @@ lemma SetPreservesRefinement_main(s:SHT_State, s':SHT_State, id:NodeIdentity, re
             {
                 forall ko ensures HashtableLookup(R',ko) == HashtableLookup(NRR, ko);
                 {
-                    SetPreservesRefinement_ko(s, s', id, recv, out, rpkt, ko, sm, m);
+                    SetPreservesRefinement_ko(s, s', id, recv, out, rpkt, ko, sm1, m1);
                 }
                 forall ko ensures HashtableLookup(R',ko) == HashtableLookup(NRR, ko);
                 {

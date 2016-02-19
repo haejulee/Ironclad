@@ -590,7 +590,7 @@ class SchedulerImpl
             && nextActionIndex == old(nextActionIndex)
             && resendCount == old(resendCount)
             && (LHost_ProcessReceivedPacket_Next(old(AbstractifyToHost()), AbstractifyToHost(), ios)
-                || HostNextIgnoreUnsendableProcess(old(AbstractifyToLScheduler()), AbstractifyToLScheduler()[nextActionIndex := 2], udpEventLog))
+                || HostNextIgnoreUnsendableProcess(old(AbstractifyToLScheduler()), AbstractifyToLScheduler().(nextActionIndex := 2), udpEventLog))
             && old(AbstractifyToHost()).me == AbstractifyToHost().me
             && RawIoConsistentWithSpecIO(udpEventLog, ios)
             && OnlySentMarshallableData(udpEventLog) 
@@ -611,7 +611,7 @@ class SchedulerImpl
                     assert |host.delegationMap.lows| < 0xFFFF_FFFF_FFFF_FFFF - 2;
                     host, sent_packets := HostModelNextReceiveMessage(host, cpacket);
                 } else {
-                    host := host[receivedPacket := None];
+                    host := host.(receivedPacket := None);
                     sent_packets := [];
                     assert false;
                 }
@@ -664,10 +664,10 @@ class SchedulerImpl
                 } 
 
                 if HostIgnoringUnParseable(old(AbstractifyToHost()), AbstractifyToHost(), AbstractifySeqOfCPacketsToSetOfShtPackets(sent_packets)) {
-                    assert HostNextIgnoreUnsendableProcess(old(AbstractifyToLScheduler()), AbstractifyToLScheduler()[nextActionIndex := 2], udpEventLog);
+                    assert HostNextIgnoreUnsendableProcess(old(AbstractifyToLScheduler()), AbstractifyToLScheduler().(nextActionIndex := 2), udpEventLog);
                 }
                 assert LHost_ProcessReceivedPacket_Next(old(AbstractifyToHost()), AbstractifyToHost(), ios)
-                    || HostNextIgnoreUnsendableProcess(old(AbstractifyToLScheduler()), AbstractifyToLScheduler()[nextActionIndex := 2], udpEventLog);
+                    || HostNextIgnoreUnsendableProcess(old(AbstractifyToLScheduler()), AbstractifyToLScheduler().(nextActionIndex := 2), udpEventLog);
             } else {
                 assert AbstractifyOutboundPacketsToSeqOfLSHTPackets(sent_packets) == ExtractSentPacketsFromIos(ios);
                 assert Env() == old(Env());
@@ -764,7 +764,7 @@ class SchedulerImpl
             if (nextResendCount == 0) {
                 assert LHost_NoReceive_Next(old(AbstractifyToLScheduler()).host, AbstractifyToLScheduler().host, ios);
             } else {
-                assert scheduler == scheduler_old[resendCount := scheduler.resendCount][nextActionIndex := scheduler.nextActionIndex];
+                assert scheduler == scheduler_old.(resendCount := scheduler.resendCount, nextActionIndex := scheduler.nextActionIndex);
             }
 
         }

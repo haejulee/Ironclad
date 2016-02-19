@@ -201,7 +201,7 @@ lemma lemma_ConvertUint64ToNodeIdentity_injective_forall()
     }
 }
 
-lemma Uint64EndPointRelationships()
+lemma {:timeLimitMultiplier 2} Uint64EndPointRelationships()
     ensures forall u :: EndPointUint64Representation(u) ==> EndPointIsValidIPV4(ConvertUint64ToEndPoint(u)) && ConvertEndPointToUint64(ConvertUint64ToEndPoint(u)) == u;
     ensures forall e :: EndPointIsValidIPV4(e) ==> ConvertUint64ToEndPoint(ConvertEndPointToUint64(e)) == e;
 {

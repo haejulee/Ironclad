@@ -192,16 +192,10 @@ lemma lemma_EpochLengthEventuallyIncreases(
     lemma_ConstantsAllConsistent(b, asp.c, action_step);
     lemma_ConstantsAllConsistent(b, asp.c, action_step+1);
     assert !sat(action_step, x);
+    assert sat(action_step+1, x);
 
     var P := EpochLengthEqualOrGreaterTemporal(b, idx, epoch_length);
     var Q := EpochLengthEqualOrGreaterTemporal(b, idx, epoch_length + 1);
-
-    forall j | i <= j
-        ensures sat(j, TemporalWF1Req1(P, Q));
-    {
-        TemporalDeduceFromAlways(start_step, j, RequestInRequestsReceivedPrevEpochsTemporal(b, asp.persistent_request, idx));
-        lemma_EpochLengthEventuallyIncreasesWF1Req1(b, asp, j, idx, epoch_length);
-    }
 
     if !sat(action_step, imply(P, or(Q, next(Q))))
     {
@@ -210,6 +204,13 @@ lemma lemma_EpochLengthEventuallyIncreases(
         lemma_OverflowProtectionNotUsedForReplica(b, asp, action_step, idx);
         lemma_EpochLengthAtLeastInitialValue(b, asp, action_step, idx);
         assert false;
+    }
+
+    forall j | i <= j
+        ensures sat(j, TemporalWF1Req1(P, Q));
+    {
+        TemporalDeduceFromAlways(start_step, j, RequestInRequestsReceivedPrevEpochsTemporal(b, asp.persistent_request, idx));
+        lemma_EpochLengthEventuallyIncreasesWF1Req1(b, asp, j, idx, epoch_length);
     }
 
     step := TemporalWF1Specific(i, action_step, P, Q);

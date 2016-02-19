@@ -12,7 +12,6 @@ include "Marshall.i.dfy"
 
 module Main_i exclusively refines Main_s {
     import opened DistributedSystem_i
-    //import opened Environment_s
     import opened Concrete_NodeIdentity_i
     import opened PacketParsing_i
     import opened UdpLock_i
@@ -87,8 +86,8 @@ module Main_i exclusively refines Main_s {
         requires forall i :: 0 <= i < |replica_order| ==> replica_order[i] in replicas;
         requires SeqIsUnique(replica_order);
         ensures  |AbstractifyConcreteReplicas(replicas, replica_order)| == |replica_order|;
-        ensures  forall i :: 0 <= i < |replica_order| ==> replica_order[i] in AbstractifyConcreteReplicas(replicas, replica_order);
-        ensures  forall i :: 0 <= i < |replica_order| ==> 
+        ensures  forall i {:trigger replica_order[i]} :: 0 <= i < |replica_order| ==> replica_order[i] in AbstractifyConcreteReplicas(replicas, replica_order);
+        ensures  forall i {:trigger replica_order[i]} :: 0 <= i < |replica_order| ==> 
                  AbstractifyConcreteReplicas(replicas, replica_order)[replica_order[i]] == replicas[replica_order[i]].node;
         ensures forall e :: e in AbstractifyConcreteReplicas(replicas, replica_order) <==> e in replica_order;
     {
@@ -252,14 +251,14 @@ module Main_i exclusively refines Main_s {
         assert LEnvironment_PerformIos(le, le', id, r_ios);
     }
 
-    lemma {:timeLimitMultiplier 2} RefinementToLSState(config:ConcreteConfiguration, db:seq<DS_State>) returns (sb:seq<LS_State>)
+    lemma {:timeLimitMultiplier 3} RefinementToLSState(config:ConcreteConfiguration, db:seq<DS_State>) returns (sb:seq<LS_State>)
         requires |db| > 0;
         requires DS_Init(db[0], config);
         requires forall i {:trigger DS_Next(db[i], db[i+1])} :: 0 <= i < |db| - 1 ==> DS_Next(db[i], db[i+1]);
         ensures  |sb| == |db|;
         ensures  LS_Init(sb[0], db[0].config);
         ensures  forall i {:trigger LS_Next(sb[i], sb[i+1])} :: 0 <= i < |sb| - 1 ==> LS_Next(sb[i], sb[i+1]);
-        ensures forall i :: 0 <= i < |db| ==> DsStateIsAbstractable(db[i]) && sb[i] == AbstractifyDsState(db[i]);
+        ensures forall i {:trigger 0 <= i, i < |db|} :: 0 <= i < |db| ==> DsStateIsAbstractable(db[i]) && sb[i] == AbstractifyDsState(db[i]);
     {
         if |db| == 1 {
             var ls := AbstractifyDsState(db[0]);
@@ -287,6 +286,21 @@ module Main_i exclusively refines Main_s {
                         lemma_LEnvironmentNextHost(db[i].environment, ls.environment, db[i+1].environment, ls'.environment);
                         assert LS_Next(sb[i], sb[i+1]);
                     }
+                }
+            }
+
+            assert |db| == |sb|;
+
+            forall i | 0 <= i < |db|
+                ensures DsStateIsAbstractable(db[i]);
+                ensures sb[i] == AbstractifyDsState(db[i]);
+            {
+                if i == |db| - 1 {
+                    assert db[i] == last(db);
+                    assert ls' == AbstractifyDsState(db[i]);
+                }
+                else {
+                    assert 0 <= i < |all_but_last(db)|;
                 }
             }
         }

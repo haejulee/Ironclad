@@ -358,7 +358,7 @@ lemma lemma_IfLiveReplicasReadyForAnOperationThenLearnerEventuallyLearnsIt(
     step := lemma_IfLiveReplicasReadyForAnOperationThenLearnerEventuallyLearnsItSecondStep(b, asp, h, opn, prev_step, acceptor_idx, learner_idx, v, p, second_step, ios2);
 }
 
-lemma lemma_IfLearnerHas2bFromAcceptorItKeepsIt(
+lemma {:timeLimitMultiplier 2} lemma_IfLearnerHas2bFromAcceptorItKeepsIt(
     b:Behavior<RslState>,
     asp:AssumptionParameters,
     h:Phase2Params,

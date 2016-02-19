@@ -363,7 +363,7 @@ module MarshallProof_i {
         assert |data| == 40;
     }
 
-    lemma {:fuel ValInGrammar,5} lemma_ParseMarshallSetRequest(bytes:seq<byte>, msg:SingleMessage<Message>) returns (reserved_bytes:seq<byte>)
+    lemma {:fuel ValInGrammar,5} {:timeLimitMultiplier 8} lemma_ParseMarshallSetRequest(bytes:seq<byte>, msg:SingleMessage<Message>) returns (reserved_bytes:seq<byte>)
         requires msg.SingleMessage? && msg.m.SetRequest?;
         requires CSingleMessageIsAbstractable(SHTDemarshallData(bytes));
         requires AbstractifyCSingleMessageToSingleMessage(SHTDemarshallData(bytes)) == msg;

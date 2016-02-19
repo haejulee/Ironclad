@@ -715,7 +715,7 @@ method {:timeLimitMultiplier 3} ElectionCheckForViewTimeout(ces:CElectionState, 
     assert Eq_ElectionState(es', AbstractifyCElectionStateToElectionState(ces'));
 }
 
-method {:timeLimitMultiplier 3} ElectionCheckForQuorumOfViewSuspicions(ces:CElectionState, clock:uint64, cur_req_set:MutableSet<CRequestHeader>, prev_req_set:MutableSet<CRequestHeader>) returns(ces':CElectionState)
+method {:timeLimitMultiplier 5} ElectionCheckForQuorumOfViewSuspicions(ces:CElectionState, clock:uint64, cur_req_set:MutableSet<CRequestHeader>, prev_req_set:MutableSet<CRequestHeader>) returns(ces':CElectionState)
     requires CElectionStateIsValid(ces);
     requires cur_req_set != null && prev_req_set != null;
     requires MutableSet.SetOf(cur_req_set) == ces.cur_req_set;
@@ -976,7 +976,7 @@ lemma lemma_AddNewReqPreservesHeaderMatches(s1:seq<CRequest>,  headers1:set<CReq
     assert |total_h| == |header_set|;       // OBSERVE
 }
 
-method {:timeLimitMultiplier 10} ElectionReflectReceivedRequest(ces:CElectionState, creq:CRequest, cur_req_set:MutableSet<CRequestHeader>, prev_req_set:MutableSet<CRequestHeader>) returns (ces':CElectionState)
+method {:timeLimitMultiplier 12} ElectionReflectReceivedRequest(ces:CElectionState, creq:CRequest, cur_req_set:MutableSet<CRequestHeader>, prev_req_set:MutableSet<CRequestHeader>) returns (ces':CElectionState)
     requires CElectionStateIsValid(ces);
     requires CRequestIsAbstractable(creq);
     requires cur_req_set != null && prev_req_set != null && prev_req_set != cur_req_set;

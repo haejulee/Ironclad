@@ -59,7 +59,7 @@ lemma lemma_AppStateSupplyImpliesAppStateRequest(
     assert IsValidLIoOp(ios[0], c.config.replica_ids[idx], b[i-1].environment);
 }
 
-lemma{:timeLimitMultiplier 2} lemma_StateRequestFromKingPrecedesBallotDuringStableView(
+lemma{:timeLimitMultiplier 5} lemma_StateRequestFromKingPrecedesBallotDuringStableView(
     b:Behavior<RslState>,
     asp:AssumptionParameters,
     h:Phase2Params,
@@ -110,7 +110,7 @@ lemma{:timeLimitMultiplier 2} lemma_StateRequestFromKingPrecedesBallotDuringStab
     lemma_IfNoReplicaBeyondViewNowThenNoReplicaBeyondViewEarlier(b, asp, step, i, h.view);
     lemma_NoReplicaBeyondViewImpliesNoMaxBallotISent1aBeyondView(b, asp, step, h.view);
     assert BalLeq(s.max_ballot_i_sent_1a, h.view);
-
+    
     if BalLt(s.max_ballot_i_sent_1a, h.view)
     {
         return;
@@ -130,6 +130,7 @@ lemma{:timeLimitMultiplier 2} lemma_StateRequestFromKingPrecedesBallotDuringStab
         assert false;
     }
 
+    assert next_step == h.start_step + 1;
     assert p_starting_phase2.msg.logTruncationPoint_2 == h.log_truncation_point;
     assert h.start_step + 1 <= i;
     lemma_OpsCompleteMonotonic(b, asp.c, h.start_step + 1, i, h.king_idx);

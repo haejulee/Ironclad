@@ -39,13 +39,14 @@ predicate ViewInfoConsistent(ps:RslState, idx:int)
     requires 0 <= idx < |ps.replicas|;
 {
        IsValidBallot(CurrentViewOfHost(ps, idx), ps.constants)
-    && (forall observer_idx :: 0 <= observer_idx < |ps.replicas| ==> ViewInfoInObserverConsistent(ps, idx, observer_idx))
+    && (forall observer_idx {:trigger ViewInfoInObserverConsistent(ps, idx, observer_idx)} ::
+           0 <= observer_idx < |ps.replicas| ==> ViewInfoInObserverConsistent(ps, idx, observer_idx))
     && (forall p :: p in ps.environment.sentPackets ==> ViewInfoInPacketConsistent(ps, idx, p))
 }
 
 predicate ViewInfoStateInv(ps:RslState)
 {
-    forall idx :: 0 <= idx < |ps.replicas| ==> ViewInfoConsistent(ps, idx)
+    forall idx {:trigger ViewInfoConsistent(ps, idx)} :: 0 <= idx < |ps.replicas| ==> ViewInfoConsistent(ps, idx)
 }
 
 predicate AllSuspectorsValidStateInv(ps:RslState)
@@ -169,7 +170,7 @@ function{:opaque} SuspicionPropagatedToObserverTemporal(
     stepmap(imap i :: SuspicionPropagatedToObserver(b[i], suspector_idx, observer_idx, view))
 }
 
-lemma lemma_PaxosNextPreservesViewInfoInObserverConsistent(
+lemma {:timeLimitMultiplier 2} lemma_PaxosNextPreservesViewInfoInObserverConsistent(
     b:Behavior<RslState>,
     asp:AssumptionParameters,
     i:int,
@@ -363,7 +364,7 @@ lemma lemma_ViewInfoStateInvHolds(
     }
 }
 
-lemma{:timeLimitMultiplier 2} lemma_AllSuspectorsValidStateInvHolds(
+lemma{:timeLimitMultiplier 3} lemma_AllSuspectorsValidStateInvHolds(
     b:Behavior<RslState>,
     asp:AssumptionParameters,
     i:int

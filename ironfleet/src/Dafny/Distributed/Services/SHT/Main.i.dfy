@@ -9,7 +9,6 @@ include "../../Protocol/SHT/Network.i.dfy"
 
 module Main_i exclusively refines Main_s {
     import opened Host_i
-    import opened Collections__Maps2_s
     import opened SHT__RefinementProof_i
     import opened Concrete_NodeIdentity_i
     import opened RefinementProof__DistributedSystemLemmas_i
@@ -642,8 +641,8 @@ module Main_i exclusively refines Main_s {
                 && shtconcreteconfig.rootIdentity in shtconcreteconfig.hostIds
                 && 0 < |shtconcreteconfig.hostIds|;
             lemma_WFSHTConcreteConfiguration(shtconcreteconfig);
-            forall i | 0 <= i < |ls.config.hostIds|
-                ensures ls.hosts[i].host.me == ls.config.hostIds[i];
+            forall j | 0 <= j < |ls.config.hostIds|
+                ensures ls.hosts[j].host.me == ls.config.hostIds[j];
             {
                 reveal_SeqIsUnique();
             }
@@ -698,8 +697,8 @@ module Main_i exclusively refines Main_s {
                 && shtconcreteconfig.rootIdentity in shtconcreteconfig.hostIds
                 && 0 < |shtconcreteconfig.hostIds|;
             lemma_WFSHTConcreteConfiguration(shtconcreteconfig);
-            forall i | 0 <= i < |ls.config.hostIds|
-                ensures ls.hosts[i].host.me == ls.config.hostIds[i];
+            forall j | 0 <= j < |ls.config.hostIds|
+                ensures ls.hosts[j].host.me == ls.config.hostIds[j];
             {
                 reveal_SeqIsUnique();
             }
@@ -805,7 +804,7 @@ module Main_i exclusively refines Main_s {
         ios:seq<LSHTIo>
         )
         requires s.nextActionIndex == 0;
-        requires s' == s[nextActionIndex := (s.nextActionIndex + 1) % LHost_NumActions()];
+        requires s' == s.(nextActionIndex := (s.nextActionIndex + 1) % LHost_NumActions());
         requires |ios| == 1;
         requires ios[0].LIoOpReceive?;
         requires ios[0].r.msg.InvalidMessage?;
@@ -1284,7 +1283,6 @@ module Main_i exclusively refines Main_s {
         ensures  forall i {:trigger SHT_Next(sb[i], sb[i+1])} :: 0 <= i < |sb| - 1 ==> sb[i] == sb[i+1] || SHT_Next(sb[i], sb[i+1]);
         //ensures  forall i :: 0 <= i < |db| ==> Service_Correspondence(db[i].environment.sentPackets, sb[i]);
     {
-        
         if |db| == 1 {
             sb := [LSHTState_Refine(db[0])];
         } else {
@@ -1302,13 +1300,34 @@ module Main_i exclusively refines Main_s {
             Lemma_LSHTNextImpliesSHTNext(d, d');
             
             sb := sb_others + [LSHTState_Refine(last(db))];
+            assert |sb| == |sb_others| + 1 == |all_but_last(db)| + 1 == |db|;
             
             assert LSHTState_RefinementInvariant(last(db));
             lemma_SHTRefinementInvariantAppend(db);
             assert forall i :: 0 <= i < |db| ==> LSHTState_RefinementInvariant(db[i]);
             assert  forall i :: 0 <= i < |all_but_last(db)| ==> LSHTState_Refine(all_but_last(db)[i]) == sb_others[i];
-            assert forall i :: 0 <= i < |db|-1 ==> LSHTState_Refine(db[i]) == sb[i];
-            assert LSHTState_Refine(last(db)) == last(sb);
+
+            forall i | 0 <= i < |db|
+                ensures LSHTState_Refine(db[i]) == sb[i];
+            {
+                if i < |db|-1 {
+                    assert LSHTState_Refine(db[i]) == sb[i];
+                }
+                else {
+                    assert i == |db| - 1;
+                    assert db[i] == last(db);
+                    assert sb[i] == last(sb);
+                }
+            }
+
+            forall i | 0 <= i < |sb| - 1
+                ensures sb[i] == sb[i+1] || SHT_Next(sb[i], sb[i+1]);
+            {
+                if i == |sb| - 2 {
+                    assert sb[i+1] == last(sb);
+                    assert sb[i] == sb[i+1] || SHT_Next(sb[i], sb[i+1]);
+                }
+            }
         }
     }
 
@@ -1320,11 +1339,11 @@ module Main_i exclusively refines Main_s {
         ensures  last(db').environment.nextStep.LEnvStepStutter?;
         ensures  forall i :: 0 <= i < |db'| - 1 ==> db'[i] == db[i];
         ensures  last(db') == last(db).(environment := last(db').environment);
-        ensures  last(db').environment == last(db).environment[nextStep := LEnvStepStutter()];
+        ensures  last(db').environment == last(db).environment.(nextStep := LEnvStepStutter());
         ensures  LEnvStepIsAbstractable(last(db').environment.nextStep);
     {
         var sz := |db|;
-        db' := all_but_last(db) + [last(db)[environment := last(db).environment[nextStep := LEnvStepStutter()]]];
+        db' := all_but_last(db) + [last(db).(environment := last(db).environment.(nextStep := LEnvStepStutter()))];
         assert |db'| == |db|;
         forall i | 0 <= i < |db'| - 1
             ensures DS_Next(db'[i], db'[i+1]);
@@ -1340,7 +1359,7 @@ module Main_i exclusively refines Main_s {
 
     lemma SequenceSortedProperty(s:seq<int>, i:int, j:int)
         requires |s| > 0;
-        requires forall i,j :: (0 <= i < |s| - 1) && (j == i+1) ==> s[i] <= s[j];
+        requires forall i1,j1 :: (0 <= i1 < |s| - 1) && (j1 == i1+1) ==> s[i1] <= s[j1];
         requires 0 <= i <= j < |s|
         ensures  s[i] <= s[j];
         decreases j-i;
@@ -1524,11 +1543,11 @@ module Main_i exclusively refines Main_s {
         ensures  forall i {:trigger DS_Next(db'[i], db'[i+1])} :: 0 <= i < |db'| - 1 ==> DS_Next(db'[i], db'[i+1]);
         ensures  last(db').environment.nextStep.LEnvStepStutter?;
         ensures  forall i :: 0 <= i < |db'| - 1 ==> db'[i] == db[i];
-        ensures  last(db') == last(db)[environment := last(db').environment];
-        ensures  last(db').environment == last(db).environment[nextStep := LEnvStepStutter()];
+        ensures  last(db') == last(db).(environment := last(db').environment);
+        ensures  last(db').environment == last(db).environment.(nextStep := LEnvStepStutter());
     {
         var sz := |db|;
-        db' := all_but_last(db) + [last(db)[environment := last(db).environment[nextStep := LEnvStepStutter()]]];
+        db' := all_but_last(db) + [last(db).(environment := last(db).environment.(nextStep := LEnvStepStutter()))];
         assert |db'| == |db|;
         forall i | 0 <= i < |db'| - 1
             ensures DS_Next(db'[i], db'[i+1]);

@@ -108,7 +108,7 @@ predicate LHost_NoReceive_Next_Wrapper(s:LScheduler, s':LScheduler, ios:seq<LSHT
            LHost_NoReceive_Next(s.host, s'.host, ios) 
         else (
               ios == []
-           && s' == s[resendCount := s'.resendCount][nextActionIndex := s'.nextActionIndex])
+           && s' == s.(resendCount := s'.resendCount, nextActionIndex := s'.nextActionIndex))
 }
 
 predicate LScheduler_Next(s:LScheduler, s':LScheduler, ios:seq<LSHTIo>)

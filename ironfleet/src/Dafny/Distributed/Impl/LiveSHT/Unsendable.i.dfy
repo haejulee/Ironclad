@@ -26,16 +26,16 @@ module LiveSHT__Unsendable_i {
     predicate HostNextIgnoreUnsendableReceive(s:LScheduler, s':LScheduler, ios:seq<LIoOp<EndPoint, seq<byte>>>)
     {
         s.nextActionIndex == 0
-     && s' == s[nextActionIndex := 1]
+     && s' == s.(nextActionIndex := 1)
      && IosReflectIgnoringUnDemarshallable(ios) 
     }
 
     predicate IgnoreSchedulerUpdate(s:LScheduler, s':LScheduler) 
     {
         if ShouldProcessReceivedMessage(s.host) then
-            s' == s[nextActionIndex := 2][host := s.host[receivedPacket := None()]]
+            s' == s.(nextActionIndex := 2, host := s.host.(receivedPacket := None()))
         else 
-            s' == s[nextActionIndex := 2]
+            s' == s.(nextActionIndex := 2)
     }
     
     predicate HostNextIgnoreUnsendableProcess(s:LScheduler, s':LScheduler, ios:seq<LIoOp<EndPoint, seq<byte>>>)

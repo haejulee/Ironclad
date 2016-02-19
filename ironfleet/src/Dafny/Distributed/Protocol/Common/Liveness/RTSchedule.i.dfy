@@ -51,7 +51,7 @@ lemma Lemma_RoundRobinSchedulerTimelyForAllActionsTemporal<S>(
 
     // If the scheduler takes a step, it takes an action of the prioritized type, then gives
     // priority to the next action type in round-robin order.
-    requires forall i :: 0 <= i && sat(i, scheduler_action) ==>
+    requires forall i {:trigger 0 <= i, sat(i, scheduler_action)} :: 0 <= i && sat(i, scheduler_action) ==>
                  var action_type_index := next_action_type_fun[i];
                     (0 <= action_type_index < |schedule| ==> sat(i, schedule[action_type_index]))
                  && next_action_type_fun[i+1] == (action_type_index + 1) % |schedule|;
@@ -82,11 +82,14 @@ lemma Lemma_RoundRobinSchedulerTimelyForAllActionsTemporal<S>(
         TemporalAssist();
         var x := stepmap(imap i :: 0 <= naf[i] < n);
         assert sat(0, x);
-        forall i | TLe(0, i)
-            ensures sat(i, imply(x, next(x)));
+        forall ensures sat(0, always(x))
         {
+            forall i | TLe(0, i)
+                ensures sat(i, imply(x, next(x)));
+            {
+            }
+            TemporalInductionNext(0, x);
         }
-        TemporalInductionNext(0, x);
         assert sat(i0, always(stepmap(imap i :: 0 <= naf[i] < n)));
     }
 
@@ -104,6 +107,7 @@ lemma Lemma_RoundRobinSchedulerTimelyForAllActionsTemporal<S>(
             {
                 var i2 := earliestActionWithin(i1, scheduler_action, span, timefun);
                 assert TLe(i1, i2);
+                assert 0 <= i2 && sat(i2, scheduler_action); // TRIGGER naf[i2+1] == (naf[i2] + 1) % n
                 assert forall i :: TLe(i1, i) && TLe(i, i2 - 1) ==> sat(i, not(scheduler_action));
                 var a2 := naf[i2];
                 if (a2 != a0)

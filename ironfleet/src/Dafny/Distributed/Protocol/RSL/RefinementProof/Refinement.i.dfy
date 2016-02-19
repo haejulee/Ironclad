@@ -23,9 +23,18 @@ function GetServerAddresses(ps:RslState):set<NodeIdentity>
     MapSeqToSet(ps.constants.config.replica_ids, x=>x)
 }
 
-function ProduceIntermediateAbstractState(server_addresses:set<NodeIdentity>, batches:seq<RequestBatch>, reqs_in_last_batch:int):RSLSystemState
+function {:opaque} ProduceIntermediateAbstractState(server_addresses:set<NodeIdentity>, batches:seq<RequestBatch>, reqs_in_last_batch:int):RSLSystemState
     requires |batches| > 0;
     requires 0 <= reqs_in_last_batch <= |last(batches)|;
+    ensures  var stateBeforePrevBatch := GetAppStateFromRequestBatches(all_but_last(batches));
+             var appStatesDuringBatch := HandleRequestBatch(stateBeforePrevBatch, last(batches)).0;
+             var s := ProduceIntermediateAbstractState(server_addresses, batches, reqs_in_last_batch);
+                s.server_addresses == server_addresses
+             && s.app == appStatesDuringBatch[reqs_in_last_batch]
+             && (forall batch_num, req_num {:trigger batches[batch_num][req_num]} :: 0 <= batch_num < |batches| && 0 <= req_num < (if batch_num == |batches|-1 then reqs_in_last_batch else |batches[batch_num]|) ==> batches[batch_num][req_num] in s.requests)
+             && (forall batch_num, req_num {:trigger GetReplyFromRequestBatches(batches, batch_num, req_num)} :: 0 <= batch_num < |batches| && 0 <= req_num < (if batch_num == |batches|-1 then reqs_in_last_batch else |batches[batch_num]|) ==> GetReplyFromRequestBatches(batches, batch_num, req_num) in s.replies)
+             && (forall r :: r in s.requests ==> exists batch_num, req_num :: 0 <= batch_num < |batches| && 0 <= req_num < (if batch_num == |batches|-1 then reqs_in_last_batch else |batches[batch_num]|) && r == batches[batch_num][req_num])
+             && (forall r :: r in s.replies ==> exists batch_num, req_num :: 0 <= batch_num < |batches| && 0 <= req_num < (if batch_num == |batches|-1 then reqs_in_last_batch else |batches[batch_num]|) && r == GetReplyFromRequestBatches(batches, batch_num, req_num));
 {
     var requests := set batch_num, req_num | 0 <= batch_num < |batches| && 0 <= req_num < (if batch_num == |batches|-1 then reqs_in_last_batch else |batches[batch_num]|) :: batches[batch_num][req_num];
     var replies := set batch_num, req_num | 0 <= batch_num < |batches| && 0 <= req_num < (if batch_num == |batches|-1 then reqs_in_last_batch else |batches[batch_num]|) :: GetReplyFromRequestBatches(batches, batch_num, req_num);
@@ -34,7 +43,14 @@ function ProduceIntermediateAbstractState(server_addresses:set<NodeIdentity>, ba
     RSLSystemState(server_addresses, appStatesDuringBatch[reqs_in_last_batch], requests, replies)
 }
 
-function ProduceAbstractState(server_addresses:set<NodeIdentity>, batches:seq<RequestBatch>):RSLSystemState
+function {:opaque} ProduceAbstractState(server_addresses:set<NodeIdentity>, batches:seq<RequestBatch>):RSLSystemState
+    ensures var s := ProduceAbstractState(server_addresses, batches);
+               s.server_addresses == server_addresses
+            && s.app == GetAppStateFromRequestBatches(batches)
+            && (forall batch_num, req_num {:trigger batches[batch_num][req_num]} :: 0 <= batch_num < |batches| && 0 <= req_num < |batches[batch_num]| ==> batches[batch_num][req_num] in s.requests)
+            && (forall batch_num, req_num {:trigger GetReplyFromRequestBatches(batches, batch_num, req_num)} :: 0 <= batch_num < |batches| && 0 <= req_num < |batches[batch_num]| ==> GetReplyFromRequestBatches(batches, batch_num, req_num) in s.replies)
+            && (forall r :: r in s.requests ==> exists batch_num, req_num :: 0 <= batch_num < |batches| && 0 <= req_num < |batches[batch_num]| && r == batches[batch_num][req_num])
+            && (forall r :: r in s.replies ==> exists batch_num, req_num :: 0 <= batch_num < |batches| && 0 <= req_num < |batches[batch_num]| && r == GetReplyFromRequestBatches(batches, batch_num, req_num));
 {
     var requests := set batch_num, req_num | 0 <= batch_num < |batches| && 0 <= req_num < |batches[batch_num]| :: batches[batch_num][req_num];
     var replies := set batch_num, req_num | 0 <= batch_num < |batches| && 0 <= req_num < |batches[batch_num]| :: GetReplyFromRequestBatches(batches, batch_num, req_num);
@@ -313,6 +329,25 @@ lemma lemma_DemonstrateRslSystemNextWhenBatchesAdded(
                                                                                                 |last(batches')|);
     intermediate_states := all_but_last(intermediate_states_middle) + intermediate_states_next;
     batch := batch_middle + batch_next;
+
+    forall i | 0 <= i < |batch|
+        ensures RslSystemNextServerExecutesRequest(intermediate_states[i], intermediate_states[i+1], batch[i]);
+    {
+        if i < |batch_middle| {
+            assert intermediate_states[i] == intermediate_states_middle[i];
+            assert intermediate_states[i+1] == intermediate_states_middle[i+1];
+            assert batch[i] == batch_middle[i];
+            assert RslSystemNextServerExecutesRequest(intermediate_states[i], intermediate_states[i+1], batch[i]);
+        }
+        else {
+            var j := i - |batch_middle|;
+            assert intermediate_states[i] == intermediate_states_next[j];
+            assert intermediate_states[i+1] == intermediate_states_next[j+1];
+            assert batch[i] == batch_next[j];
+            assert RslSystemNextServerExecutesRequest(intermediate_states[i], intermediate_states[i+1], batch[i]);
+        }
+    }
+
     assert RslStateSequenceReflectsBatchExecution(s, s', intermediate_states, batch);
 }
 
@@ -328,8 +363,7 @@ lemma lemma_GetBehaviorRefinementForPrefix(
     ensures  RslSystemBehaviorRefinementCorrectImap(b, i+1, high_level_behavior);
     ensures  SystemRefinementRelation(b[i], last(high_level_behavior));
 {
-    if i == 0
-    {
+    if i == 0 {
         high_level_behavior := lemma_GetBehaviorRefinementForBehaviorOfOneStep(b, c);
         return;
     }
