@@ -24,6 +24,38 @@ module AtomicTrace_i {
 //        var step := qs.environment.nextStep;
 //        step.LEnvStepHostIos? && |step.ios| == 1 && external_io(step.ios[0])
 //    }
+    
+
+//                  X        S      
+//    qb0 ---> qb1 ---> qb2 ---> qb3 
+//              \               /
+//           S   \             /  X
+//                > qb2' ---->
+    lemma HostSendIsALeftMover(qb0:QS_State, qb1:QS_State, qb2:QS_State, qb3:QS_State) returns (qb1':QS_State, qb2':QS_State)
+        requires QS_Next(qb0, qb1);
+        requires QS_Next(qb1, qb2);
+        requires QS_Next(qb2, qb3);
+        requires var step := qb2.environment.nextStep;
+                    step.LEnvStepHostIos? 
+                 && step.actor in qb2.servers    // It's one of our hosts
+                 && |step.ios| == 1
+                 && step.ios[0].LIoOpSend?;
+        ensures  QS_Next(qb0, qb1');
+        ensures  QS_Next(qb1', qb2');
+        ensures  QS_Next(qb2', qb3);
+        ensures  qb1' == qb1.(environment := qb1.environment.(nextStep := qb2.environment.nextStep));
+        ensures  qb2'.environment.nextStep == qb1.environment.nextStep;
+    {
+        qb1' := qb1.(environment := qb1.environment.(nextStep := qb2.environment.nextStep));
+        qb2' := qb1'.(environment := qb1.environment.(nextStep := qb1.environment.nextStep)
+                                                    .(sentPackets := qb1'.environment.sentPackets 
+                                                                   + (set io | io in qb2.environment.nextStep.ios 
+                                                                            && io.LIoOpSend? :: io.s)));
+        
+        //qb2' :| qb2'.environment.nextStep == qb1.environment.nextStep && QS_Next(qb1', qb2') && QS_Next(qb2', qb3);
+
+    }
+
 
 
 // TODO: Maybe we don't need ConcreteConfiguration
