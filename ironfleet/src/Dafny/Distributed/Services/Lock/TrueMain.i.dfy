@@ -1,9 +1,11 @@
 include "Main.i.dfy"
-include "../../Concur/QuantizedSystem.s.dfy"
+//include "../../Concur/QuantizedSystem.s.dfy"
+include "AtomicTrace.i.dfy"
 
 module TrueMain_i {
     import opened Main_i
-    import opened QuantizedSystem_s 
+    //import opened QuantizedSystem_s 
+    import opened AtomicTrace_i
 
     // TODO: This is axiomatized for now to work around Dafny bug http://dafny.codeplex.com/workitem/135
     //       Once that is fixed, we can go back to the commented out version
