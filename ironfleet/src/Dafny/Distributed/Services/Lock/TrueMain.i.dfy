@@ -65,7 +65,7 @@ module TrueMain_i {
         ensures  forall i :: 0 <= i < |qb'| ==> Service_Correspondence(qb'[i].environment.nextStep, sb[i]);
     {
         var db';
-        qb', db' := BryansProof(config, qb, LeaseSpecIoFilter); 
+        qb', db' := MakeAtomicTrace(config, qb, LeaseSpecIoFilter); 
 
         sb := RefinementProof(config, db');
 

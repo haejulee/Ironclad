@@ -150,7 +150,7 @@ abstract module QuantizedSystem_s {
     }
 
     // TODO: Maybe we don't need ConcreteConfiguration
-    lemma BryansProof(config:ConcreteConfiguration, qb:seq<QS_State>, external_io:SpecIoFilter) returns (qb':seq<QS_State>, db':seq<DS_State>) //, cm:seq<int>)
+    ghost method MakeAtomicTrace(config:ConcreteConfiguration, qb:seq<QS_State>, external_io:SpecIoFilter) returns (qb':seq<QS_State>, db':seq<DS_State>) //, cm:seq<int>)
         requires |qb| > 0;
         requires QS_Init(qb[0], config);
         requires forall i {:trigger QS_Next(qb[i], qb[i+1])} :: 0 <= i < |qb| - 1 ==> QS_Next(qb[i], qb[i+1]);
