@@ -78,6 +78,7 @@ abstract module QuantizedSystem_s {
         && s'.clients == s.clients
         && LEnvironment_Next(s.environment, s'.environment)
         && ValidPhysicalEnvironmentStep(s.environment.nextStep)
+        && (s.environment.nextStep.LEnvStepHostIos? ==> |s.environment.nextStep.ios| <= 1)
         && if s.environment.nextStep.LEnvStepHostIos? && s.environment.nextStep.actor in s.servers then
                QS_NextOneServer(s, s', s.environment.nextStep.actor, s.environment.nextStep.ios)
            else
@@ -153,7 +154,9 @@ abstract module QuantizedSystem_s {
         requires |qb| > 0;
         requires QS_Init(qb[0], config);
         requires forall i {:trigger QS_Next(qb[i], qb[i+1])} :: 0 <= i < |qb| - 1 ==> QS_Next(qb[i], qb[i+1]);
-                
+        requires exists qs_ultimate :: QS_Next(last(qb), qs_ultimate);
+        // TODO: We eventually need to deal with incomplete partitions 
+        //       (e.g., where we have not actually completed the final atomic action)                
         requires var trace:StepTrace := ComputeStepTrace(qb);
                  forall host :: host in qb[0].servers ==> 
                      exists io_partition:seq<IoTrace>, behavior:seq<HostState> :: 
@@ -162,9 +165,16 @@ abstract module QuantizedSystem_s {
                       && (forall i :: 0 <= i < |io_partition| ==> HostNext(behavior[i], behavior[i+1], io_partition[i]));
         ensures  |qb| == |qb'|;
         //ensures  QS_Init(qb'[0], config);   // REVIEW: Needed?
-        //ensures  forall i {:trigger QS_Next(qb'[i], qb'[i+1])} :: 0 <= i < |qb'| - 1 ==> QS_Next(qb'[i], qb'[i+1]);    // REVIEW: Needed?
+        ensures  forall i {:trigger QS_Next(qb'[i], qb'[i+1])} :: 0 <= i < |qb'| - 1 ==> QS_Next(qb'[i], qb'[i+1]);    // REVIEW: Needed?
+        ensures exists qs_ultimate :: QS_Next(last(qb'), qs_ultimate);
         ensures  external_io.requires(config) && forall io :: external_io(config).requires(io);  // Needed for the next line       
         ensures  ProjectExternalIO(qb, external_io(config)) == ProjectExternalIO(qb', external_io(config)) == ProjectDsExternalIO(db', external_io(config));
+        ensures  forall i :: 0 <= i < |qb'| && 
+                    var step := qb'[i].environment.nextStep;
+                    step.LEnvStepHostIos? && |step.ios| == 1 && external_io(config)(step.ios[0])
+                    ==>
+                    var d_step := db'[i].environment.nextStep;
+                    d_step.LEnvStepHostIos? && step.ios[0] in d_step.ios;
         ensures  |qb| == |db'|;
         ensures  Collections__Maps2_s.mapdomain(qb[0].servers) == Collections__Maps2_s.mapdomain(qb'[0].servers) == Collections__Maps2_s.mapdomain(db'[0].servers);
         //ensures  |qb| == |cm|;     

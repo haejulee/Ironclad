@@ -60,7 +60,7 @@ predicate Service_Correspondence(concretePkts:set<LPacket<EndPoint, seq<byte>>>,
 
 predicate Service_Correspondence(concrete_step:LEnvStep<EndPoint, seq<byte>>, serviceState:ServiceState) 
 {
-    forall io, epoch ::
+    forall io, epoch {:trigger io in concrete_step.ios,MarshallLockMsg(epoch)} ::
         concrete_step.LEnvStepHostIos? 
      && io in concrete_step.ios
      && io.LIoOpReceive?

@@ -12,7 +12,7 @@ include "Marshall.i.dfy"
 
 module Main_i exclusively refines Main_s {
     import opened DistributedSystem_i
-    import opened Environment_s
+    //import opened Environment_s
     import opened Concrete_NodeIdentity_i
     import opened PacketParsing_i
     import opened UdpLock_i
