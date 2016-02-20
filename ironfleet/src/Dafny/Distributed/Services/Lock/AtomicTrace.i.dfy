@@ -96,21 +96,11 @@ module AtomicTrace_i {
         qb2' := qb1'.(environment := qb1.environment.(nextStep := qb1.environment.nextStep)
                                                     .(sentPackets := qb1'.environment.sentPackets 
                                                                    + (set io | io in qb2.environment.nextStep.ios 
-                                                                            && io.LIoOpSend? :: io.s))
-                      );
-                    //.(servers := qb2.servers);
-//        var step1' := qb1'.environment.nextStep;
-//        if step1'.LEnvStepHostIos? && step1'.actor in qb1'.servers {
-//            var step1 := qb1.environment.nextStep;
-//            var step2 := qb2.environment.nextStep;
-//            calc {
-//                QuantizedHostNext(qb1.servers[step2.actor], qb2.servers[step2.actor], step1.ios);
-//                QuantizedHostNext(qb1.servers[step2.actor], qb2.servers[step2.actor], step2.ios);
-//                QuantizedHostNext(qb1'.servers[step2.actor], qb2'.servers[step2.actor], step2.ios);
-//                QuantizedHostNext(qb1'.servers[step1'.actor], qb2'.servers[step1'.actor], step1'.ios);
-//                QS_NextOneServer(qb1', qb2', step1'.actor, step1'.ios);
-//            }
-//        }
+                                                                            && io.LIoOpSend? :: io.s)));
+//        var step1 := qb1.environment.nextStep;
+//        if step1.LEnvStepHostIos? && step1.actor in qb1.servers && |step1.ios| == 0 {
+//            qb2' := 
+            
         //qb2' :| qb2'.environment.nextStep == qb1.environment.nextStep && QS_Next(qb1', qb2') && QS_Next(qb2', qb3);
 
     }
