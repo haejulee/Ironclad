@@ -67,8 +67,10 @@ abstract module QuantizedSystem_s {
         reads *;
     {
            id in s'.servers
-        && QuantizedHostNext(s.servers[id], s'.servers[id], ios)
-        && ((|ios| == 1 && s.servers == s'.servers) || (|ios| == 0 && s'.servers == s.servers[id := s'.servers[id]]))
+        && (  (|ios| == 1 && s.servers == s'.servers) 
+           || (|ios| == 0 && s'.servers == s.servers[id := s'.servers[id]]
+               && QuantizedHostNext(s.servers[id], s'.servers[id], ios))
+           )
     }
 
     predicate QS_Next(s:QS_State, s':QS_State)

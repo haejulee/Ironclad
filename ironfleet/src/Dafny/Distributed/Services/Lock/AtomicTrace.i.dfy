@@ -31,6 +31,48 @@ module AtomicTrace_i {
 //              \               /
 //           S   \             /  X
 //                > qb2' ---->
+
+//Original:
+//---------
+//QS_Next(qb1, qb2) 
+//    --> if qb1.environment.nextStep.LEnvStepHostIos? && qb1.environment.nextStep.actor in qb1.servers then
+//            QS_NextOneServer()
+//            --> QuantizedHostNext(qb1.servers[qb1...actor], qb2.servers[qb1...actor], qb1...ios)
+//             && ((|qb1...ios| == 1 && qb1.servers == qb2.servers)
+//                 || 
+//                 (|qb1...ios| == 0 && qb2.servers == qb1.servers[qb1...actor := qb2.servers[qb1...actor]]))
+//
+//     --> If |ios| == 1, then we know 
+//            QuantizedHostNext(qb1.servers[qb1...actor], qb1.servers[qb1...actor], qb1...ios)
+//     --> If |ios| == 0, then we know 
+//            QuantizedHostNext(qb1.servers[qb1...actor], qb2.servers[qb1...actor], [])
+//
+//
+//QS_Next(qb2, qb3) 
+//    --> if qb1.environment.nextStep.LEnvStepHostIos? && qb2.environment.nextStep.actor in qb2.servers then
+//            QS_NextOneServer()
+//            --> QuantizedHostNext(qb2.servers[qb2...actor], qb3.servers[qb2...actor], qb2...ios)
+//             && ((|qb2...ios| == 1 && qb2.servers == qb3.servers)
+//                 || 
+//                 (|qb2...ios| == 0 && qb3.servers == qb2.servers[qb2...actor := qb3.servers[qb2...actor]]))
+//    --> In this case, we know |ios| == 1, so qb2.servers == qb3.servers, so we know:
+//        QuantizedHostNext(qb2.servers[qb2...actor], qb2.servers[qb2...actor], qb2...ios)
+//
+//New: 
+//-----
+//(note that qb1' servers must be the same as qb1 servers.  o/w we break QS_Next(qb0, qb1')
+//(This implies that qb2' servers must also be the same as qb1 servers, since we know we're doing a send,
+// which isn't allowed to change host state)
+//    qb1' := qb1 with nextStep as the send from qb2
+//    qb2' := same servers, environment changed to so nextStep is same as qb1 and sentPackets includes send from qb2
+//
+//    QS_NextOneServer()
+//        actor is the same as in qb2
+//        qb1'.servers == qb1.servers
+//        qb2'.servers == qb1.servers
+//        ios are the ios from qb2
+//        ==> Means we want QuantizedHostNext(qb1.servers, qb1.servers, qb2.ios)
+
     lemma HostSendIsALeftMover(qb0:QS_State, qb1:QS_State, qb2:QS_State, qb3:QS_State) returns (qb1':QS_State, qb2':QS_State)
         requires QS_Next(qb0, qb1);
         requires QS_Next(qb1, qb2);
@@ -51,20 +93,20 @@ module AtomicTrace_i {
                                                     .(sentPackets := qb1'.environment.sentPackets 
                                                                    + (set io | io in qb2.environment.nextStep.ios 
                                                                             && io.LIoOpSend? :: io.s))
-                      )
-                    .(servers := qb2.servers);
-        var step1' := qb1'.environment.nextStep;
-        if step1'.LEnvStepHostIos? && step1'.actor in qb1'.servers {
-            var step1 := qb1.environment.nextStep;
-            var step2 := qb2.environment.nextStep;
-            calc {
-                QuantizedHostNext(qb1.servers[step2.actor], qb2.servers[step2.actor], step1.ios);
-                QuantizedHostNext(qb1.servers[step2.actor], qb2.servers[step2.actor], step2.ios);
-                QuantizedHostNext(qb1'.servers[step2.actor], qb2'.servers[step2.actor], step2.ios);
-                QuantizedHostNext(qb1'.servers[step1'.actor], qb2'.servers[step1'.actor], step1'.ios);
-                QS_NextOneServer(qb1', qb2', step1'.actor, step1'.ios);
-            }
-        }
+                      );
+                    //.(servers := qb2.servers);
+//        var step1' := qb1'.environment.nextStep;
+//        if step1'.LEnvStepHostIos? && step1'.actor in qb1'.servers {
+//            var step1 := qb1.environment.nextStep;
+//            var step2 := qb2.environment.nextStep;
+//            calc {
+//                QuantizedHostNext(qb1.servers[step2.actor], qb2.servers[step2.actor], step1.ios);
+//                QuantizedHostNext(qb1.servers[step2.actor], qb2.servers[step2.actor], step2.ios);
+//                QuantizedHostNext(qb1'.servers[step2.actor], qb2'.servers[step2.actor], step2.ios);
+//                QuantizedHostNext(qb1'.servers[step1'.actor], qb2'.servers[step1'.actor], step1'.ios);
+//                QS_NextOneServer(qb1', qb2', step1'.actor, step1'.ios);
+//            }
+//        }
         //qb2' :| qb2'.environment.nextStep == qb1.environment.nextStep && QS_Next(qb1', qb2') && QS_Next(qb2', qb3);
 
     }
