@@ -111,7 +111,88 @@ module AtomicTrace_i {
 
     }
 
+//                  R        X      
+//    qb0 ---> qb1 ---> qb2 ---> qb3 
+//              \               /
+//           X   \             /  R
+//                > qb2' ---->
 
+    lemma HostReceiveIsARightMover(qb0:QS_State, qb1:QS_State, qb2:QS_State, qb3:QS_State) returns (qb1':QS_State, qb2':QS_State)
+        requires QS_Next(qb0, qb1);
+        requires QS_Next(qb1, qb2);
+        requires QS_Next(qb2, qb3);
+        requires var step := qb1.environment.nextStep;
+                    step.LEnvStepHostIos? 
+                 && step.actor in qb1.servers    // It's one of our hosts
+                 && |step.ios| == 1
+                 && step.ios[0].LIoOpReceive?;
+        ensures  QS_Next(qb0, qb1');
+        ensures  QS_Next(qb1', qb2');
+        ensures  QS_Next(qb2', qb3);
+        ensures  qb1' == qb1.(environment := qb1.environment.(nextStep := qb2.environment.nextStep));
+        ensures  qb2'.environment.nextStep == qb1.environment.nextStep;
+    {
+        qb1' := qb1.(environment := qb1.environment.(nextStep := qb2.environment.nextStep));
+        qb2' := qb1'.(environment := qb3.environment.(nextStep := qb1.environment.nextStep))
+                    .(servers := qb3.servers);
+    }
+
+
+//                  X        C      
+//    qb0 ---> qb1 ---> qb2 ---> qb3 
+//              \               /
+//           C   \             /  X
+//                > qb2' ---->
+    lemma HostComputeIsALeftMover(qb0:QS_State, qb1:QS_State, qb2:QS_State, qb3:QS_State) returns (qb1':QS_State, qb2':QS_State)
+        requires QS_Next(qb0, qb1);
+        requires QS_Next(qb1, qb2);
+        requires QS_Next(qb2, qb3);
+        requires var step := qb2.environment.nextStep;
+                    step.LEnvStepHostIos? 
+                 && step.actor in qb2.servers    // It's one of our hosts
+                 && |step.ios| == 0;
+        requires var step := qb1.environment.nextStep;      // Previous step wasn't this host
+                    step.LEnvStepHostIos? ==> step.actor != qb2.environment.nextStep.actor;
+        ensures  QS_Next(qb0, qb1');
+        ensures  QS_Next(qb1', qb2');
+        ensures  QS_Next(qb2', qb3);
+        ensures  qb1' == qb1.(environment := qb1.environment.(nextStep := qb2.environment.nextStep));
+        ensures  qb2'.environment.nextStep == qb1.environment.nextStep;
+    {
+        var host := qb2.environment.nextStep.actor;
+        qb1' := qb1.(environment := qb1.environment.(nextStep := qb2.environment.nextStep));
+        qb2' := qb1'.(environment := qb1.environment.(nextStep := qb1.environment.nextStep))
+                   .(servers := qb1.servers[host := qb3.servers[host]]);
+    }
+
+
+
+//                  C        X      
+//    qb0 ---> qb1 ---> qb2 ---> qb3 
+//              \               /
+//           X   \             /  C
+//                > qb2' ---->
+    lemma HostComputeIsARightMover(qb0:QS_State, qb1:QS_State, qb2:QS_State, qb3:QS_State) returns (qb1':QS_State, qb2':QS_State)
+        requires QS_Next(qb0, qb1);
+        requires QS_Next(qb1, qb2);
+        requires QS_Next(qb2, qb3);
+        requires var step := qb1.environment.nextStep;
+                    step.LEnvStepHostIos? 
+                 && step.actor in qb1.servers    // It's one of our hosts
+                 && |step.ios| == 0;
+        requires var step := qb2.environment.nextStep;      // Next step isn't this host
+                    step.LEnvStepHostIos? ==> step.actor != qb1.environment.nextStep.actor;
+        ensures  QS_Next(qb0, qb1');
+        ensures  QS_Next(qb1', qb2');
+        ensures  QS_Next(qb2', qb3);
+        ensures  qb1' == qb1.(environment := qb1.environment.(nextStep := qb2.environment.nextStep));
+        ensures  qb2'.environment.nextStep == qb1.environment.nextStep;
+    {
+        var host := qb1.environment.nextStep.actor;
+        qb1' := qb1.(environment := qb1.environment.(nextStep := qb2.environment.nextStep));
+        qb2' := qb1'.(environment := qb3.environment.(nextStep := qb1.environment.nextStep))
+                    .(servers := qb3.servers[host := qb1.servers[host]]);
+    }
 
 // TODO: Maybe we don't need ConcreteConfiguration
     ghost method MakeAtomicTrace(config:ConcreteConfiguration, qb:seq<QS_State>, external_io:SpecIoFilter) returns (qb':seq<QS_State>, db':seq<DS_State>) //, cm:seq<int>)
