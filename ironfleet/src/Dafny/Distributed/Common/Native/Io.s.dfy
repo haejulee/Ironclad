@@ -204,11 +204,6 @@ class UdpClient
 
 }
 
-// jonh temporarily neutered this because the opaque type can't be compiled
-class FileSystemState
-{
-}
-
 class MutableSet<T(==)>
 {
     static function method {:axiom} SetOf(s:MutableSet<T>) : set<T>
@@ -309,7 +304,7 @@ class Arrays
 }
 
 
-/*
+
 //////////////////////////////////////////////////////////////////////////////
 // File System
 //////////////////////////////////////////////////////////////////////////////
@@ -325,6 +320,9 @@ class FileSystemState
 {
     constructor{:axiom} () requires false;
     function{:axiom} state():FileSystem reads this;
+    //ghost var g_files:map<seq<char>,seq<byte>>;
+    function{:axiom} file_exists(name:seq<char>) : bool
+    function{:axiom} contents(name:seq<char>): seq<byte>
 }
 
 function{:axiom} FileOpRequires(fs:FileSystem, fileName:string, op:FileOp):bool
@@ -345,6 +343,8 @@ class FileStream
         modifies env.ok;
         ensures  env.ok.ok() == ok;
         ensures  ok ==> f != null && fresh(f) && f.env == env && f.IsOpen() && f.Name() == name[..];
+        //ensures  ok ==> f != null && fresh(f) && f.env == env && f.IsOpen() && f.Name() == name[..] && f.Name() in env.files.g_files;
+        ensures  ok ==> f != null && fresh(f) && f.env == env && f.IsOpen() && f.Name() == name[..] && env.files.file_exists(f.Name());
 
     method{:axiom} Close() returns(ok:bool)
         requires env != null && env.Valid();
@@ -372,8 +372,11 @@ class FileStream
         ensures  forall i:int :: 0 <= i < buffer.Length && !(int(start) <= i < int(end)) ==> buffer[i] == old(buffer[i]);
         ensures  ok ==> IsOpen();
         ensures  ok ==> FileOpEnsures(old(env.files.state()), env.files.state(), Name(), FileRead(int(fileOffset), buffer[start..end]));
-
-    method{:axiom} Write(fileOffset:nat32, buffer:array<byte>, start:int32, end:int32) returns(ok:bool)
+        ensures  ok ==>    env.files.file_exists(Name())
+                        && (int(end) <= |env.files.contents(Name())|)
+                        && (forall i :: 0 <= i < buffer.Length && (int(start) <= i < int(end)) ==> buffer[i] == env.files.contents(Name())[i-int(start)]);
+    
+   method{:axiom} Write(fileOffset:nat32, buffer:array<byte>, start:int32, end:int32) returns(ok:bool)
         requires env != null && env.Valid();
         requires env.ok.ok();
         requires IsOpen();
@@ -403,7 +406,5 @@ class FileStream
         ensures  ok ==> IsOpen();
         ensures  ok ==> FileOpEnsures(old(env.files.state()), env.files.state(), Name(), FileFlush);
 }
-
-*/
 
 } 
