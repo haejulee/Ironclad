@@ -1,9 +1,9 @@
 include "../../Concur/QuantizedSystem.s.dfy"
-include "Compatible.i.dfy"
+include "CanonicalAction.i.dfy"
    
 module AtomicTrace_i {
     import opened QuantizedSystem_s
-    import opened Compatible_i
+    import opened CanonicalAction_i
 
     function ProjectDsExternalIO(db:seq<DS_State>, external_io:IoPredicate) : IoTrace
         requires forall io :: external_io.requires(io);

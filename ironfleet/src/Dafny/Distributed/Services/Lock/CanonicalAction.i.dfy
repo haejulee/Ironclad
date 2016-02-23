@@ -1,6 +1,6 @@
 include "../../Concur/QuantizedSystem.s.dfy"
    
-module Compatible_i {
+module CanonicalAction_i {
     import opened QuantizedSystem_s
 
     /////////////////////////////////////////
