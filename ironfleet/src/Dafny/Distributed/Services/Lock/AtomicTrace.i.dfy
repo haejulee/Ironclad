@@ -1,7 +1,9 @@
 include "../../Concur/QuantizedSystem.s.dfy"
+include "Compatible.i.dfy"
    
 module AtomicTrace_i {
-    import opened QuantizedSystem_s 
+    import opened QuantizedSystem_s
+    import opened Compatible_i
 
     function ProjectDsExternalIO(db:seq<DS_State>, external_io:IoPredicate) : IoTrace
         requires forall io :: external_io.requires(io);
@@ -196,25 +198,23 @@ module AtomicTrace_i {
         !IsMover(q)
     }
 
-    function CanonicalAction(ios:IoTrace) : int
-        requires |ios| > 0;
-        requires LIoOpSeqCompatibleWithReduction(ios);
-        ensures  0 <= CanonicalAction(ios) < |ios|;
+    predicate StepCanMoveLeft(q:QS_State)
     {
-        if exists i :: 0 <= i < |ios| && (ios[i].LIoOpTimeoutReceive? || ios[i].LIoOpReadClock?) then
-            // Choose the sole non-mover, if it exists
-            var i :| 0 <= i < |ios| && (ios[i].LIoOpTimeoutReceive? || ios[i].LIoOpReadClock?);
-            i
-        else if exists i :: 0 <= i < |ios| && ios[i].LIoOpSend? && (i == 0 || ios[i-1].LIoOpReceive?) then
-            // Else choose the left-most Send, if there are any sends
-            var i :| 0 <= i < |ios| && ios[i].LIoOpSend? && (i == 0 || ios[i-1].LIoOpReceive?);
-            i
-        else 
-            // Else choose the right-most receive (at this point, there are only receives left)
-            |ios| - 1
+        var step  := q.environment.nextStep;
+            step.LEnvStepHostIos? 
+         && step.actor in q.servers    // It's one of our hosts
+         && (   |step.ios| == 0  // Host compute step
+             || (|step.ios| == 1 && step.ios[0].LIoOpSend?))
     }
-            
 
+    predicate StepCanMoveRight(q:QS_State)
+    {
+        var step  := q.environment.nextStep;
+            step.LEnvStepHostIos? 
+         && step.actor in q.servers    // It's one of our hosts
+         && (   |step.ios| == 0  // Host compute step
+             || (|step.ios| == 1 && step.ios[0].LIoOpReceive?))
+    }
 
 // TODO: Maybe we don't need ConcreteConfiguration
     ghost method MakeAtomicTrace(config:ConcreteConfiguration, qb:seq<QS_State>, external_io:SpecIoFilter) returns (qb':seq<QS_State>, db':seq<DS_State>) //, cm:seq<int>)
