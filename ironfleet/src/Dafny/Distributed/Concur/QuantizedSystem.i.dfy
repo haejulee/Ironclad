@@ -57,14 +57,11 @@ abstract module QuantizedSystem_i refines QuantizedSystem_s {
         && (forall id :: id in s.servers ==> HostInit(s.servers[id], config, id))
     }
 
-    predicate QuantizedHostNext(s:HostState, s':HostState, ios:seq<LIoOp<EndPoint,seq<byte>>>)
-    
     predicate QS_NextOneServer(s:QS_State, s':QS_State, id:EndPoint, ios:seq<LIoOp<EndPoint,seq<byte>>>)
         requires id in s.servers;
         reads *;
     {
            id in s'.servers
-        && QuantizedHostNext(s.servers[id], s'.servers[id], ios)
         && ((|ios| == 1 && s.servers == s'.servers) || (|ios| == 0 && s'.servers == s.servers[id := s'.servers[id]]))
     }
 
