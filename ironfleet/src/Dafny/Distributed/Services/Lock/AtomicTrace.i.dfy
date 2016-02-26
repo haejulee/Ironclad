@@ -1,9 +1,11 @@
 include "../../Concur/QuantizedSystem.s.dfy"
 include "CanonicalAction.i.dfy"
+include "../../Common/Logic/Option.i.dfy"
    
 module AtomicTrace_i {
     import opened QuantizedSystem_s
     import opened CanonicalAction_i
+    import opened Logic__Option_i
 
     function ProjectDsExternalIO(db:seq<DS_State>, external_io:IoPredicate) : IoTrace
         requires forall io :: external_io.requires(io);
@@ -216,7 +218,47 @@ module AtomicTrace_i {
              || (|step.ios| == 1 && step.ios[0].LIoOpReceive?))
     }
 
-// TODO: Maybe we don't need ConcreteConfiguration
+    // Given a db_action, find the index of its canonical action in the original qb trace
+    var db_action_ordering : map<DS_State, int>;
+
+    datatype SortKey = SortKey(host:Option<EndPoint>, host_db_action_index:int, host_intra_db_index:int)
+
+    ghost method AssignSortKeys(config:ConcreteConfiguration, qb:seq<QS_State>) 
+          returns (keys:seq<SortKey>, db':seq<DS_State>) 
+        requires |qb| > 0;
+        requires QS_Init(qb[0], config);
+        requires forall i {:trigger QS_Next(qb[i], qb[i+1])} :: 0 <= i < |qb| - 1 ==> QS_Next(qb[i], qb[i+1]);
+        requires exists qs_ultimate :: QS_Next(last(qb), qs_ultimate);
+        requires var trace:StepTrace := ComputeStepTrace(qb);
+                 forall host :: host in qb[0].servers ==> 
+                     exists io_partition:seq<IoTrace>, behavior:seq<HostState> :: 
+                         SeqCat(io_partition) == ProjectStepTraceToHostIos(trace, host) 
+                      && |io_partition| == |behavior| - 1
+                      && (forall i :: 0 <= i < |io_partition| ==> HostNext(behavior[i], behavior[i+1], io_partition[i]));
+        ensures  |keys| == |qb|;
+        ensures  forall i :: 0 <= i < |keys| ==>
+                    (keys[i].host.Some? <==> qb[i].environment.nextStep.LEnvStepHostIos?);
+        ensures  forall i :: 0 <= i < |keys| ==> 
+                    (keys[i].host.Some? ==>
+                        keys[i].host.v in qb[0].servers
+                     && keys[i].host.v == qb[i].environment.nextStep.actor
+                     && var trace:StepTrace := ComputeStepTrace(qb);
+                        var io_partition:seq<IoTrace>, behavior:seq<HostState> :| 
+                             SeqCat(io_partition) == ProjectStepTraceToHostIos(trace, keys[i].host.v) 
+                          && |io_partition| == |behavior| - 1;
+                        0 <= keys[i].host_db_action_index < |io_partition|
+                     && 0 <= keys[i].host_intra_db_index < |io_partition[keys[i].host_db_action_index]|
+                     && |qb[i].environment.nextStep.ios| > 0
+                     && io_partition[keys[i].host_db_action_index][keys[i].host_intra_db_index] 
+                            == qb[i].environment.nextStep.ios[0]
+                    );
+//     {
+//
+//
+//     }
+
+
+    // TODO: Maybe we don't need ConcreteConfiguration
     ghost method MakeAtomicTrace(config:ConcreteConfiguration, qb:seq<QS_State>, external_io:SpecIoFilter) returns (qb':seq<QS_State>, db':seq<DS_State>) //, cm:seq<int>)
         requires |qb| > 0;
         requires QS_Init(qb[0], config);
