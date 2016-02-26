@@ -221,10 +221,13 @@ module AtomicTrace_i {
     // Given a db_action, find the index of its canonical action in the original qb trace
     var db_action_ordering : map<DS_State, int>;
 
-    datatype SortKey = SortKey(host:Option<EndPoint>, host_db_action_index:int, host_intra_db_index:int)
+    datatype SortKey = SortKey(canonical_action_index:int, // The index in qb of the db action's canonical action
+                               host:Option<EndPoint>,      // The host that took this action (if any)
+                               host_db_action_index:int,   // The index into this host's db actions
+                               host_intra_db_index:int)    // Within the db action, where does this event occur?
 
     ghost method AssignSortKeys(config:ConcreteConfiguration, qb:seq<QS_State>) 
-          returns (keys:seq<SortKey>, db':seq<DS_State>) 
+          returns (keys:seq<SortKey>, trace:StepTrace, io_partition:seq<IoTrace>, behavior:seq<HostState>, db':seq<DS_State>) 
         requires |qb| > 0;
         requires QS_Init(qb[0], config);
         requires forall i {:trigger QS_Next(qb[i], qb[i+1])} :: 0 <= i < |qb| - 1 ==> QS_Next(qb[i], qb[i+1]);
@@ -242,13 +245,12 @@ module AtomicTrace_i {
                     (keys[i].host.Some? ==>
                         keys[i].host.v in qb[0].servers
                      && keys[i].host.v == qb[i].environment.nextStep.actor
-                     && var trace:StepTrace := ComputeStepTrace(qb);
-                        var io_partition:seq<IoTrace>, behavior:seq<HostState> :| 
-                             SeqCat(io_partition) == ProjectStepTraceToHostIos(trace, keys[i].host.v) 
-                          && |io_partition| == |behavior| - 1;
-                        0 <= keys[i].host_db_action_index < |io_partition|
+                     && trace == ComputeStepTrace(qb)
+                     && SeqCat(io_partition) == ProjectStepTraceToHostIos(trace, keys[i].host.v) 
+                     && |io_partition| == |behavior| - 1
+                     && 0 <= keys[i].host_db_action_index < |io_partition|
                      && 0 <= keys[i].host_intra_db_index < |io_partition[keys[i].host_db_action_index]|
-                     && |qb[i].environment.nextStep.ios| > 0
+                     && |qb[i].environment.nextStep.ios| > 0    // TODO: This is and the next line aren't quite right!
                      && io_partition[keys[i].host_db_action_index][keys[i].host_intra_db_index] 
                             == qb[i].environment.nextStep.ios[0]
                     );
