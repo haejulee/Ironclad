@@ -10,8 +10,8 @@ module TraceModule {
     // Traces and the entries they're composed of
     /////////////////////////////////////////////////
 
-    datatype Entry<Actor, Action> =   EntryIrreducibleAction(irreducible_action:Action)
-                                    | EntryReducibleAction(action_actor:Actor, action_level:int, reducible_action:Action)
+    datatype Entry<Actor, Action> =   EntryIrreducibleAction(irreducible_actor:Option<Actor>, irreducible_level:int, irreducible_action:Action)
+                                    | EntryReducibleAction(actor:Actor, level:int, action:Action)
                                     | EntryBeginGroup(begin_group_actor:Actor, group_level:int)
                                     | EntryEndGroup(end_group_actor:Actor, fine_level:int, coarse_level:int, reduced_action:Entry)
 
@@ -21,7 +21,7 @@ module TraceModule {
     function GetEntryActor<Actor, Action>(e:Entry) : Option<Actor>
     {
         match e
-            case EntryIrreducibleAction(action) => None()
+            case EntryIrreducibleAction(actor, level, action) => actor
             case EntryReducibleAction(actor, level, action) => Some(actor)
             case EntryBeginGroup(actor, level) => Some(actor)
             case EntryEndGroup(actor, fine_level, coarse_level, action) => Some(actor)
