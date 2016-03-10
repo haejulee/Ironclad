@@ -6,59 +6,56 @@ module TraceModule {
     import opened Native__Io_s
     import opened Logic__Option_i
 
-    /////////////////////////////////////////////////
-    // Traces and the entries they're composed of
-    /////////////////////////////////////////////////
-
-    datatype Entry<Actor, Action> =   EntryIrreducibleAction(irreducible_actor:Option<Actor>, irreducible_level:int, irreducible_action:Action)
-                                    | EntryReducibleAction(actor:Actor, level:int, action:Action)
-                                    | EntryBeginGroup(begin_group_actor:Actor, group_level:int)
-                                    | EntryEndGroup(end_group_actor:Actor, fine_level:int, coarse_level:int, reduced_action:Entry)
-
-    type Trace<Actor, Action> = seq<Entry>
-
-
-    function GetEntryActor<Actor, Action>(e:Entry) : Option<Actor>
-    {
-        match e
-            case EntryIrreducibleAction(actor, level, action) => actor
-            case EntryReducibleAction(actor, level, action) => Some(actor)
-            case EntryBeginGroup(actor, level) => Some(actor)
-            case EntryEndGroup(actor, fine_level, coarse_level, action) => Some(actor)
-    }
-
-    function RestrictTraceToActor<Actor, Action>(t:Trace, a:Actor) : Trace
-        ensures var t' := RestrictTraceToActor(t, a);
-                forall e :: e in t' ==> GetEntryActor(e) == Some(a);
-        ensures var t' := RestrictTraceToActor(t, a);
-                forall e :: e in t && GetEntryActor(e) == Some(a) ==> e in t';
-    {
-        if |t| == 0 then
-            []
-        else if GetEntryActor(t[0]) == Some(a) then
-            [t[0]] + RestrictTraceToActor(t[1..], a)
-        else
-            RestrictTraceToActor(t[1..], a)
-    }
-
     /////////////////////////////////////////////////////////////////////
     // Some possibilities for the actors and actions in a trace
     /////////////////////////////////////////////////////////////////////
 
-    datatype Packet<Address, Message> = Packet(dst:Address, src:Address, msg:Message)
+    datatype Packet = Packet(dst:EndPoint, src:EndPoint, msg:seq<byte>)
+    datatype Actor = NoActor() | HostActor(ep:EndPoint) | ThreadActor(tep:EndPoint, tid:int)
 
-    datatype IOAction<Address, Message> =    IOActionReceive(r:Packet)
-                                           | IOActionSend(s:Packet)
-                                           | IOActionReadClock(t:int)
-                                           | IOActionUpdateLocalState()
-                                           | IOActionStutter()
+    datatype IOAction =   IOActionReceive(r:Packet)
+                        | IOActionSend(s:Packet)
+                        | IOActionReadClock(t:int)
+                        | IOActionUpdateLocalState()
+                        | IOActionStutter()
 
-    datatype DSAction<Address, Message> =   DSActionIOs(actor:Address, ios:seq<IOAction>)
-                                          | DSActionDeliverPacket(p:Packet)
-                                          | DSActionAdvanceTime(t:int)
-                                          | DSActionStutter()
+    datatype DSAction =   DSActionIOs(ios:seq<IOAction>)
+                        | DSActionDeliverPacket(p:Packet)
+                        | DSActionAdvanceTime(t:int)
+                        | DSActionStutter()
 
-    type ActorPossibility = EndPoint
-    datatype ActionPossibility = ActionIO(io:IOAction<EndPoint, seq<byte>>) | ActionDS(ds:DSAction<EndPoint, seq<byte>>)
+    datatype Action = ActionIO(io:IOAction) | ActionDS(ds:DSAction)
+
+    /////////////////////////////////////////////////
+    // Traces and the entries they're composed of
+    /////////////////////////////////////////////////
+
+    datatype Entry =   EntryAction(actor:Actor, action:Action)
+                     | EntryBeginGroup(begin_group_actor:Actor, group_level:int)
+                     | EntryEndGroup(end_group_actor:Actor, fine_level:int, coarse_level:int, reduced_action:Entry)
+
+    type Trace = seq<Entry>
+
+    function GetEntryActor(e:Entry) : Actor
+    {
+        match e
+            case EntryAction(actor, action) => actor
+            case EntryBeginGroup(actor, level) => actor
+            case EntryEndGroup(actor, fine_level, coarse_level, action) => actor
+    }
+
+    function RestrictTraceToActor(t:Trace, a:Actor) : Trace
+        ensures var t' := RestrictTraceToActor(t, a);
+                forall e :: e in t' ==> GetEntryActor(e) == a;
+        ensures var t' := RestrictTraceToActor(t, a);
+                forall e :: e in t && GetEntryActor(e) == a ==> e in t';
+    {
+        if |t| == 0 then
+            []
+        else if GetEntryActor(t[0]) == a then
+            [t[0]] + RestrictTraceToActor(t[1..], a)
+        else
+            RestrictTraceToActor(t[1..], a)
+    }
 
 }
