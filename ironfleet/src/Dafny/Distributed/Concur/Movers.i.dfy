@@ -181,7 +181,6 @@ module MoversModule {
         }
         else if action2.ActionIO? && action2.io.IOActionUpdateLocalState? {
             if actor2 in ds2.states {
-                assume false;
                 ds2' := ds1.(states := ds3.states);
             }
             else {
@@ -240,8 +239,11 @@ module MoversModule {
         }
         else if action2.ActionIO? && action2.io.IOActionUpdateLocalState? {
             if actor2 in ds2.states {
-                assume false;
-                ds2' := ds1.(states := ds3.states);
+                ds2' := ds1.(states := ds1.states[actor2 := ds3.states[actor2]]);
+                if !(action1.ActionIO? && action1.io.IOActionUpdateLocalState?) &&
+                   !(action1.ActionDS? && action1.ds.DSActionHostEventHandler?) {
+                    assert ds2'.states == ds3.states;
+                }
             }
             else {
                 ds2' := ds1;
@@ -300,8 +302,11 @@ module MoversModule {
         }
         else if entry2.EntryAction? && entry2.action.ActionIO? && entry2.action.io.IOActionUpdateLocalState? {
             if entry2.actor in ds2.states {
-                assume false;
-                ds2' := ds1.(states := ds3.states);
+                ds2' := ds1.(states := ds1.states[entry2.actor := ds3.states[entry2.actor]]);
+                if !(entry1.EntryAction? && entry1.action.ActionIO? && entry1.action.io.IOActionUpdateLocalState?) &&
+                   !(entry1.EntryAction? && entry1.action.ActionDS? && entry1.action.ds.DSActionHostEventHandler?) {
+                    assert ds2'.states == ds3.states;
+                }
             }
             else {
                 ds2' := ds1;
