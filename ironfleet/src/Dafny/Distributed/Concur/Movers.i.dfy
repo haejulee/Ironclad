@@ -24,6 +24,16 @@ module MoversModule {
         action.ActionIO? && IOActionIsLeftMover(action.io)
     }
 
+    predicate EntryIsRightMover(entry:Entry)
+    {
+        entry.EntryAction? && ActionIsRightMover(entry.action)
+    }
+
+    predicate EntryIsLeftMover(entry:Entry)
+    {
+        entry.EntryAction? && ActionIsLeftMover(entry.action)
+    }
+
     predicate IOActionsCompatibleWithReductionUsingPivot(ios:seq<IOAction>, pivot:int)
     {
            0 <= pivot < |ios|
@@ -68,7 +78,7 @@ module MoversModule {
     }
 
 /*
-    lemma lemma_MoverCommutativityIO(
+    lemma lemma_MoverCommutativityForIOActions(
         actor1:Actor,
         actor2:Actor,
         io1:IOAction,
@@ -125,7 +135,7 @@ module MoversModule {
     }
 
 
-    lemma lemma_MoverCommutativity(
+    lemma lemma_MoverCommutativityForActions(
         actor1:Actor,
         actor2:Actor,
         action1:Action,
@@ -144,7 +154,7 @@ module MoversModule {
         ensures  DistributedSystemNextAction(ds2', ds3, actor1, action1);
     {
         if action1.ActionIO? && action2.ActionIO? {
-            ds2' := lemma_MoverCommutativityIO(actor1, actor2, action1.io, action2.io, ds1, ds2, ds3);
+            ds2' := lemma_MoverCommutativityForIOActions(actor1, actor2, action1.io, action2.io, ds1, ds2, ds3);
             return;
         }
 
@@ -188,7 +198,7 @@ module MoversModule {
     }
 */
 
-    lemma lemma_MoverCommutativity(
+    lemma lemma_MoverCommutativityForActions(
         actor1:Actor,
         actor2:Actor,
         action1:Action,
@@ -245,6 +255,66 @@ module MoversModule {
                 assert ds3.sentPackets == ds2'.sentPackets + {action1.io.s};
             }
             else if action1.ActionDS? && action1.ds.DSActionHostEventHandler? {
+                assert ds2'.states == ds1.states;
+            }
+        }
+    }
+
+    lemma lemma_MoverCommutativityForEntries(
+        entry1:Entry,
+        entry2:Entry,
+        ds1:DistributedSystem,
+        ds2:DistributedSystem,
+        ds3:DistributedSystem
+        )
+        returns
+        (ds2':DistributedSystem)
+        requires GetEntryActor(entry1) != GetEntryActor(entry2);
+        requires DistributedSystemNextEntryAction(ds1, ds2, entry1);
+        requires DistributedSystemNextEntryAction(ds2, ds3, entry2);
+        requires EntryIsRightMover(entry1) || EntryIsLeftMover(entry2);
+        ensures  DistributedSystemNextEntryAction(ds1, ds2', entry2);
+        ensures  DistributedSystemNextEntryAction(ds2', ds3, entry1);
+    {
+        if entry1.EntryAction? && entry1.action.ActionIO? && entry1.action.io.IOActionReceive? {
+            ds2' := ds3;
+        }
+        else if entry1.EntryAction? && entry1.action.ActionIO? && entry1.action.io.IOActionUpdateLocalState? {
+            if entry1.actor in ds1.states {
+                ds2' := ds3.(states := ds3.states[entry1.actor := ds1.states[entry1.actor]]);
+                if !(entry2.EntryAction? && entry2.action.ActionIO? && entry2.action.io.IOActionUpdateLocalState?) &&
+                   !(entry2.EntryAction? && entry2.action.ActionDS? && entry2.action.ds.DSActionHostEventHandler?) {
+                    assert ds2'.states == ds1.states;
+                }
+            }
+            else {
+                assert ds1.states == ds2.states;
+                ds2' := ds3;
+            }
+        }
+        else if entry1.EntryAction? && entry1.action.ActionIO? && entry1.action.io.IOActionStutter? {
+            ds2' := ds3;
+        }
+        else if entry2.EntryAction? && entry2.action.ActionIO? && entry2.action.io.IOActionStutter? {
+            ds2' := ds1;
+        }
+        else if entry2.EntryAction? && entry2.action.ActionIO? && entry2.action.io.IOActionUpdateLocalState? {
+            if entry2.actor in ds2.states {
+                assume false;
+                ds2' := ds1.(states := ds3.states);
+            }
+            else {
+                ds2' := ds1;
+                assert ds2.states == ds3.states;
+            }
+        }
+        else if entry2.EntryAction? && entry2.action.ActionIO? && entry2.action.io.IOActionSend? {
+            ds2' := ds1.(sentPackets := ds1.sentPackets + {entry2.action.io.s});
+            if entry1.EntryAction? && entry1.action.ActionIO? && entry1.action.io.IOActionSend? {
+                assert ds2'.states == ds3.states;
+                assert ds3.sentPackets == ds2'.sentPackets + {entry1.action.io.s};
+            }
+            else if entry1.EntryAction? && entry1.action.ActionDS? && entry1.action.ds.DSActionHostEventHandler? {
                 assert ds2'.states == ds1.states;
             }
         }
