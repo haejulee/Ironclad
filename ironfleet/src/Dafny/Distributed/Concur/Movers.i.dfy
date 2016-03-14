@@ -82,12 +82,12 @@ module MoversModule {
         actor2:Actor,
         io1:IOAction,
         io2:IOAction,
-        ds1:DistributedSystem,
-        ds2:DistributedSystem,
-        ds3:DistributedSystem
+        ds1:DistributedSystemState,
+        ds2:DistributedSystemState,
+        ds3:DistributedSystemState
         )
         returns
-        (ds2':DistributedSystem)
+        (ds2':DistributedSystemState)
         requires actor1 != actor2;
         requires DistributedSystemNextIOAction(ds1, ds2, actor1, io1);
         requires DistributedSystemNextIOAction(ds2, ds3, actor2, io2);
@@ -138,12 +138,12 @@ module MoversModule {
         actor2:Actor,
         action1:Action,
         action2:Action,
-        ds1:DistributedSystem,
-        ds2:DistributedSystem,
-        ds3:DistributedSystem
+        ds1:DistributedSystemState,
+        ds2:DistributedSystemState,
+        ds3:DistributedSystemState
         )
         returns
-        (ds2':DistributedSystem)
+        (ds2':DistributedSystemState)
         requires actor1 != actor2;
         requires DistributedSystemNextAction(ds1, ds2, actor1, action1);
         requires DistributedSystemNextAction(ds2, ds3, actor2, action2);
@@ -201,12 +201,12 @@ module MoversModule {
     lemma lemma_MoverCommutativityForEntries(
         entry1:Entry,
         entry2:Entry,
-        ds1:DistributedSystem,
-        ds2:DistributedSystem,
-        ds3:DistributedSystem
+        ds1:DistributedSystemState,
+        ds2:DistributedSystemState,
+        ds3:DistributedSystemState
         )
         returns
-        (ds2':DistributedSystem)
+        (ds2':DistributedSystemState)
         requires GetEntryActor(entry1) != GetEntryActor(entry2);
         requires DistributedSystemNextEntryAction(ds1, ds2, entry1);
         requires DistributedSystemNextEntryAction(ds2, ds3, entry2);

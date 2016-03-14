@@ -41,7 +41,7 @@ module EventHandlerModule {
         actor:Actor,
         io_actions:seq<IOAction>,
         ds_action:DSAction,
-        states:seq<DistributedSystem>
+        states:seq<DistributedSystemState>
         )
         requires actor.HostActor?;
         requires |states| == |io_actions| + 1;

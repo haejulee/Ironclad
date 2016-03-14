@@ -5,17 +5,20 @@ module DistributedSystemModule {
     import opened TraceModule
 
     type ActorState
-    datatype DistributedSystem = DistributedSystem(states:map<Actor, ActorState>, time:int, sentPackets:set<Packet>)
+    predicate ActorStateInit(s:ActorState)
 
-    predicate DistributedSystemInit(ds:DistributedSystem)
+    datatype DistributedSystemState = DistributedSystemState(states:map<Actor, ActorState>, time:int, sentPackets:set<Packet>)
+
+    predicate DistributedSystemInit(ds:DistributedSystemState)
     {
-           |ds.sentPackets| == 0
+           (forall actor :: actor in ds.states ==> ActorStateInit(ds.states[actor]))
+        && |ds.sentPackets| == 0
         && ds.time >= 0
     }
 
     predicate DistributedSystemNextDSActionHostEventHandler(
-        ds:DistributedSystem,
-        ds':DistributedSystem,
+        ds:DistributedSystemState,
+        ds':DistributedSystemState,
         actor:Actor,
         ios:seq<IOAction>
         )
@@ -32,24 +35,24 @@ module DistributedSystemModule {
         && (forall io :: io in ios && io.IOActionSend? ==> io.s in ds'.sentPackets && io.s.src == actor.ep)
     }
 
-    predicate DistributedSystemNextDSActionAdvanceTime(ds:DistributedSystem, ds':DistributedSystem, t:int)
+    predicate DistributedSystemNextDSActionAdvanceTime(ds:DistributedSystemState, ds':DistributedSystemState, t:int)
     {
            t > ds.time
         && ds' == ds.(time := t)
     }
 
-    predicate DistributedSystemNextDSActionDeliverPacket(ds:DistributedSystem, ds':DistributedSystem, p:Packet)
+    predicate DistributedSystemNextDSActionDeliverPacket(ds:DistributedSystemState, ds':DistributedSystemState, p:Packet)
     {
            p in ds.sentPackets
         && ds' == ds
     }
 
-    predicate DistributedSystemNextStutter(ds:DistributedSystem, ds':DistributedSystem)
+    predicate DistributedSystemNextStutter(ds:DistributedSystemState, ds':DistributedSystemState)
     {
         ds' == ds
     }
 
-    predicate DistributedSystemNextDSAction(ds:DistributedSystem, ds':DistributedSystem, actor:Actor, action:DSAction)
+    predicate DistributedSystemNextDSAction(ds:DistributedSystemState, ds':DistributedSystemState, actor:Actor, action:DSAction)
     {
         match action
             case DSActionHostEventHandler(ios) => DistributedSystemNextDSActionHostEventHandler(ds, ds', actor, ios)
@@ -58,7 +61,7 @@ module DistributedSystemModule {
             case DSActionStutter => DistributedSystemNextStutter(ds, ds')
     }
 
-    predicate DistributedSystemNextIOActionReceive(ds:DistributedSystem, ds':DistributedSystem, actor:Actor, p:Packet)
+    predicate DistributedSystemNextIOActionReceive(ds:DistributedSystemState, ds':DistributedSystemState, actor:Actor, p:Packet)
     {
            ds' == ds
         && actor.HostActor?
@@ -66,21 +69,21 @@ module DistributedSystemModule {
         && p.dst == actor.ep
     }
 
-    predicate DistributedSystemNextIOActionSend(ds:DistributedSystem, ds':DistributedSystem, actor:Actor, p:Packet)
+    predicate DistributedSystemNextIOActionSend(ds:DistributedSystemState, ds':DistributedSystemState, actor:Actor, p:Packet)
     {
            ds' == ds.(sentPackets := ds.sentPackets + {p})
         && actor.HostActor?
         && p.src == actor.ep
     }
 
-    predicate DistributedSystemNextIOActionReadClock(ds:DistributedSystem, ds':DistributedSystem, actor:Actor, t:int)
+    predicate DistributedSystemNextIOActionReadClock(ds:DistributedSystemState, ds':DistributedSystemState, actor:Actor, t:int)
     {
            ds' == ds
         && actor.HostActor?
         && t == ds.time
     }
 
-    predicate DistributedSystemNextIOActionUpdateLocalState(ds:DistributedSystem, ds':DistributedSystem, actor:Actor)
+    predicate DistributedSystemNextIOActionUpdateLocalState(ds:DistributedSystemState, ds':DistributedSystemState, actor:Actor)
     {
            actor.HostActor?
         && (forall any_actor :: any_actor !in ds.states ==> any_actor !in ds'.states)
@@ -91,7 +94,7 @@ module DistributedSystemModule {
         && ds'.time == ds.time
     }
 
-    predicate DistributedSystemNextIOAction(ds:DistributedSystem, ds':DistributedSystem, actor:Actor, action:IOAction)
+    predicate DistributedSystemNextIOAction(ds:DistributedSystemState, ds':DistributedSystemState, actor:Actor, action:IOAction)
     {
         match action
             case IOActionReceive(p) => DistributedSystemNextIOActionReceive(ds, ds', actor, p)
@@ -101,19 +104,24 @@ module DistributedSystemModule {
             case IOActionStutter => DistributedSystemNextStutter(ds, ds')
     }
 
-    predicate DistributedSystemNextAction(ds:DistributedSystem, ds':DistributedSystem, actor:Actor, action:Action)
+    predicate DistributedSystemNextAction(ds:DistributedSystemState, ds':DistributedSystemState, actor:Actor, action:Action)
     {
         match action
             case ActionIO(io_action) => DistributedSystemNextIOAction(ds, ds', actor, io_action)
             case ActionDS(ds_action) => DistributedSystemNextDSAction(ds, ds', actor, ds_action)
     }
 
-    predicate DistributedSystemNextEntryAction(ds:DistributedSystem, ds':DistributedSystem, entry:Entry)
+    predicate DistributedSystemNextEntryAction(ds:DistributedSystemState, ds':DistributedSystemState, entry:Entry)
     {
         match entry
             case EntryAction(actor, action) => DistributedSystemNextAction(ds, ds', actor, action)
             case EntryBeginGroup(actor, level) => DistributedSystemNextStutter(ds, ds')
             case EntryEndGroup(actor, l1, l2, action) => DistributedSystemNextStutter(ds, ds')
+    }
+
+    predicate DistributedSystemNext(ds:DistributedSystemState, ds':DistributedSystemState)
+    {
+        exists entry :: DistributedSystemNextEntryAction(ds, ds', entry)
     }
 
 }
