@@ -32,7 +32,7 @@ module TraceModule {
 
     datatype Entry =   EntryAction(actor:Actor, action:Action)
                      | EntryBeginGroup(begin_group_actor:Actor, group_level:int)
-                     | EntryEndGroup(end_group_actor:Actor, fine_level:int, coarse_level:int, reduced_action:Entry)
+                     | EntryEndGroup(end_group_actor:Actor, fine_level:int, coarse_level:int, reduced_entry:Entry)
 
     type Trace = seq<Entry>
 
@@ -42,6 +42,18 @@ module TraceModule {
             case EntryAction(actor, action) => actor
             case EntryBeginGroup(actor, level) => actor
             case EntryEndGroup(actor, fine_level, coarse_level, action) => actor
+    }
+
+    function GetEntryLevel(e:Entry) : int
+    {
+        match e
+            case EntryAction(actor, action) =>
+                (match action
+                     case ActionIO(io) => 1
+                     case ActionDS(ds) => 2
+                )
+            case EntryBeginGroup(actor, level) => level
+            case EntryEndGroup(actor, fine_level, coarse_level, action) => fine_level
     }
 
     function RestrictTraceToActor(t:Trace, a:Actor) : Trace

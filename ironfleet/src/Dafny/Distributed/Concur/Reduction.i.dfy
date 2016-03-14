@@ -10,7 +10,42 @@ module ReductionModule
         && (forall i :: 0 <= i < |trace| && (EntryIsRightMover(trace[i]) || EntryIsLeftMover(trace[i])) ==> sb[i] == sb[i+1])
     }
 
-    lemma PerformOneReductionStep(
+    predicate EntriesReducibleToEntry(entries:seq<Entry>, entry:Entry)
+    {
+        forall db:seq<DistributedSystemState> ::
+                |db| == |entries|+1
+             && (forall i :: 0 <= i < |entries| ==> DistributedSystemNextEntryAction(db[i], db[i+1], entries[i]))
+             ==> DistributedSystemNextEntryAction(db[0], db[|entries|], entry)
+    }
+
+    predicate EntriesCompatibleWithReductionUsingPivot(entries:seq<Entry>, pivot:int)
+    {
+           0 <= pivot < |entries|
+        && (forall i :: 0 <= i < |entries| ==> EntryIsRightMover(entries[i]))
+        && (forall i :: pivot < i < |entries| ==> EntryIsLeftMover(entries[i]))
+    }
+
+    predicate EntriesCompatibleWithReduction(entries:seq<Entry>)
+    {
+        |entries| == 0 || exists pivot :: EntriesCompatibleWithReductionUsingPivot(entries, pivot)
+    }
+
+    predicate ActorTraceCompatibleWithReduction(t:Trace, level:int)
+    {
+           |t| == 0
+        || (GetEntryLevel(t[0]) > level && ActorTraceCompatibleWithReduction(t[1..], level))
+        || (exists endPos ::    0 < endPos < |t|
+                        && t[0].EntryBeginGroup?
+                        && t[endPos].EntryEndGroup?
+                        && (forall i :: 0 < i < endPos ==> t[i].EntryAction?)
+                        && (forall i :: 0 <= i <= endPos ==> GetEntryLevel(t[i]) == level)
+                        && EntriesCompatibleWithReduction(t[1..endPos])
+                        && EntriesReducibleToEntry(t[1..endPos], t[endPos].reduced_entry)
+                        && ActorTraceCompatibleWithReduction(t[endPos+1..], level)
+           )
+    }
+
+    lemma PerformOneReductionSwap(
         trace:Trace,
         db:seq<DistributedSystemState>,
         firstEntryPos:int
