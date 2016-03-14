@@ -77,7 +77,6 @@ module MoversModule {
         }
     }
 
-/*
     lemma lemma_MoverCommutativityForIOActions(
         actor1:Actor,
         actor2:Actor,
@@ -133,69 +132,6 @@ module MoversModule {
             }
         }
     }
-
-
-    lemma lemma_MoverCommutativityForActions(
-        actor1:Actor,
-        actor2:Actor,
-        action1:Action,
-        action2:Action,
-        ds1:DistributedSystem,
-        ds2:DistributedSystem,
-        ds3:DistributedSystem
-        )
-        returns
-        (ds2':DistributedSystem)
-        requires actor1 != actor2;
-        requires DistributedSystemNextAction(ds1, ds2, actor1, action1);
-        requires DistributedSystemNextAction(ds2, ds3, actor2, action2);
-        requires ActionIsRightMover(action1) || ActionIsLeftMover(action2);
-        ensures  DistributedSystemNextAction(ds1, ds2', actor2, action2);
-        ensures  DistributedSystemNextAction(ds2', ds3, actor1, action1);
-    {
-        if action1.ActionIO? && action2.ActionIO? {
-            ds2' := lemma_MoverCommutativityForIOActions(actor1, actor2, action1.io, action2.io, ds1, ds2, ds3);
-            return;
-        }
-
-        if action1.ActionIO? && action1.io.IOActionReceive? {
-            ds2' := ds3;
-        }
-        else if action1.ActionIO? && action1.io.IOActionUpdateLocalState? {
-            if actor1 in ds1.states {
-                ds2' := ds3.(states := ds3.states[actor1 := ds1.states[actor1]]);
-                if !action2.ds.DSActionHostEventHandler? {
-                    assert ds2'.states == ds1.states;
-                }
-            }
-            else {
-                assert ds1.states == ds2.states;
-                ds2' := ds3;
-            }
-        }
-        else if action1.ActionIO? && action1.io.IOActionStutter? {
-            ds2' := ds3;
-        }
-        else if action2.ActionIO? && action2.io.IOActionStutter? {
-            ds2' := ds1;
-        }
-        else if action2.ActionIO? && action2.io.IOActionUpdateLocalState? {
-            if actor2 in ds2.states {
-                ds2' := ds1.(states := ds3.states);
-            }
-            else {
-                ds2' := ds1;
-                assert ds2.states == ds3.states;
-            }
-        }
-        else if action2.ActionIO? && action2.io.IOActionSend? {
-            ds2' := ds1.(sentPackets := ds1.sentPackets + {action2.io.s});
-            if !action1.ds.DSActionHostEventHandler? {
-                assert ds2'.states == ds3.states;
-            }
-        }
-    }
-*/
 
     lemma lemma_MoverCommutativityForActions(
         actor1:Actor,
@@ -281,9 +217,6 @@ module MoversModule {
         if !entry1.EntryAction? {
             ds2' := ds3;
         }
-        else if !entry2.EntryAction? {
-            ds2' := ds1;
-        }
         else if entry1.EntryAction? && entry1.action.ActionIO? && entry1.action.io.IOActionReceive? {
             ds2' := ds3;
         }
@@ -302,6 +235,9 @@ module MoversModule {
         }
         else if entry1.EntryAction? && entry1.action.ActionIO? && entry1.action.io.IOActionStutter? {
             ds2' := ds3;
+        }
+        else if !entry2.EntryAction? {
+            ds2' := ds1;
         }
         else if entry2.EntryAction? && entry2.action.ActionIO? && entry2.action.io.IOActionStutter? {
             ds2' := ds1;
