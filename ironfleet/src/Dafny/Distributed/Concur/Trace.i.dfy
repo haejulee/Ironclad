@@ -44,13 +44,16 @@ module TraceModule {
             case EntryEndGroup(actor, fine_level, coarse_level, action) => actor
     }
 
+    function const_IOLevel() : int { 1 }
+    function const_DSLevel() : int { 2 }
+
     function GetEntryLevel(e:Entry) : int
     {
         match e
             case EntryAction(actor, action) =>
                 (match action
-                     case ActionIO(io) => 1
-                     case ActionDS(ds) => 2
+                     case ActionIO(io) => const_IOLevel()
+                     case ActionDS(ds) => const_DSLevel()
                 )
             case EntryBeginGroup(actor, level) => level
             case EntryEndGroup(actor, fine_level, coarse_level, action) => fine_level

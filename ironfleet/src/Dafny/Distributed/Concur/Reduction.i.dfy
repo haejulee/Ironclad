@@ -20,14 +20,14 @@ module ReductionModule
 
     predicate EntriesCompatibleWithReductionUsingPivot(entries:seq<Entry>, pivot:int)
     {
-           0 <= pivot < |entries|
-        && (forall i :: 0 <= i < |entries| ==> EntryIsRightMover(entries[i]))
+           0 <= pivot <= |entries|
+        && (forall i :: 0 <= i < pivot ==> EntryIsRightMover(entries[i]))
         && (forall i :: pivot < i < |entries| ==> EntryIsLeftMover(entries[i]))
     }
 
     predicate EntriesCompatibleWithReduction(entries:seq<Entry>)
     {
-        |entries| == 0 || exists pivot :: EntriesCompatibleWithReductionUsingPivot(entries, pivot)
+        exists pivot :: EntriesCompatibleWithReductionUsingPivot(entries, pivot)
     }
 
     predicate ActorTraceCompatibleWithReduction(t:Trace, level:int)
@@ -44,6 +44,39 @@ module ReductionModule
                         && ActorTraceCompatibleWithReduction(t[endPos+1..], level)
            )
     }
+
+    lemma lemma_IfEntriesCompatibleWithReductionAndOneIsntRightMoverThenRestAreLeftMovers(entries:seq<Entry>, i:int, j:int)
+        requires 0 <= i < j < |entries|;
+        requires EntriesCompatibleWithReduction(entries);
+        requires !EntryIsRightMover(entries[i]);
+        ensures  EntryIsLeftMover(entries[j]);
+        decreases j;
+    {
+        var pivot :| EntriesCompatibleWithReductionUsingPivot(entries, pivot);
+        assert !(i < pivot);
+        assert j > pivot;
+    }
+
+    lemma lemma_IfEntriesCompatibleWithReductionThenSuffixIs(entries:seq<Entry>)
+        requires |entries| > 0;
+        requires EntriesCompatibleWithReduction(entries);
+        ensures  EntriesCompatibleWithReduction(entries[1..]);
+    {
+        var entries' := entries[1..];
+        if |entries'| == 0 {
+            assert EntriesCompatibleWithReductionUsingPivot(entries', 0);
+            return;
+        }
+        
+        var pivot :| EntriesCompatibleWithReductionUsingPivot(entries, pivot);
+        if pivot == 0 {
+            assert EntriesCompatibleWithReductionUsingPivot(entries', 0);
+        }
+        else {
+            assert EntriesCompatibleWithReductionUsingPivot(entries', pivot-1);
+        }
+    }
+
 
     lemma PerformOneReductionSwap(
         trace:Trace,
