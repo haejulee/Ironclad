@@ -12,7 +12,6 @@ module TraceModule {
 
     datatype Packet = Packet(dst:EndPoint, src:EndPoint, msg:seq<byte>)
     datatype Actor = NoActor() | HostActor(ep:EndPoint) | ThreadActor(tep:EndPoint, tid:int)
-    type ActorState
 
     datatype IOAction =   IOActionReceive(r:Packet)
                         | IOActionSend(s:Packet)

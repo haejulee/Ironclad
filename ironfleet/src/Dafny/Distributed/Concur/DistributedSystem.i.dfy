@@ -4,6 +4,7 @@ module DistributedSystemModule {
 
     import opened TraceModule
 
+    type ActorState
     datatype DistributedSystem = DistributedSystem(states:map<Actor, ActorState>, time:int, sentPackets:set<Packet>)
 
     predicate DistributedSystemInit(ds:DistributedSystem)
