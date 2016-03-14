@@ -26,12 +26,12 @@ module MoversModule {
 
     predicate EntryIsRightMover(entry:Entry)
     {
-        entry.EntryAction? && ActionIsRightMover(entry.action)
+        entry.EntryAction? ==> ActionIsRightMover(entry.action)
     }
 
     predicate EntryIsLeftMover(entry:Entry)
     {
-        entry.EntryAction? && ActionIsLeftMover(entry.action)
+        entry.EntryAction? ==> ActionIsLeftMover(entry.action)
     }
 
     predicate IOActionsCompatibleWithReductionUsingPivot(ios:seq<IOAction>, pivot:int)
@@ -278,7 +278,13 @@ module MoversModule {
         ensures  DistributedSystemNextEntryAction(ds1, ds2', entry2);
         ensures  DistributedSystemNextEntryAction(ds2', ds3, entry1);
     {
-        if entry1.EntryAction? && entry1.action.ActionIO? && entry1.action.io.IOActionReceive? {
+        if !entry1.EntryAction? {
+            ds2' := ds3;
+        }
+        else if !entry2.EntryAction? {
+            ds2' := ds1;
+        }
+        else if entry1.EntryAction? && entry1.action.ActionIO? && entry1.action.io.IOActionReceive? {
             ds2' := ds3;
         }
         else if entry1.EntryAction? && entry1.action.ActionIO? && entry1.action.io.IOActionUpdateLocalState? {
