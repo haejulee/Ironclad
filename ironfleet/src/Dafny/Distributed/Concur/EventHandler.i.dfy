@@ -68,7 +68,7 @@ module EventHandlerModule {
         requires forall i :: 0 <= i < |entries| ==> DistributedSystemNextEntryAction(db[i], db[i+1], entries[i]);
         requires forall i :: 0 <= i < |entries| ==> GetEntryActor(entries[i]) == actor && GetEntryLevel(entries[i]) == const_IOLevel();
         requires entry == CombineIOLevelEntriesIntoDSEntry(actor, entries);
-        requires EntriesCompatibleWithReduction(entries);
+        requires EntriesReducible(entries);
         ensures  DistributedSystemNextEntryAction(db[0], db[|entries|], entry);
     {
         if |entries| == 0 {
@@ -76,7 +76,7 @@ module EventHandlerModule {
         }
 
         var entry_all_but_last := CombineIOLevelEntriesIntoDSEntry(actor, entries[1..]);
-        lemma_IfEntriesCompatibleWithReductionThenSuffixIs(entries);
+        lemma_IfEntriesReducibleThenSuffixIs(entries);
         lemma_EffectOfCombiningIOLevelEntriesMatchesEffectOfDoingIOLevelEntries(actor, entries[1..], entry_all_but_last, db[1..]);
 
         var ds := db[0];
@@ -91,7 +91,7 @@ module EventHandlerModule {
             {
                 var found_entry := lemma_CombineIOLevelEntriesIntoIOsIntroducesNoNewIOs(entries, io);
                 var i :| 0 <= i < |entries| && entries[i] == found_entry;
-                lemma_IfEntriesCompatibleWithReductionAndOneIsntRightMoverThenRestAreLeftMovers(entries, 0, i);
+                lemma_IfEntriesReducibleAndOneIsntRightMoverThenRestAreLeftMovers(entries, 0, i);
             }
         }
     }

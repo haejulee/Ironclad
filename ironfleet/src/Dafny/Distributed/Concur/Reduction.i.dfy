@@ -32,19 +32,25 @@ module ReductionModule
         exists pivot :: EntriesReducibleUsingPivot(entries, pivot)
     }
 
+    predicate EntryGroupReducible(trace:Trace, level:int)
+    {
+           |trace| > 0
+        && trace[0].EntryBeginGroup?
+        && last(trace).EntryEndGroup?
+        && (forall i :: 0 < i < |trace| - 1 ==> trace[i].EntryAction?)
+        && (forall i :: 0 <= i < |trace| ==> GetEntryLevel(trace[i]) == level)
+        && last(trace).coarse_level > level
+        && EntriesReducible(trace[1..|trace|-1])
+        && EntriesReducibleToEntry(trace[1..|trace|-1], last(trace).reduced_entry)
+    }
+
     predicate ActorTraceReducible(trace:Trace, level:int)
     {
            |trace| == 0
         || (GetEntryLevel(trace[0]) > level && ActorTraceReducible(trace[1..], level))
-        || (exists endPos ::    0 < endPos < |trace|
-                        && trace[0].EntryBeginGroup?
-                        && trace[endPos].EntryEndGroup?
-                        && (forall i :: 0 < i < endPos ==> trace[i].EntryAction?)
-                        && (forall i :: 0 <= i <= endPos ==> GetEntryLevel(trace[i]) == level)
-                        && trace[endPos].coarse_level > level
-                        && EntriesReducible(trace[1..endPos])
-                        && EntriesReducibleToEntry(trace[1..endPos], trace[endPos].reduced_entry)
-                        && ActorTraceReducible(trace[endPos+1..], level)
+        || (exists group_len ::    0 < group_len <= |trace|
+                          && EntryGroupReducible(trace[..group_len], level)
+                          && ActorTraceReducible(trace[group_len..], level)
            )
     }
 
@@ -56,6 +62,28 @@ module ReductionModule
     predicate TraceDoneWithReduction(trace:Trace, level:int)
     {
         forall entry :: entry in trace ==> GetEntryLevel(entry) > level
+    }
+
+    lemma lemma_IfTraceDoneWithReductionThenTraceReducible(trace:Trace, level:int)
+        requires TraceDoneWithReduction(trace, level);
+        ensures  TraceReducible(trace, level);
+    {
+        forall actor
+            ensures ActorTraceReducible(RestrictTraceToActor(trace, actor), level);
+        {
+            var actor_trace := RestrictTraceToActor(trace, actor);
+
+            if |actor_trace| == 0 {
+                assert ActorTraceReducible(actor_trace, level);
+            }
+            else {
+                var entry := actor_trace[0];
+                assert entry in actor_trace;
+                assert entry in trace;
+                assert GetEntryLevel(entry) > level;
+                lemma_IfTraceDoneWithReductionThenTraceReducible(trace[1..], level);
+            }
+        }
     }
 
     lemma lemma_IfEntriesReducibleAndOneIsntRightMoverThenRestAreLeftMovers(entries:seq<Entry>, i:int, j:int)
@@ -442,6 +470,95 @@ module ReductionModule
         }
     }
 
+    lemma lemma_PerformReductionStartingAtGroupBegin(
+        trace:Trace,
+        db:seq<DistributedSystemState>,
+        level:int,
+        actor:Actor,
+        actor_trace:Trace,
+        entry_pos:int,
+        group_len:int
+        ) returns (
+        trace':Trace,
+        db':seq<DistributedSystemState>
+        )
+        requires IsValidDistributedSystemTraceAndBehavior(trace, db);
+        requires TraceReducible(trace, level);
+        requires 0 <= entry_pos < |trace|;
+        requires TraceReducible(trace[entry_pos..], level);
+        requires GetEntryActor(trace[entry_pos]) == actor;
+        requires actor_trace == RestrictTraceToActor(trace[entry_pos..], actor);
+        requires 0 < group_len <= |actor_trace|;
+        requires EntryGroupReducible(actor_trace[..group_len], level);
+        requires ActorTraceReducible(actor_trace[group_len..], level);
+        ensures  |trace'| >= entry_pos;
+        ensures  trace'[..entry_pos] == trace[..entry_pos];
+        ensures  TraceReducible(trace', level);
+        ensures  TraceReducible(trace'[entry_pos..], level);
+        ensures  IsValidDistributedSystemTraceAndBehavior(trace', db');
+        ensures  forall sb' :: DistributedSystemBehaviorRefinesSpecBehavior(db', sb')
+                     ==> exists sb :: DistributedSystemBehaviorRefinesSpecBehavior(db, sb);
+        ensures  |trace'| < |trace|;
+    {
+        assume false;
+    }
+
+    lemma lemma_PerformReductionStartingAtEntry(
+        trace:Trace,
+        db:seq<DistributedSystemState>,
+        level:int,
+        entry_pos:int
+        ) returns (
+        trace':Trace,
+        db':seq<DistributedSystemState>
+        )
+        requires IsValidDistributedSystemTraceAndBehavior(trace, db);
+        requires TraceReducible(trace, level);
+        requires 0 <= entry_pos <= |trace|;
+        requires TraceDoneWithReduction(trace[..entry_pos], level);
+        requires TraceReducible(trace[entry_pos..], level);
+        ensures  TraceReducible(trace', level);
+        ensures  TraceDoneWithReduction(trace', level);
+        ensures  IsValidDistributedSystemTraceAndBehavior(trace', db');
+        ensures  forall sb' :: DistributedSystemBehaviorRefinesSpecBehavior(db', sb')
+                     ==> exists sb :: DistributedSystemBehaviorRefinesSpecBehavior(db, sb);
+        decreases |trace| - entry_pos;
+    {
+        if entry_pos == |trace| {
+            trace' := trace;
+            db' := db;
+            return;
+        }
+
+        var entry_actor := GetEntryActor(trace[entry_pos]);
+        var trace_suffix := trace[entry_pos..];
+        var trace_suffix' := trace[entry_pos+1..];
+
+        if GetEntryLevel(trace[entry_pos]) > level {
+            forall any_actor
+                ensures ActorTraceReducible(RestrictTraceToActor(trace_suffix', any_actor), level);
+            {
+                if any_actor == entry_actor {
+                    assert ActorTraceReducible(RestrictTraceToActor(trace_suffix, any_actor), level);
+                    assert ActorTraceReducible(RestrictTraceToActor(trace_suffix', any_actor), level);
+                }
+                else {
+                    assert ActorTraceReducible(RestrictTraceToActor(trace_suffix, any_actor), level);
+                    assert RestrictTraceToActor(trace_suffix, any_actor) == RestrictTraceToActor(trace_suffix', any_actor);
+                }
+            }
+            trace', db' := lemma_PerformReductionStartingAtEntry(trace, db, level, entry_pos + 1);
+            return;
+        }
+
+        var actor_trace := RestrictTraceToActor(trace_suffix, entry_actor);
+        var group_len :|    0 < group_len <= |actor_trace|
+                         && EntryGroupReducible(actor_trace[..group_len], level)
+                         && ActorTraceReducible(actor_trace[group_len..], level);
+        var trace_mid, db_mid := lemma_PerformReductionStartingAtGroupBegin(trace, db, level, entry_actor, actor_trace, entry_pos, group_len);
+        trace', db' := lemma_PerformReductionStartingAtEntry(trace_mid, db_mid, level, entry_pos);
+    }
+
     lemma lemma_PerformReduction(
         trace:Trace,
         db:seq<DistributedSystemState>,
@@ -457,7 +574,7 @@ module ReductionModule
         ensures  forall sb' :: DistributedSystemBehaviorRefinesSpecBehavior(db', sb')
                      ==> exists sb :: DistributedSystemBehaviorRefinesSpecBehavior(db, sb);
     {
-        assume false;
+        trace', db' := lemma_PerformReductionStartingAtEntry(trace, db, level, 0);
     }
 
 }
