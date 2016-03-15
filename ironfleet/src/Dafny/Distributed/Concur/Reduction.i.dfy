@@ -20,68 +20,73 @@ module ReductionModule
              ==> DistributedSystemNextEntryAction(db[0], db[|entries|], entry)
     }
 
-    predicate EntriesCompatibleWithReductionUsingPivot(entries:seq<Entry>, pivot:int)
+    predicate EntriesReducibleUsingPivot(entries:seq<Entry>, pivot:int)
     {
            0 <= pivot <= |entries|
         && (forall i :: 0 <= i < pivot ==> EntryIsRightMover(entries[i]))
         && (forall i :: pivot < i < |entries| ==> EntryIsLeftMover(entries[i]))
     }
 
-    predicate EntriesCompatibleWithReduction(entries:seq<Entry>)
+    predicate EntriesReducible(entries:seq<Entry>)
     {
-        exists pivot :: EntriesCompatibleWithReductionUsingPivot(entries, pivot)
+        exists pivot :: EntriesReducibleUsingPivot(entries, pivot)
     }
 
-    predicate ActorTraceCompatibleWithReduction(t:Trace, level:int)
+    predicate ActorTraceReducible(trace:Trace, level:int)
     {
-           |t| == 0
-        || (GetEntryLevel(t[0]) > level && ActorTraceCompatibleWithReduction(t[1..], level))
-        || (exists endPos ::    0 < endPos < |t|
-                        && t[0].EntryBeginGroup?
-                        && t[endPos].EntryEndGroup?
-                        && (forall i :: 0 < i < endPos ==> t[i].EntryAction?)
-                        && (forall i :: 0 <= i <= endPos ==> GetEntryLevel(t[i]) == level)
-                        && t[endPos].coarse_level > level
-                        && EntriesCompatibleWithReduction(t[1..endPos])
-                        && EntriesReducibleToEntry(t[1..endPos], t[endPos].reduced_entry)
-                        && ActorTraceCompatibleWithReduction(t[endPos+1..], level)
+           |trace| == 0
+        || (GetEntryLevel(trace[0]) > level && ActorTraceReducible(trace[1..], level))
+        || (exists endPos ::    0 < endPos < |trace|
+                        && trace[0].EntryBeginGroup?
+                        && trace[endPos].EntryEndGroup?
+                        && (forall i :: 0 < i < endPos ==> trace[i].EntryAction?)
+                        && (forall i :: 0 <= i <= endPos ==> GetEntryLevel(trace[i]) == level)
+                        && trace[endPos].coarse_level > level
+                        && EntriesReducible(trace[1..endPos])
+                        && EntriesReducibleToEntry(trace[1..endPos], trace[endPos].reduced_entry)
+                        && ActorTraceReducible(trace[endPos+1..], level)
            )
     }
 
-    predicate ActorTraceDoneWithReduction(t:Trace, level:int)
+    predicate TraceReducible(trace:Trace, level:int)
     {
-        forall e :: e in t ==> GetEntryLevel(e) > level
+        forall actor :: ActorTraceReducible(RestrictTraceToActor(trace, actor), level)
     }
 
-    lemma lemma_IfEntriesCompatibleWithReductionAndOneIsntRightMoverThenRestAreLeftMovers(entries:seq<Entry>, i:int, j:int)
+    predicate TraceDoneWithReduction(trace:Trace, level:int)
+    {
+        forall entry :: entry in trace ==> GetEntryLevel(entry) > level
+    }
+
+    lemma lemma_IfEntriesReducibleAndOneIsntRightMoverThenRestAreLeftMovers(entries:seq<Entry>, i:int, j:int)
         requires 0 <= i < j < |entries|;
-        requires EntriesCompatibleWithReduction(entries);
+        requires EntriesReducible(entries);
         requires !EntryIsRightMover(entries[i]);
         ensures  EntryIsLeftMover(entries[j]);
         decreases j;
     {
-        var pivot :| EntriesCompatibleWithReductionUsingPivot(entries, pivot);
+        var pivot :| EntriesReducibleUsingPivot(entries, pivot);
         assert !(i < pivot);
         assert j > pivot;
     }
 
-    lemma lemma_IfEntriesCompatibleWithReductionThenSuffixIs(entries:seq<Entry>)
+    lemma lemma_IfEntriesReducibleThenSuffixIs(entries:seq<Entry>)
         requires |entries| > 0;
-        requires EntriesCompatibleWithReduction(entries);
-        ensures  EntriesCompatibleWithReduction(entries[1..]);
+        requires EntriesReducible(entries);
+        ensures  EntriesReducible(entries[1..]);
     {
         var entries' := entries[1..];
         if |entries'| == 0 {
-            assert EntriesCompatibleWithReductionUsingPivot(entries', 0);
+            assert EntriesReducibleUsingPivot(entries', 0);
             return;
         }
         
-        var pivot :| EntriesCompatibleWithReductionUsingPivot(entries, pivot);
+        var pivot :| EntriesReducibleUsingPivot(entries, pivot);
         if pivot == 0 {
-            assert EntriesCompatibleWithReductionUsingPivot(entries', 0);
+            assert EntriesReducibleUsingPivot(entries', 0);
         }
         else {
-            assert EntriesCompatibleWithReductionUsingPivot(entries', pivot-1);
+            assert EntriesReducibleUsingPivot(entries', pivot-1);
         }
     }
 
@@ -183,7 +188,7 @@ module ReductionModule
         requires 0 <= begin_entry_pos < end_entry_pos < |trace|;
         requires trace[begin_entry_pos].EntryBeginGroup?;
         requires trace[end_entry_pos].EntryEndGroup?;
-        requires EntriesCompatibleWithReductionUsingPivot(trace[begin_entry_pos+1 .. end_entry_pos], pivot);
+        requires EntriesReducibleUsingPivot(trace[begin_entry_pos+1 .. end_entry_pos], pivot);
         requires IsValidDistributedSystemTraceAndBehavior(trace', db');
         requires DistributedSystemBehaviorRefinesSpecBehavior(db', sb');
         requires trace' == trace[..begin_entry_pos] + [trace[end_entry_pos].reduced_entry] + trace[end_entry_pos+1 ..];
@@ -207,8 +212,10 @@ module ReductionModule
 
         var j := i-1;
         lemma_RightMoverForwardPreservation(trace[j], db[j], db[j+1], sb[j]);
-        assert sb[i-1] == ss;
-        assert sb[i] == ss;
+        assert SpecCorrespondence(db[j+1], sb[j]);
+        assert SpecCorrespondence(db[i], sb[j]);
+        assert sb[j] == ss == sb[i];
+        assert SpecCorrespondence(db[i], sb[i]);
     }
 
     lemma lemma_AddStuttersForReductionStepHelper2(
@@ -227,7 +234,7 @@ module ReductionModule
         requires 0 <= begin_entry_pos < end_entry_pos < |trace|;
         requires trace[begin_entry_pos].EntryBeginGroup?;
         requires trace[end_entry_pos].EntryEndGroup?;
-        requires EntriesCompatibleWithReductionUsingPivot(trace[begin_entry_pos+1 .. end_entry_pos], pivot);
+        requires EntriesReducibleUsingPivot(trace[begin_entry_pos+1 .. end_entry_pos], pivot);
         requires IsValidDistributedSystemTraceAndBehavior(trace', db');
         requires DistributedSystemBehaviorRefinesSpecBehavior(db', sb');
         requires trace' == trace[..begin_entry_pos] + [trace[end_entry_pos].reduced_entry] + trace[end_entry_pos+1 ..];
@@ -259,6 +266,63 @@ module ReductionModule
         assert sb[i+1] == ss';
     }
 
+    lemma lemma_AddStuttersForReductionStepHelper3(
+        begin_entry_pos:int,
+        end_entry_pos:int,
+        pivot:int,
+        sb':seq<SpecState>,
+        sb:seq<SpecState>,
+        i:int
+        )
+        requires |sb| == |sb'| + end_entry_pos - begin_entry_pos;
+        requires 0 <= pivot < end_entry_pos - begin_entry_pos;
+        requires 0 <= begin_entry_pos < end_entry_pos < |sb| - 1;
+        requires IsValidSpecBehavior(sb');
+        requires sb ==   sb'[..begin_entry_pos]
+                       + RepeatSpecState(sb'[begin_entry_pos], pivot + 1)
+                       + RepeatSpecState(sb'[begin_entry_pos+1], end_entry_pos - begin_entry_pos - pivot + 1)
+                       + sb'[begin_entry_pos+2..];
+        requires 0 <= i < |sb| - 1;
+        ensures  SpecNext(sb[i], sb[i+1]) || sb[i] == sb[i+1];
+    {
+        var ss := sb'[begin_entry_pos];
+        var ss' := sb'[begin_entry_pos+1];
+        assert SpecNext(ss, ss') || ss == ss';
+
+        if 0 <= i < begin_entry_pos - 1 {
+            assert sb[i] == sb'[i];
+            assert sb[i+1] == sb'[i+1];
+            assert SpecNext(sb[i], sb[i+1]) || sb[i] == sb[i+1];
+        }
+        else if i == begin_entry_pos - 1 {
+            assert i >= 0;
+            assert sb[i] == sb'[i];
+            assert sb[i+1] == sb'[begin_entry_pos] == sb'[i+1];
+            assert SpecNext(sb[i], sb[i+1]) || sb[i] == sb[i+1];
+        }
+        else if begin_entry_pos <= i < begin_entry_pos + pivot {
+            assert sb[i] == ss;
+            assert sb[i+1] == ss;
+        }
+        else if i == begin_entry_pos + pivot {
+            assert sb[i] == ss;
+            assert sb[i+1] == ss';
+            assert SpecNext(sb[i], sb[i+1]) || sb[i] == sb[i+1];
+        }
+        else if begin_entry_pos + pivot < i <= end_entry_pos {
+            assert sb[i] == ss';
+            assert sb[i+1] == ss';
+        }
+        else {
+            assert end_entry_pos < i < |sb| - 1;
+            assert sb[i] == sb'[i - end_entry_pos + begin_entry_pos];
+            assert sb[i+1] == sb'[i+1 - end_entry_pos + begin_entry_pos];
+            var j := i - end_entry_pos + begin_entry_pos;
+            assert SpecNext(sb'[j], sb'[j+1]) || sb'[j] == sb'[j+1];
+            assert SpecNext(sb[i], sb[i+1]) || sb[i] == sb[i+1];
+        }
+    }
+
     lemma lemma_AddStuttersForReductionStep(
         trace:Trace,
         db:seq<DistributedSystemState>,
@@ -275,7 +339,7 @@ module ReductionModule
         requires 0 <= begin_entry_pos < end_entry_pos < |trace|;
         requires trace[begin_entry_pos].EntryBeginGroup?;
         requires trace[end_entry_pos].EntryEndGroup?;
-        requires EntriesCompatibleWithReductionUsingPivot(trace[begin_entry_pos+1 .. end_entry_pos], pivot);
+        requires EntriesReducibleUsingPivot(trace[begin_entry_pos+1 .. end_entry_pos], pivot);
         requires IsValidDistributedSystemTraceAndBehavior(trace', db');
         requires DistributedSystemBehaviorRefinesSpecBehavior(db', sb');
         requires trace' == trace[..begin_entry_pos] + [trace[end_entry_pos].reduced_entry] + trace[end_entry_pos+1 ..];
@@ -319,25 +383,7 @@ module ReductionModule
         forall i | 0 <= i < |sb| - 1
             ensures SpecNext(sb[i], sb[i+1]) || sb[i] == sb[i+1];
         {
-            if 0 <= i < begin_entry_pos {
-                assert SpecNext(sb[i], sb[i+1]) || sb[i] == sb[i+1];
-            }
-            else if i < begin_entry_pos + pivot {
-                assert sb[i] == ss;
-                assert sb[i+1] == ss;
-            }
-            else if i == begin_entry_pos + pivot {
-                assert sb[i] == ss;
-                assert sb[i+1] == ss';
-                assert SpecNext(sb[i], sb[i+1]) || sb[i] == sb[i+1];
-            }
-            else if i <= end_entry_pos {
-                assert sb[i] == ss';
-                assert sb[i+1] == ss';
-            }
-            else {
-                assert SpecNext(sb[i], sb[i+1]) || sb[i] == sb[i+1];
-            }
+            lemma_AddStuttersForReductionStepHelper3(begin_entry_pos, end_entry_pos, pivot, sb', sb, i);
         }
     }
 
@@ -360,7 +406,7 @@ module ReductionModule
         requires forall i :: begin_entry_pos < i < end_entry_pos ==> trace[i].EntryAction?;
         requires forall i :: begin_entry_pos <= i <= end_entry_pos ==> GetEntryActor(trace[i]) == actor;
         requires forall i :: begin_entry_pos <= i <= end_entry_pos ==> GetEntryLevel(trace[i]) == level;
-        requires EntriesCompatibleWithReductionUsingPivot(trace[begin_entry_pos+1 .. end_entry_pos], pivot);
+        requires EntriesReducibleUsingPivot(trace[begin_entry_pos+1 .. end_entry_pos], pivot);
         requires EntriesReducibleToEntry(trace[begin_entry_pos+1 .. end_entry_pos], trace[end_entry_pos].reduced_entry);
         ensures  IsValidDistributedSystemTraceAndBehavior(trace', db');
         ensures  forall sb' :: DistributedSystemBehaviorRefinesSpecBehavior(db', sb')
@@ -394,6 +440,24 @@ module ReductionModule
         {
             var sb := lemma_AddStuttersForReductionStep(trace, db, begin_entry_pos, end_entry_pos, pivot, trace', db', sb');
         }
+    }
+
+    lemma lemma_PerformReduction(
+        trace:Trace,
+        db:seq<DistributedSystemState>,
+        level:int
+        ) returns (
+        trace':Trace,
+        db':seq<DistributedSystemState>
+        )
+        requires IsValidDistributedSystemTraceAndBehavior(trace, db);
+        requires TraceReducible(trace, level);
+        ensures  TraceDoneWithReduction(trace', level);
+        ensures  IsValidDistributedSystemTraceAndBehavior(trace', db');
+        ensures  forall sb' :: DistributedSystemBehaviorRefinesSpecBehavior(db', sb')
+                     ==> exists sb :: DistributedSystemBehaviorRefinesSpecBehavior(db, sb);
+    {
+        assume false;
     }
 
 }
