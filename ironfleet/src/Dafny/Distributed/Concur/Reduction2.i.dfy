@@ -4,6 +4,38 @@ module Reduction2Module
 {
     import opened ReductionModule
 
+    function GetTraceIndicesForActor(trace:Trace, actor:Actor) : seq<int>
+        ensures var indices := GetTraceIndicesForActor(trace, actor);
+                forall index :: index in indices <==> 0 <= index < |trace| && GetEntryActor(trace[index]) == actor;
+    {
+        if |trace| == 0 then
+            []
+        else if GetEntryActor(last(trace)) == actor then
+            GetTraceIndicesForActor(all_but_last(trace), actor) + [|trace|-1]
+        else
+            GetTraceIndicesForActor(all_but_last(trace), actor)
+    }
+
+    lemma lemma_CorrespondenceBetweenGetTraceIndicesAndRestrictTraces(trace:Trace, actor:Actor)
+        ensures var trace' := RestrictTraceToActor(trace, actor);
+                var indices := GetTraceIndicesForActor(trace, actor);
+                forall index :: index in indices <==> 0 <= index < |trace| && trace[index] in trace';
+    {
+    }
+
+    lemma lemma_SplitRestrictTraceToActor(t1:Trace, t2:Trace, actor:Actor)
+        ensures RestrictTraceToActor(t1, actor) + RestrictTraceToActor(t2, actor) == RestrictTraceToActor(t1 + t2, actor);
+    {
+        if |t1| == 0 {
+            return;
+        }
+
+        lemma_SplitRestrictTraceToActor(t1[1..], t2, actor);
+        var t := t1 + t2;
+
+        assume false;
+    }
+
     lemma lemma_PerformReductionStartingAtGroupBegin(
         trace:Trace,
         db:seq<DistributedSystemState>,
@@ -24,11 +56,11 @@ module Reduction2Module
         requires actor_trace == RestrictTraceToActor(trace[entry_pos..], actor);
         requires 0 < group_len <= |actor_trace|;
         requires EntryGroupReducible(actor_trace[..group_len], level);
-        requires ActorTraceReducible(actor_trace[group_len..], level);
         ensures  |trace'| >= entry_pos;
         ensures  trace'[..entry_pos] == trace[..entry_pos];
         ensures  TraceReducible(trace', level);
-        ensures  TraceReducible(trace'[entry_pos..], level);
+        ensures  RestrictTraceToActor(trace'[entry_pos..], actor) == actor_trace[group_len..];
+        ensures  forall other_actor :: other_actor != actor ==> RestrictTraceToActor(trace'[entry_pos..], other_actor) == RestrictTraceToActor(trace[entry_pos..], other_actor);
         ensures  IsValidDistributedSystemTraceAndBehavior(trace', db');
         ensures  forall sb' :: DistributedSystemBehaviorRefinesSpecBehavior(db', sb')
                      ==> exists sb :: DistributedSystemBehaviorRefinesSpecBehavior(db, sb);
@@ -90,6 +122,23 @@ module Reduction2Module
                          && EntryGroupReducible(actor_trace[..group_len], level)
                          && ActorTraceReducible(actor_trace[group_len..], level);
         var trace_mid, db_mid := lemma_PerformReductionStartingAtGroupBegin(trace, db, level, entry_actor, actor_trace, entry_pos, group_len);
+
+        forall other_actor | other_actor != entry_actor
+            ensures RestrictTraceToActor(trace_mid, other_actor) == RestrictTraceToActor(trace, other_actor);
+        {
+            calc {
+                RestrictTraceToActor(trace_mid, other_actor);
+                { assert trace_mid == trace_mid[..entry_pos] + trace_mid[entry_pos..]; }
+                { lemma_SplitRestrictTraceToActor(trace_mid[..entry_pos], trace_mid[entry_pos..], other_actor); }
+                RestrictTraceToActor(trace_mid[..entry_pos], other_actor) + RestrictTraceToActor(trace_mid[entry_pos..], other_actor);
+                RestrictTraceToActor(trace[..entry_pos], other_actor) + RestrictTraceToActor(trace_mid[entry_pos..], other_actor);
+                RestrictTraceToActor(trace[..entry_pos], other_actor) + RestrictTraceToActor(trace[entry_pos..], other_actor);
+                { lemma_SplitRestrictTraceToActor(trace[..entry_pos], trace[entry_pos..], other_actor); }
+                { assert trace == trace[..entry_pos] + trace[entry_pos..]; }
+                RestrictTraceToActor(trace, other_actor);
+            }
+        }
+
         trace', db' := lemma_PerformReductionStartingAtEntry(trace_mid, db_mid, level, entry_pos);
     }
 
