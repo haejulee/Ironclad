@@ -320,12 +320,23 @@ module ReductionModule
             ensures SpecNext(sb[i], sb[i+1]) || sb[i] == sb[i+1];
         {
             if 0 <= i < begin_entry_pos {
+                assert SpecNext(sb[i], sb[i+1]) || sb[i] == sb[i+1];
             }
             else if i < begin_entry_pos + pivot {
+                assert sb[i] == ss;
+                assert sb[i+1] == ss;
             }
-            else if i < end_entry_pos {
+            else if i == begin_entry_pos + pivot {
+                assert sb[i] == ss;
+                assert sb[i+1] == ss';
+                assert SpecNext(sb[i], sb[i+1]) || sb[i] == sb[i+1];
+            }
+            else if i <= end_entry_pos {
+                assert sb[i] == ss';
+                assert sb[i+1] == ss';
             }
             else {
+                assert SpecNext(sb[i], sb[i+1]) || sb[i] == sb[i+1];
             }
         }
     }
