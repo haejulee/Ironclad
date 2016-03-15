@@ -39,7 +39,7 @@ module RefinementModule {
     {
            |db| == |trace| + 1
         && DistributedSystemInit(db[0])
-        && (forall i :: 0 <= i < |db| - 1 ==> DistributedSystemNextEntryAction(db[i], db[i+1], trace[i]))
+        && (forall i :: 0 <= i < |trace| ==> DistributedSystemNextEntryAction(db[i], db[i+1], trace[i]))
     }
 
     predicate DistributedSystemBehaviorRefinesSpecBehavior(db:seq<DistributedSystemState>, sb:seq<SpecState>)
