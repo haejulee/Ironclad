@@ -294,7 +294,7 @@ lemma lemma_DemonstrateRslSystemNextWhenBatchExtended(
     assert RslStateSequenceReflectsBatchExecution(s, s', intermediate_states, batch);
 }
 
-lemma lemma_DemonstrateRslSystemNextWhenBatchesAdded(
+lemma {:timeLimitMultiplier 2} lemma_DemonstrateRslSystemNextWhenBatchesAdded(
     server_addresses:set<NodeIdentity>,
     s:RSLSystemState,
     s':RSLSystemState,
@@ -351,7 +351,7 @@ lemma lemma_DemonstrateRslSystemNextWhenBatchesAdded(
     assert RslStateSequenceReflectsBatchExecution(s, s', intermediate_states, batch);
 }
 
-lemma lemma_GetBehaviorRefinementForPrefix(
+lemma {:timeLimitMultiplier 2} lemma_GetBehaviorRefinementForPrefix(
     b:Behavior<RslState>,
     c:LConstants,
     i:int
@@ -392,6 +392,30 @@ lemma lemma_GetBehaviorRefinementForPrefix(
     
     lemma_ProduceAbstractStateSatisfiesRefinementRelation(b, c, i, qs, last(high_level_behavior));
     assert RslSystemRefinement(b[i], last(high_level_behavior));
+
+    forall j | 0 <= j < i+1
+        ensures RslSystemRefinement(b[j], high_level_behavior[j]);
+    {
+        if j < i {
+        }
+        else {
+            assert j == i;
+            assert RslSystemRefinement(b[i], last(high_level_behavior));
+        }
+    }
+
+    forall j | 0 <= j < |high_level_behavior| - 1
+        ensures RslSystemNext(high_level_behavior[j], high_level_behavior[j+1]);
+    {
+        if j < |prev_high_level_behavior| - 1 {
+            assert high_level_behavior[j] == prev_high_level_behavior[j];
+            assert high_level_behavior[j+1] == prev_high_level_behavior[j+1];
+        }
+        else {
+            assert high_level_behavior[j] == last(prev_high_level_behavior);
+            assert high_level_behavior[j+1] == s';
+        }
+    }
 }
 
 lemma lemma_GetBehaviorRefinement(

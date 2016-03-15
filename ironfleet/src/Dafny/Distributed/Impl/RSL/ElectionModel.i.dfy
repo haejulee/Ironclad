@@ -976,7 +976,7 @@ lemma lemma_AddNewReqPreservesHeaderMatches(s1:seq<CRequest>,  headers1:set<CReq
     assert |total_h| == |header_set|;       // OBSERVE
 }
 
-method {:timeLimitMultiplier 12} ElectionReflectReceivedRequest(ces:CElectionState, creq:CRequest, cur_req_set:MutableSet<CRequestHeader>, prev_req_set:MutableSet<CRequestHeader>) returns (ces':CElectionState)
+method {:timeLimitMultiplier 20} ElectionReflectReceivedRequest(ces:CElectionState, creq:CRequest, cur_req_set:MutableSet<CRequestHeader>, prev_req_set:MutableSet<CRequestHeader>) returns (ces':CElectionState)
     requires CElectionStateIsValid(ces);
     requires CRequestIsAbstractable(creq);
     requires cur_req_set != null && prev_req_set != null && prev_req_set != cur_req_set;

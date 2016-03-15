@@ -255,6 +255,13 @@ static lemma lemma_YesWeHaveNoPackets()
 {
 }
 
+static lemma lemma_IthElementOfPrepended<T>(s:seq<T>, s':seq<T>, x:T, i:int)
+    requires 0 < i < |s'|;
+    requires s' == [x] + s;
+    ensures  s'[i] == s[i-1];
+{
+}
+
 static lemma {:timeLimitMultiplier 4} lemma_ReplicaNextProcessPacketWithoutReadingClockHelper(
     replica:ReplicaState, replica':ReplicaState, cpacket:CPacket, sent_packets:OutboundPackets,
     ios:seq<RslIo>, io0:RslIo, ios_head:seq<RslIo>, ios_tail:seq<RslIo>, 
@@ -304,11 +311,7 @@ static lemma {:timeLimitMultiplier 4} lemma_ReplicaNextProcessPacketWithoutReadi
             assert UdpEventIsAbstractable(udpEventLog[i]);
             assert ios[i] == AbstractifyUdpEventToRslIo(udpEventLog[i]);
         } else {
-            calc {
-                udpEventLog[i];
-                ([udpEvent0] + log_tail)[i];
-                log_tail[i-1];
-            }
+            lemma_IthElementOfPrepended(log_tail, udpEventLog, udpEvent0, i);
             assert udpEventLog[i]==log_tail[i-1];
             assert UdpEventIsAbstractable(udpEventLog[i]);
             assert ios[i] == AbstractifyUdpEventToRslIo(udpEventLog[i]);

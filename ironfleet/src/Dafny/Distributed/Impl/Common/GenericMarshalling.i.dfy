@@ -1280,7 +1280,7 @@ lemma lemma_marshall_array_contents(contents:seq<V>, eltType:G, marshalled_bytes
     }
 }
 
-method{:timeLimitMultiplier 4} MarshallArrayContents(contents:seq<V>, eltType:G, data:array<byte>, index:uint64) returns (size:uint64)
+method{:timeLimitMultiplier 15} MarshallArrayContents(contents:seq<V>, eltType:G, data:array<byte>, index:uint64) returns (size:uint64)
     requires data != null;
     requires forall v :: v in contents ==> ValInGrammar(v, eltType);
     requires forall v :: v in contents ==> ValidVal(v);
@@ -1364,7 +1364,7 @@ method{:timeLimitMultiplier 4} MarshallArrayContents(contents:seq<V>, eltType:G,
             int(index) + SeqSum(contents);
             data.Length;
         }
-        assert {:split_here} true;
+//        assert {:split_here} true;
         assert marshalled_bytes == data[index..cur_index];
 
         // Prove the invariant about our index tracking correctly
