@@ -77,8 +77,7 @@ module Reduction2Module
         ensures  RestrictTraceToActor(trace'[entry_pos..], actor) == actor_trace[group_len..];
         ensures  forall other_actor :: other_actor != actor ==> RestrictTraceToActor(trace'[entry_pos..], other_actor) == RestrictTraceToActor(trace[entry_pos..], other_actor);
         ensures  IsValidDistributedSystemTraceAndBehavior(trace', db');
-        ensures  forall sb' :: DistributedSystemBehaviorRefinesSpecBehavior(db', sb')
-                     ==> exists sb :: DistributedSystemBehaviorRefinesSpecBehavior(db, sb);
+        ensures  DistributedSystemBehaviorRefinesSpec(db') ==> DistributedSystemBehaviorRefinesSpec(db);
         ensures  |trace'| < |trace|;
     {
         assume false;
@@ -101,8 +100,7 @@ module Reduction2Module
         ensures  TraceReducible(trace', level);
         ensures  TraceDoneWithReduction(trace', level);
         ensures  IsValidDistributedSystemTraceAndBehavior(trace', db');
-        ensures  forall sb' :: DistributedSystemBehaviorRefinesSpecBehavior(db', sb')
-                     ==> exists sb :: DistributedSystemBehaviorRefinesSpecBehavior(db, sb);
+        ensures  DistributedSystemBehaviorRefinesSpec(db') ==> DistributedSystemBehaviorRefinesSpec(db);
         decreases |trace| - entry_pos;
     {
         if entry_pos == |trace| {
@@ -169,8 +167,7 @@ module Reduction2Module
         requires TraceReducible(trace, level);
         ensures  TraceDoneWithReduction(trace', level);
         ensures  IsValidDistributedSystemTraceAndBehavior(trace', db');
-        ensures  forall sb' :: DistributedSystemBehaviorRefinesSpecBehavior(db', sb')
-                     ==> exists sb :: DistributedSystemBehaviorRefinesSpecBehavior(db, sb);
+        ensures  DistributedSystemBehaviorRefinesSpec(db') ==> DistributedSystemBehaviorRefinesSpec(db);
     {
         trace', db' := lemma_PerformReductionStartingAtEntry(trace, db, level, 0);
     }

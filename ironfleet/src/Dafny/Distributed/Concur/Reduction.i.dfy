@@ -133,8 +133,8 @@ module ReductionModule
         requires EntryIsRightMover(trace[first_entry_pos]);
         ensures  IsValidDistributedSystemTraceAndBehavior(trace', db');
         ensures  |db'| == |db|;
-        ensures  forall sb' :: DistributedSystemBehaviorRefinesSpecBehavior(db', sb') && sb'[first_entry_pos+1] == sb'[first_entry_pos+2]
-                     ==> exists sb :: DistributedSystemBehaviorRefinesSpecBehavior(db, sb) && sb[first_entry_pos] == sb[first_entry_pos+1];
+        ensures  (exists sb' :: DistributedSystemBehaviorRefinesSpecBehavior(db', sb') && sb'[first_entry_pos+1] == sb'[first_entry_pos+2])
+                 ==> exists sb :: DistributedSystemBehaviorRefinesSpecBehavior(db, sb) && sb[first_entry_pos] == sb[first_entry_pos+1];
     {
         var entry1 := trace[first_entry_pos];
         var entry2 := trace[first_entry_pos+1];
@@ -146,8 +146,7 @@ module ReductionModule
         var ds2' := lemma_MoverCommutativityForEntries(entry1, entry2, ds1, ds2, ds3);
         db' := db[first_entry_pos + 1 := ds2'];
 
-        forall sb' | DistributedSystemBehaviorRefinesSpecBehavior(db', sb') && sb'[first_entry_pos+1] == sb'[first_entry_pos+2]
-            ensures exists sb :: DistributedSystemBehaviorRefinesSpecBehavior(db, sb) && sb[first_entry_pos] == sb[first_entry_pos+1];
+        if sb' :| DistributedSystemBehaviorRefinesSpecBehavior(db', sb') && sb'[first_entry_pos+1] == sb'[first_entry_pos+2]
         {
             var sb := sb'[first_entry_pos + 1 := sb'[first_entry_pos]];
             lemma_RightMoverForwardPreservation(entry1, ds1, ds2, sb[first_entry_pos]);
@@ -170,8 +169,8 @@ module ReductionModule
         requires EntryIsLeftMover(trace[first_entry_pos+1]);
         ensures  IsValidDistributedSystemTraceAndBehavior(trace', db');
         ensures  |db'| == |db|;
-        ensures  forall sb' :: DistributedSystemBehaviorRefinesSpecBehavior(db', sb') && sb'[first_entry_pos] == sb'[first_entry_pos+1]
-                     ==> exists sb :: DistributedSystemBehaviorRefinesSpecBehavior(db, sb) && sb[first_entry_pos+1] == sb[first_entry_pos+2];
+        ensures  (exists sb' :: DistributedSystemBehaviorRefinesSpecBehavior(db', sb') && sb'[first_entry_pos] == sb'[first_entry_pos+1])
+                 ==> exists sb :: DistributedSystemBehaviorRefinesSpecBehavior(db, sb) && sb[first_entry_pos+1] == sb[first_entry_pos+2];
     {
         var entry1 := trace[first_entry_pos];
         var entry2 := trace[first_entry_pos+1];
@@ -183,8 +182,7 @@ module ReductionModule
         var ds2' := lemma_MoverCommutativityForEntries(entry1, entry2, ds1, ds2, ds3);
         db' := db[first_entry_pos + 1 := ds2'];
 
-        forall sb' | DistributedSystemBehaviorRefinesSpecBehavior(db', sb') && sb'[first_entry_pos] == sb'[first_entry_pos+1]
-            ensures exists sb :: DistributedSystemBehaviorRefinesSpecBehavior(db, sb) && sb[first_entry_pos+1] == sb[first_entry_pos+2];
+        if sb' :| DistributedSystemBehaviorRefinesSpecBehavior(db', sb') && sb'[first_entry_pos] == sb'[first_entry_pos+1]
         {
             var sb := sb'[first_entry_pos + 1 := sb'[first_entry_pos+2]];
             lemma_LeftMoverBackwardPreservation(entry2, ds2, ds3, sb[first_entry_pos+1]);
@@ -294,7 +292,7 @@ module ReductionModule
         assert sb[i+1] == ss';
     }
 
-    lemma lemma_AddStuttersForReductionStepHelper3(
+    lemma {:timeLimitMultiplier 2} lemma_AddStuttersForReductionStepHelper3(
         begin_entry_pos:int,
         end_entry_pos:int,
         pivot:int,
@@ -437,9 +435,9 @@ module ReductionModule
         requires EntriesReducibleUsingPivot(trace[begin_entry_pos+1 .. end_entry_pos], pivot);
         requires EntriesReducibleToEntry(trace[begin_entry_pos+1 .. end_entry_pos], trace[end_entry_pos].reduced_entry);
         ensures  IsValidDistributedSystemTraceAndBehavior(trace', db');
-        ensures  forall sb' :: DistributedSystemBehaviorRefinesSpecBehavior(db', sb')
-                     ==> exists sb :: DistributedSystemBehaviorRefinesSpecBehavior(db, sb) &&
-                         forall i :: begin_entry_pos <= i <= end_entry_pos && i != begin_entry_pos + pivot ==> sb[i] == sb[i+1];
+        ensures  DistributedSystemBehaviorRefinesSpec(db')
+                 ==> exists sb :: DistributedSystemBehaviorRefinesSpecBehavior(db, sb) &&
+                            forall i :: begin_entry_pos <= i <= end_entry_pos && i != begin_entry_pos + pivot ==> sb[i] == sb[i+1];
     {
         var entries := trace[begin_entry_pos+1 .. end_entry_pos];
         var reduced_entry := trace[end_entry_pos].reduced_entry;
@@ -462,11 +460,11 @@ module ReductionModule
 
         assert IsValidDistributedSystemTraceAndBehavior(trace', db');
 
-        forall sb' | DistributedSystemBehaviorRefinesSpecBehavior(db', sb')
-            ensures exists sb :: DistributedSystemBehaviorRefinesSpecBehavior(db, sb) &&
-                            forall i :: begin_entry_pos <= i <= end_entry_pos && i != begin_entry_pos + pivot ==> sb[i] == sb[i+1];
+        if sb' :| DistributedSystemBehaviorRefinesSpecBehavior(db', sb')
         {
             var sb := lemma_AddStuttersForReductionStep(trace, db, begin_entry_pos, end_entry_pos, pivot, trace', db', sb');
+            assert DistributedSystemBehaviorRefinesSpecBehavior(db, sb);
+            assert forall i :: begin_entry_pos <= i <= end_entry_pos && i != begin_entry_pos + pivot ==> sb[i] == sb[i+1];
         }
     }
 
