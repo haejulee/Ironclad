@@ -33,7 +33,22 @@ module Reduction2Module
         lemma_SplitRestrictTraceToActor(t1[1..], t2, actor);
         var t := t1 + t2;
 
-        assume false;
+        assert t[1..] == t1[1..] + t2;
+
+        if GetEntryActor(t[0]) != actor {
+            calc {
+                RestrictTraceToActor(t, actor);
+                RestrictTraceToActor(t1[1..], actor) + RestrictTraceToActor(t2, actor);
+                RestrictTraceToActor(t1, actor) + RestrictTraceToActor(t2, actor);
+            }
+        }
+        else {
+            calc {
+                RestrictTraceToActor(t, actor);
+                [t[0]] + RestrictTraceToActor(t1[1..], actor) + RestrictTraceToActor(t2, actor);
+                RestrictTraceToActor(t1, actor) + RestrictTraceToActor(t2, actor);
+            }
+        }
     }
 
     lemma lemma_PerformReductionStartingAtGroupBegin(
