@@ -198,7 +198,7 @@ module ReductionModule
         if n == 0 then [] else [s] + RepeatSpecState(s, n-1)
     }
 
-    lemma lemma_AddStuttersForReductionStepHelper1(
+    lemma {:timeLimitMultiplier 2} lemma_AddStuttersForReductionStepHelper1(
         trace:Trace,
         db:seq<DistributedSystemState>,
         begin_entry_pos:int,
@@ -280,7 +280,7 @@ module ReductionModule
                        + RepeatSpecState(sb'[begin_entry_pos], pivot + 1)
                        + RepeatSpecState(sb'[begin_entry_pos+1], end_entry_pos - begin_entry_pos - pivot + 1)
                        + sb'[begin_entry_pos+2..];
-        requires begin_entry_pos + pivot < i < |sb|;
+        requires begin_entry_pos + pivot + 1 < i < |sb|;
 
         ensures  SpecCorrespondence(db[i], sb[i]);
         decreases |sb| - i;
@@ -429,9 +429,10 @@ module ReductionModule
         {
             if i <= begin_entry_pos + pivot {
                 lemma_AddStuttersForReductionStepHelper1(trace, db, begin_entry_pos, end_entry_pos, pivot, trace', db', sb', sb, i);
-            }
-            else {
+            } else if i > begin_entry_pos + pivot + 1 {
                 lemma_AddStuttersForReductionStepHelper2(trace, db, begin_entry_pos, end_entry_pos, pivot, trace', db', sb', sb, i);
+            } else {
+                assert SpecCorrespondence(db[i], sb[i]);
             }
         }
 
