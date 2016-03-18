@@ -237,11 +237,22 @@ module ReductionModule
         lemma_AddStuttersForReductionStepHelper1(trace, db, begin_entry_pos, end_entry_pos, pivot, trace', db', sb', sb, i-1);
 
         var j := i-1;
+        if j >= begin_entry_pos + 1 {
+            assert trace[j] in trace[begin_entry_pos+1 .. end_entry_pos];   // OBSERVE: Make the connection to EntriesReducibleUsingPivot to show that trace[j] is a right mover
+        }
         lemma_RightMoverForwardPreservation(trace[j], db[j], db[j+1], sb[j]);
         assert SpecCorrespondence(db[j+1], sb[j]);
         assert SpecCorrespondence(db[i], sb[j]);
         assert sb[j] == ss == sb[i];
         assert SpecCorrespondence(db[i], sb[i]);
+    }
+
+    lemma seq_helper(s:seq, begin:int, end:int, absolute_index:int, relative_index:int)
+        requires 0 <= begin <= absolute_index <= end < |s|;
+        requires 0 <= relative_index < end - begin;
+        requires relative_index == absolute_index - begin;
+        ensures  s[begin..end][relative_index] == s[absolute_index];
+    {
     }
 
     lemma lemma_AddStuttersForReductionStepHelper2(
@@ -287,6 +298,24 @@ module ReductionModule
 
         lemma_AddStuttersForReductionStepHelper2(trace, db, begin_entry_pos, end_entry_pos, pivot, trace', db', sb', sb, i+1);
 
+        if begin_entry_pos < i < end_entry_pos {
+            assert begin_entry_pos + pivot < i;
+            var group := trace[begin_entry_pos+1 .. end_entry_pos];
+            var j := i - (begin_entry_pos+1);
+            calc {
+                j;
+                i - (begin_entry_pos+1);
+                >
+                begin_entry_pos + pivot - (begin_entry_pos+1);
+                pivot - 1;
+            }
+            assert j >= pivot;
+            seq_helper(trace, begin_entry_pos+1, end_entry_pos, i, j);
+            assert trace[i] == group[j];
+            assert j > pivot ==> EntryIsLeftMover(group[j]);
+
+            assert EntryIsLeftMover(trace[i]);
+        }
         lemma_LeftMoverBackwardPreservation(trace[i], db[i], db[i+1], sb[i+1]);
         assert sb[i] == ss';
         assert sb[i+1] == ss';
