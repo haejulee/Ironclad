@@ -432,7 +432,8 @@ module ReductionModule
             } else if i > begin_entry_pos + pivot + 1 {
                 lemma_AddStuttersForReductionStepHelper2(trace, db, begin_entry_pos, end_entry_pos, pivot, trace', db', sb', sb, i);
             } else {
-                assert SpecCorrespondence(db[i], sb[i]);
+                assert i == begin_entry_pos + pivot + 1;
+                assert SpecCorrespondence(db[i], sb[i]);    // BP: I'm not sure why we expect this to hold at the pivot
             }
         }
 
