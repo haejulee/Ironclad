@@ -247,7 +247,7 @@ module ReductionModule
         assert SpecCorrespondence(db[i], sb[i]);
     }
 
-    lemma seq_helper(s:seq, begin:int, end:int, absolute_index:int, relative_index:int)
+    lemma seq_index_helper(s:seq, begin:int, end:int, absolute_index:int, relative_index:int)
         requires 0 <= begin <= absolute_index <= end < |s|;
         requires 0 <= relative_index < end - begin;
         requires relative_index == absolute_index - begin;
@@ -310,7 +310,7 @@ module ReductionModule
                 pivot - 1;
             }
             assert j >= pivot;
-            seq_helper(trace, begin_entry_pos+1, end_entry_pos, i, j);
+            seq_index_helper(trace, begin_entry_pos+1, end_entry_pos, i, j);
             assert trace[i] == group[j];
             assert j > pivot ==> EntryIsLeftMover(group[j]);
 
