@@ -51,6 +51,20 @@ module Reduction2Module
         }
     }
 
+    lemma lemma_PerformReductionOfSpecificIndices(
+        trace:Trace,
+        db:seq<DistributedSystemState>,
+        level:int,
+        actor:Actor,
+        actor_trace:Trace,
+        entry_pos:int,
+        group_len:int
+        ) returns (
+        trace':Trace,
+        db':seq<DistributedSystemState>
+        )
+
+
     lemma lemma_PerformReductionStartingAtGroupBegin(
         trace:Trace,
         db:seq<DistributedSystemState>,
@@ -80,6 +94,8 @@ module Reduction2Module
         ensures  DistributedSystemBehaviorRefinesSpec(db') ==> DistributedSystemBehaviorRefinesSpec(db);
         ensures  |trace'| < |trace|;
     {
+        // Build the sequence of indices for the actor_trace
+        //var indices := [];
         assume false;
     }
 

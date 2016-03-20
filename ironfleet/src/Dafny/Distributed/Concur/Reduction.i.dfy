@@ -198,7 +198,7 @@ module ReductionModule
         if n == 0 then [] else [s] + RepeatSpecState(s, n-1)
     }
 
-    lemma {:timeLimitMultiplier 2} lemma_AddStuttersForReductionStepHelper1(
+    lemma {:timeLimitMultiplier 3} lemma_AddStuttersForReductionStepHelper1(
         trace:Trace,
         db:seq<DistributedSystemState>,
         begin_entry_pos:int,
@@ -223,7 +223,7 @@ module ReductionModule
                        + RepeatSpecState(sb'[begin_entry_pos], pivot + 1)
                        + RepeatSpecState(sb'[begin_entry_pos+1], end_entry_pos - begin_entry_pos - pivot + 1)
                        + sb'[begin_entry_pos+2..];
-        requires 0 <= i <= begin_entry_pos + pivot;
+        requires 0 <= i <= begin_entry_pos + pivot + 1;
 
         ensures  SpecCorrespondence(db[i], sb[i]);
     {
@@ -236,14 +236,54 @@ module ReductionModule
 
         lemma_AddStuttersForReductionStepHelper1(trace, db, begin_entry_pos, end_entry_pos, pivot, trace', db', sb', sb, i-1);
 
-        var j := i-1;
-        if j >= begin_entry_pos + 1 {
-            assert trace[j] in trace[begin_entry_pos+1 .. end_entry_pos];   // OBSERVE: Make the connection to EntriesReducibleUsingPivot to show that trace[j] is a right mover
-        }
-        lemma_RightMoverForwardPreservation(trace[j], db[j], db[j+1], sb[j]);
-        assert SpecCorrespondence(db[j+1], sb[j]);
-        assert SpecCorrespondence(db[i], sb[j]);
-        assert sb[j] == ss == sb[i];
+        if  begin_entry_pos + 1 < i <= begin_entry_pos + pivot + 1 {
+            var group := trace[begin_entry_pos+1 .. end_entry_pos];
+            var k := i - 1;
+            assert SpecCorrespondence(db[k], sb[k]);
+
+            var j := k - (begin_entry_pos+1);
+            calc {
+                j;
+                k - (begin_entry_pos+1);
+                i - 1 - (begin_entry_pos+1);
+                i - 2 - begin_entry_pos;
+                >
+                begin_entry_pos + 1 - 2 - begin_entry_pos;
+                -1;
+            }
+            assert j >= 0;
+
+            calc {
+                j;
+                k - (begin_entry_pos+1);
+                i - 1 - (begin_entry_pos+1);
+                i - 2 - begin_entry_pos;
+                <=
+                begin_entry_pos + pivot + 1 - 2 - begin_entry_pos;
+                pivot - 1;
+            }
+            assert j <= pivot - 1;
+            assert j < pivot;
+
+            seq_index_helper(trace, begin_entry_pos+1, end_entry_pos, k, j);
+            assert trace[k] == group[j];
+            assert EntryIsRightMover(trace[k]);
+            lemma_RightMoverForwardPreservation(trace[k], db[k], db[k+1], sb[k]);
+            assert SpecCorrespondence(db[k+1], sb[k]);
+            assert SpecCorrespondence(db[i], sb[k]);
+            assert sb[k] == ss == sb[i];
+            assert SpecCorrespondence(db[i], sb[i]);
+        } else {
+            assert SpecCorrespondence(db[i], sb[i]);
+        } 
+//        var j := i-1;
+//        if begin_entry_pos + 1 <= j < begin_entry_pos + pivot + 1 {
+//            assert trace[j] in trace[begin_entry_pos+1 .. end_entry_pos];   // OBSERVE: Make the connection to EntriesReducibleUsingPivot to show that trace[j] is a right mover
+//            lemma_RightMoverForwardPreservation(trace[j], db[j], db[j+1], sb[j]);
+//        }
+//        assert SpecCorrespondence(db[j+1], sb[j]);
+//        assert SpecCorrespondence(db[i], sb[j]);
+//        assert sb[j] == ss == sb[i];
         assert SpecCorrespondence(db[i], sb[i]);
     }
 
@@ -298,7 +338,29 @@ module ReductionModule
 
         lemma_AddStuttersForReductionStepHelper2(trace, db, begin_entry_pos, end_entry_pos, pivot, trace', db', sb', sb, i+1);
 
-        if begin_entry_pos < i < end_entry_pos {
+        if begin_entry_pos + pivot + 1 < i < end_entry_pos {
+            var group := trace[begin_entry_pos+1 .. end_entry_pos];
+            var j := i - (begin_entry_pos+1);
+            calc {
+                j;
+                i - (begin_entry_pos+1);
+                >
+                begin_entry_pos + pivot - (begin_entry_pos+1);
+                pivot - 1;
+            }
+            assert j >= pivot;
+            seq_index_helper(trace, begin_entry_pos+1, end_entry_pos, i, j);
+            assert trace[i] == group[j];
+            assert EntryIsLeftMover(group[j]);
+            //assert j > pivot ==> EntryIsLeftMover(group[j]);
+
+            assert EntryIsLeftMover(trace[i]);
+            lemma_LeftMoverBackwardPreservation(trace[i], db[i], db[i+1], sb[i+1]);
+        } else {
+            assert SpecCorrespondence(db[i], sb[i]);
+        } 
+        /*
+        if begin_entry_pos + pivot + 1 < i < end_entry_pos {
             assert begin_entry_pos + pivot < i;
             var group := trace[begin_entry_pos+1 .. end_entry_pos];
             var j := i - (begin_entry_pos+1);
@@ -315,8 +377,14 @@ module ReductionModule
             assert j > pivot ==> EntryIsLeftMover(group[j]);
 
             assert EntryIsLeftMover(trace[i]);
+            lemma_LeftMoverBackwardPreservation(trace[i], db[i], db[i+1], sb[i+1]);
+        } else if end_entry_pos <= i {
+            assert SpecCorrespondence(db[i], sb[i]);
+        } else {
+            assert i == begin_entry_pos + pivot + 1;
+            assert SpecCorrespondence(db[i], sb[i]);
         }
-        lemma_LeftMoverBackwardPreservation(trace[i], db[i], db[i+1], sb[i+1]);
+        */
         assert sb[i] == ss';
         assert sb[i+1] == ss';
     }
@@ -427,14 +495,15 @@ module ReductionModule
         forall i | 0 <= i < |sb|
             ensures SpecCorrespondence(db[i], sb[i]);
         {
-            if i <= begin_entry_pos + pivot {
+            if i <= begin_entry_pos + pivot + 1 {
                 lemma_AddStuttersForReductionStepHelper1(trace, db, begin_entry_pos, end_entry_pos, pivot, trace', db', sb', sb, i);
-            } else if i > begin_entry_pos + pivot + 1 {
+            } else { //%if i > begin_entry_pos + pivot {
                 lemma_AddStuttersForReductionStepHelper2(trace, db, begin_entry_pos, end_entry_pos, pivot, trace', db', sb', sb, i);
-            } else {
+            } 
+            /*else {
                 assert i == begin_entry_pos + pivot + 1;
                 assert SpecCorrespondence(db[i], sb[i]);    // BP: I'm not sure why we expect this to hold at the pivot
-            }
+            }*/
         }
 
         forall i | 0 <= i < |sb| - 1
