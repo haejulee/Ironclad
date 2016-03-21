@@ -175,17 +175,12 @@ module Reduction2Module
 
     ghost method FindIndices(
         trace:Trace,
-        //db:seq<DistributedSystemState>,
-        //level:int,
         actor:Actor,
         actor_trace:Trace,
         entry_pos:int
-        //group_len:int
         ) returns (
         indices:seq<int>
         )
-        //requires IsValidDistributedSystemTraceAndBehavior(trace, db);
-        //requires TraceReducible(trace, level);
         requires 0 <= entry_pos < |trace|;
         requires entry_pos + |actor_trace| < |trace|;
         requires actor_trace == RestrictTraceToActor(trace[entry_pos..], actor);
@@ -217,6 +212,11 @@ module Reduction2Module
         }
     }
 
+    lemma lemma_RestrictTraceToActor(trace:Trace, actor:Actor)
+        ensures |RestrictTraceToActor(trace, actor)| <= |trace|;
+    {
+    }
+
     lemma lemma_PerformReductionStartingAtGroupBegin(
         trace:Trace,
         db:seq<DistributedSystemState>,
@@ -246,6 +246,16 @@ module Reduction2Module
         ensures  DistributedSystemBehaviorRefinesSpec(db') ==> DistributedSystemBehaviorRefinesSpec(db);
         ensures  |trace'| < |trace|;
     {
+        //lemma_TraceIndicesForActor_length(trace, actor);
+        
+        calc {
+            |RestrictTraceToActor(trace[entry_pos..], actor)|;
+            <= { lemma_RestrictTraceToActor(trace[entry_pos..], actor); }
+            |trace[entry_pos..]|;
+            <=
+            |trace|;
+        }
+        var indices := FindIndices(trace, actor, actor_trace, entry_pos);
         assume false;
     }
 
