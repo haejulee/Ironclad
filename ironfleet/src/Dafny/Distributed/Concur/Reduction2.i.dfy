@@ -182,7 +182,7 @@ module Reduction2Module
         indices:seq<int>
         )
         requires 0 <= entry_pos < |trace|;
-        requires entry_pos + |actor_trace| < |trace|;
+        requires entry_pos + |actor_trace| <= |trace|;
         requires actor_trace == RestrictTraceToActor(trace[entry_pos..], actor);
         decreases actor_trace, |trace| - entry_pos;
         ensures  |indices| == |actor_trace|;
@@ -251,9 +251,7 @@ module Reduction2Module
         calc {
             |RestrictTraceToActor(trace[entry_pos..], actor)|;
             <= { lemma_RestrictTraceToActor(trace[entry_pos..], actor); }
-            |trace[entry_pos..]|;
-            <=
-            |trace|;
+            |trace[entry_pos..]|;  
         }
         var indices := FindIndices(trace, actor, actor_trace, entry_pos);
         assume false;
