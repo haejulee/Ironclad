@@ -7,6 +7,8 @@ module Reduction2Module
     function GetTraceIndicesForActor(trace:Trace, actor:Actor) : seq<int>
         ensures var indices := GetTraceIndicesForActor(trace, actor);
                 forall index :: index in indices <==> 0 <= index < |trace| && GetEntryActor(trace[index]) == actor;
+        ensures var indices := GetTraceIndicesForActor(trace, actor);
+                forall i, j :: 0 <= i < j < |indices| ==> indices[i] < indices[j];
     {
         if |trace| == 0 then
             []
@@ -14,13 +16,6 @@ module Reduction2Module
             GetTraceIndicesForActor(all_but_last(trace), actor) + [|trace|-1]
         else
             GetTraceIndicesForActor(all_but_last(trace), actor)
-    }
-
-    lemma lemma_CorrespondenceBetweenGetTraceIndicesAndRestrictTraces(trace:Trace, actor:Actor)
-        ensures var trace' := RestrictTraceToActor(trace, actor);
-                var indices := GetTraceIndicesForActor(trace, actor);
-                forall index :: index in indices <==> 0 <= index < |trace| && trace[index] in trace';
-    {
     }
 
     lemma lemma_SplitRestrictTraceToActor(t1:Trace, t2:Trace, actor:Actor)
@@ -51,6 +46,120 @@ module Reduction2Module
         }
     }
 
+    lemma lemma_TraceIndicesForActor_length(trace:Trace, actor:Actor)
+        ensures |GetTraceIndicesForActor(trace, actor)| == |RestrictTraceToActor(trace, actor)|;
+    {
+        if |trace| == 0 {
+        } else if GetEntryActor(last(trace)) == actor {
+            calc {
+                |GetTraceIndicesForActor(trace, actor)|;
+                |GetTraceIndicesForActor(all_but_last(trace), actor)| + 1;
+                    { lemma_TraceIndicesForActor_length(all_but_last(trace), actor); }
+                |RestrictTraceToActor(all_but_last(trace), actor)| + 1;
+                |RestrictTraceToActor(all_but_last(trace), actor)| + |RestrictTraceToActor([last(trace)], actor)|;
+                |RestrictTraceToActor(all_but_last(trace), actor) + RestrictTraceToActor([last(trace)], actor)|;
+                    { lemma_SplitRestrictTraceToActor(all_but_last(trace), [last(trace)], actor); }
+                |RestrictTraceToActor(all_but_last(trace) + [last(trace)], actor)|;
+                    { assert all_but_last(trace) + [last(trace)] == trace; }
+                |RestrictTraceToActor(trace, actor)|;
+            }
+        } else {
+            calc {
+                |GetTraceIndicesForActor(trace, actor)|;
+                |GetTraceIndicesForActor(all_but_last(trace), actor)|; 
+                    { lemma_TraceIndicesForActor_length(all_but_last(trace), actor); }
+                |RestrictTraceToActor(all_but_last(trace), actor)|;
+                |RestrictTraceToActor(all_but_last(trace), actor)| + |RestrictTraceToActor([last(trace)], actor)|;
+                |RestrictTraceToActor(all_but_last(trace), actor) + RestrictTraceToActor([last(trace)], actor)|;
+                    { lemma_SplitRestrictTraceToActor(all_but_last(trace), [last(trace)], actor); }
+                |RestrictTraceToActor(all_but_last(trace) + [last(trace)], actor)|;
+                    { assert all_but_last(trace) + [last(trace)] == trace; }
+                |RestrictTraceToActor(trace, actor)|;
+            }
+        }
+    }
+
+    lemma {:timeLimitMultiplier 3} lemma_CorrespondenceBetweenGetTraceIndicesAndRestrictTraces(trace:Trace, actor:Actor)
+        ensures var sub_trace := RestrictTraceToActor(trace, actor);
+                var indices := GetTraceIndicesForActor(trace, actor);
+                |sub_trace| == |indices| 
+                && forall i :: 0 <= i < |indices| ==> indices[i] in indices && trace[indices[i]] == sub_trace[i];
+    {
+        lemma_TraceIndicesForActor_length(trace, actor);
+        if |trace| == 0 {
+        } else if GetEntryActor(last(trace)) == actor {
+            var sub_trace := RestrictTraceToActor(trace, actor);
+            var indices := GetTraceIndicesForActor(trace, actor);
+
+            forall i | 0 <= i < |indices|
+                ensures trace[indices[i]] == sub_trace[i];
+            {
+                calc {
+                    trace[indices[i]];
+                    trace[GetTraceIndicesForActor(trace, actor)[i]];
+                    trace[(GetTraceIndicesForActor(all_but_last(trace), actor) + [|trace|-1])[i]]; 
+                }
+
+                if i == |sub_trace| - 1 {
+                    calc {
+                        trace[(GetTraceIndicesForActor(all_but_last(trace), actor) + [|trace|-1])[i]]; 
+                        trace[|trace| - 1];
+                        last(trace);
+                        (RestrictTraceToActor(all_but_last(trace), actor) + RestrictTraceToActor([last(trace)], actor))[i];
+                    }
+                } else {
+                    calc {
+                        trace[(GetTraceIndicesForActor(all_but_last(trace), actor) + [|trace|-1])[i]]; 
+                        trace[GetTraceIndicesForActor(all_but_last(trace), actor)[i]];
+                            { lemma_CorrespondenceBetweenGetTraceIndicesAndRestrictTraces(all_but_last(trace), actor); }
+                        RestrictTraceToActor(all_but_last(trace), actor)[i];
+                        (RestrictTraceToActor(all_but_last(trace), actor) + RestrictTraceToActor([last(trace)], actor))[i];
+                    }
+                }
+
+                calc {
+                    (RestrictTraceToActor(all_but_last(trace), actor) + RestrictTraceToActor([last(trace)], actor))[i];
+                        { lemma_SplitRestrictTraceToActor(all_but_last(trace), [last(trace)], actor); }
+                    RestrictTraceToActor(all_but_last(trace) + [last(trace)], actor)[i];
+                        { assert all_but_last(trace) + [last(trace)] == trace; }
+                    RestrictTraceToActor(trace, actor)[i];
+                    sub_trace[i];
+                }
+            }
+        } else {
+            var sub_trace := RestrictTraceToActor(trace, actor);
+            var indices := GetTraceIndicesForActor(trace, actor);
+
+            forall i | 0 <= i < |indices|
+                ensures trace[indices[i]] == sub_trace[i];
+            {
+                calc {
+                    trace[indices[i]];
+                    trace[GetTraceIndicesForActor(trace, actor)[i]];
+                    trace[GetTraceIndicesForActor(all_but_last(trace), actor)[i]]; 
+                        { lemma_CorrespondenceBetweenGetTraceIndicesAndRestrictTraces(all_but_last(trace), actor); }
+                    RestrictTraceToActor(all_but_last(trace), actor)[i];
+                    (RestrictTraceToActor(all_but_last(trace), actor) + RestrictTraceToActor([last(trace)], actor))[i];
+                        { lemma_SplitRestrictTraceToActor(all_but_last(trace), [last(trace)], actor); }
+                    RestrictTraceToActor(all_but_last(trace) + [last(trace)], actor)[i];
+                        { assert all_but_last(trace) + [last(trace)] == trace; }
+                    RestrictTraceToActor(trace, actor)[i];
+                    sub_trace[i];
+                }
+            }
+        }
+
+    }
+
+    function IncrementSeq(s:seq<int>, amount:int) : seq<int>
+        ensures var s' := IncrementSeq(s, amount);
+                |s| == |s'| && forall i :: 0 <= i < |s'| ==> s'[i] == s[i] + amount;
+    {
+        if s == [] then []
+        else
+            [s[0] + amount] + IncrementSeq(s[1..], amount)
+    }
+
     lemma lemma_PerformReductionOfSpecificIndices(
         trace:Trace,
         db:seq<DistributedSystemState>,
@@ -64,6 +173,49 @@ module Reduction2Module
         db':seq<DistributedSystemState>
         )
 
+    ghost method FindIndices(
+        trace:Trace,
+        db:seq<DistributedSystemState>,
+        level:int,
+        actor:Actor,
+        actor_trace:Trace,
+        entry_pos:int,
+        group_len:int
+        ) returns (
+        indices:seq<int>
+        )
+        requires IsValidDistributedSystemTraceAndBehavior(trace, db);
+        requires TraceReducible(trace, level);
+        requires 0 <= entry_pos < |trace|;
+        requires entry_pos + |actor_trace| < |trace|;
+        requires actor_trace == RestrictTraceToActor(trace[entry_pos..], actor);
+        decreases actor_trace, |trace| - entry_pos;
+        ensures  |indices| == |actor_trace|;
+        ensures  forall i, j :: 0 <= i < j < |indices| ==> indices[i] < indices[j];
+        ensures  forall i :: 0 <= i < |indices| ==> entry_pos <= indices[i] < |trace| && trace[indices[i]] == actor_trace[i];
+    {
+        var sub_trace := trace[entry_pos..];
+        var relative_indices := GetTraceIndicesForActor(sub_trace, actor);
+        indices := IncrementSeq(relative_indices, entry_pos);
+            
+        lemma_CorrespondenceBetweenGetTraceIndicesAndRestrictTraces(sub_trace, actor);
+        lemma_TraceIndicesForActor_length(sub_trace, actor);
+
+        forall i | 0 <= i < |indices| 
+            ensures entry_pos <= indices[i] < |trace| && trace[indices[i]] == actor_trace[i];
+        {
+            assert indices[i] == relative_indices[i] + entry_pos;
+            assert relative_indices[i] in relative_indices;     // OBSERVE: Trigger forall from GetTraceIndicesForActor
+            assert 0 <= relative_indices[i] < |sub_trace|;
+
+            calc {
+                trace[indices[i]];
+                trace[relative_indices[i] + entry_pos];
+                sub_trace[relative_indices[i]];
+                actor_trace[i];
+            }
+        }
+    }
 
     lemma lemma_PerformReductionStartingAtGroupBegin(
         trace:Trace,
@@ -94,8 +246,6 @@ module Reduction2Module
         ensures  DistributedSystemBehaviorRefinesSpec(db') ==> DistributedSystemBehaviorRefinesSpec(db);
         ensures  |trace'| < |trace|;
     {
-        // Build the sequence of indices for the actor_trace
-        //var indices := [];
         assume false;
     }
 
