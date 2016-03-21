@@ -175,17 +175,17 @@ module Reduction2Module
 
     ghost method FindIndices(
         trace:Trace,
-        db:seq<DistributedSystemState>,
-        level:int,
+        //db:seq<DistributedSystemState>,
+        //level:int,
         actor:Actor,
         actor_trace:Trace,
-        entry_pos:int,
-        group_len:int
+        entry_pos:int
+        //group_len:int
         ) returns (
         indices:seq<int>
         )
-        requires IsValidDistributedSystemTraceAndBehavior(trace, db);
-        requires TraceReducible(trace, level);
+        //requires IsValidDistributedSystemTraceAndBehavior(trace, db);
+        //requires TraceReducible(trace, level);
         requires 0 <= entry_pos < |trace|;
         requires entry_pos + |actor_trace| < |trace|;
         requires actor_trace == RestrictTraceToActor(trace[entry_pos..], actor);
