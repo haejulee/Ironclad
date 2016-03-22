@@ -326,7 +326,7 @@ module ReductionModule
         assert sb[i+1] == ss';
     }
 
-    lemma {:timeLimitMultiplier 2} lemma_AddStuttersForReductionStepHelper3(
+    lemma {:timeLimitMultiplier 3} lemma_AddStuttersForReductionStepHelper3(
         begin_entry_pos:int,
         end_entry_pos:int,
         pivot:int,
