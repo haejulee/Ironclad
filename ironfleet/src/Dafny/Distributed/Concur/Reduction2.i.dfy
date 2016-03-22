@@ -207,10 +207,12 @@ module Reduction2Module
         requires EntryGroupReducible(group, level);
         requires forall entry :: entry in group ==> GetEntryActor(entry) == actor;
         requires forall i, j :: 0 <= i < j < |actor_indices| ==> actor_indices[i] < actor_indices[j];
-        requires forall i :: 0 <= i < |actor_indices| ==> entry_pos <= actor_indices[i] < |trace| && trace[actor_indices[i]] == group[i];
-        requires forall actor_index, trace_index :: 0 <= actor_index < |actor_indices| - 1 
-                                                 && actor_indices[actor_index] < trace_index < actor_indices[actor_index+1] 
-                                                 ==> GetEntryActor(trace[trace_index]) != actor;
+        requires forall i {:trigger actor_indices[i] } :: 0 <= i < |actor_indices| 
+                    ==> entry_pos <= actor_indices[i] < |trace| && trace[actor_indices[i]] == group[i];
+        requires forall actor_index, trace_index {:trigger actor_indices[actor_index], GetEntryActor(trace[trace_index]) } ::
+                     0 <= actor_index < |actor_indices| - 1 
+                     && actor_indices[actor_index] < trace_index < actor_indices[actor_index+1] 
+                     ==> GetEntryActor(trace[trace_index]) != actor;
         requires 0 <= in_position_left <= pivot <= in_position_right < |actor_indices|;
         requires forall k :: in_position_left <= k <= in_position_right ==> k - pivot == actor_indices[k] - actor_indices[pivot];
         requires ActorTraceReducible(RestrictTraceToActor(trace[last(actor_indices)+1..], actor), level);
