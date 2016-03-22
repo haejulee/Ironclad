@@ -217,7 +217,6 @@ module Reduction2Module
         ensures  |trace'| >= entry_pos;
         ensures  trace'[..entry_pos] == trace[..entry_pos];
         ensures  TraceReducible(trace', level);
-        //ensures  RestrictTraceToActor(trace'[entry_pos..], actor) == RestrictTraceToActor(trace[entry_pos..], actor);
         ensures  forall other_actor :: other_actor != actor ==> RestrictTraceToActor(trace'[entry_pos..], other_actor) == RestrictTraceToActor(trace[entry_pos..], other_actor);
         ensures  IsValidDistributedSystemTraceAndBehavior(trace', db');
         ensures  DistributedSystemBehaviorRefinesSpec(db') ==> DistributedSystemBehaviorRefinesSpec(db);
@@ -228,14 +227,14 @@ module Reduction2Module
             var end_entry_pos := actor_indices[pivot] + |group| - pivot - 1;
             assert forall i :: begin_entry_pos <= i <= end_entry_pos ==> trace[i] == group[i-begin_entry_pos];
             trace', db' := lemma_PerformOneReductionStep(trace, db, actor, level, begin_entry_pos, end_entry_pos, pivot-1);             
-            //assume ActorTraceReducible(RestrictTraceToActor(trace', actor), level);
             forall any_actor 
                 ensures ActorTraceReducible(RestrictTraceToActor(trace', any_actor), level)
             {
                 if any_actor == actor {
-                    //assume false;
+                    assume false;
                     assert ActorTraceReducible(RestrictTraceToActor(trace', any_actor), level);
                 } else {
+                    lemma_RestrictTraceToActorPreservation(trace, actor, begin_entry_pos, end_entry_pos, trace[end_entry_pos].reduced_entry, trace');
                     assert RestrictTraceToActor(trace', any_actor) == RestrictTraceToActor(trace, any_actor);
                 }
             }
