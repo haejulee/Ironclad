@@ -450,6 +450,92 @@ module ReductionModule
         }
     }
 
+    lemma lemma_SplitRestrictTraceToActor(t1:Trace, t2:Trace, actor:Actor)
+        ensures RestrictTraceToActor(t1, actor) + RestrictTraceToActor(t2, actor) == RestrictTraceToActor(t1 + t2, actor);
+    {
+        if |t1| == 0 {
+            return;
+        }
+
+        lemma_SplitRestrictTraceToActor(t1[1..], t2, actor);
+        var t := t1 + t2;
+
+        assert t[1..] == t1[1..] + t2;
+
+        if GetEntryActor(t[0]) != actor {
+            calc {
+                RestrictTraceToActor(t, actor);
+                RestrictTraceToActor(t1[1..], actor) + RestrictTraceToActor(t2, actor);
+                RestrictTraceToActor(t1, actor) + RestrictTraceToActor(t2, actor);
+            }
+        }
+        else {
+            calc {
+                RestrictTraceToActor(t, actor);
+                [t[0]] + RestrictTraceToActor(t1[1..], actor) + RestrictTraceToActor(t2, actor);
+                RestrictTraceToActor(t1, actor) + RestrictTraceToActor(t2, actor);
+            }
+        }
+    }
+
+    lemma lemma_RestrictTraceToActorEmpty(trace:Trace, actor:Actor)
+        requires forall i :: 0 <= i < |trace| ==> GetEntryActor(trace[i]) == actor;
+        ensures RestrictTraceToActor(trace, actor) == [];
+    {
+    }
+
+    lemma lemma_RestrictTraceToActorPreservation(
+        trace:Trace,
+        actor:Actor,
+        begin_entry_pos:int,
+        end_entry_pos:int,
+        reduced_entry:Entry,
+        trace':Trace)
+        requires 0 <= begin_entry_pos < end_entry_pos < |trace|;
+        requires forall i :: begin_entry_pos <= i <= end_entry_pos ==> GetEntryActor(trace[i]) == actor;
+        requires GetEntryActor(reduced_entry) == actor;
+        requires trace' == trace[..begin_entry_pos] + [reduced_entry] + trace[end_entry_pos+1 ..];
+        ensures  forall other_actor :: other_actor != actor ==> RestrictTraceToActor(trace', other_actor) == RestrictTraceToActor(trace, other_actor);
+        ensures  forall other_actor :: other_actor != actor ==> RestrictTraceToActor(trace'[begin_entry_pos..], other_actor) 
+                                                             == RestrictTraceToActor(trace[begin_entry_pos..], other_actor);
+    {
+        var start := trace[..begin_entry_pos];
+        var middle := trace[begin_entry_pos..end_entry_pos+1];
+        var middle' := [reduced_entry];
+        var end := trace[end_entry_pos+1 ..];
+        forall other_actor | other_actor != actor 
+            ensures RestrictTraceToActor(trace', other_actor) == RestrictTraceToActor(trace, other_actor);
+        {
+            calc {
+                RestrictTraceToActor(trace', other_actor);
+                RestrictTraceToActor(start + middle' + end, other_actor);
+                RestrictTraceToActor((start + middle') + end, other_actor);
+                    { lemma_SplitRestrictTraceToActor(start + middle', end, other_actor); }
+                RestrictTraceToActor(start + middle', other_actor) +  RestrictTraceToActor(end, other_actor);
+                    { lemma_SplitRestrictTraceToActor(start, middle', other_actor); }
+                (RestrictTraceToActor(start, other_actor) + RestrictTraceToActor(middle', other_actor)) + RestrictTraceToActor(end, other_actor);
+                    { lemma_RestrictTraceToActorEmpty(middle', actor); assert RestrictTraceToActor(middle', other_actor) == []; }
+                RestrictTraceToActor(start, other_actor) + RestrictTraceToActor(end, other_actor);
+                (RestrictTraceToActor(start, other_actor) + []) + RestrictTraceToActor(end, other_actor);
+                    { lemma_RestrictTraceToActorEmpty(middle, actor); assert RestrictTraceToActor(middle, other_actor) == []; }
+                (RestrictTraceToActor(start, other_actor) + RestrictTraceToActor(middle, other_actor)) + RestrictTraceToActor(end, other_actor);
+                    { lemma_SplitRestrictTraceToActor(start + middle, end, other_actor); }
+                RestrictTraceToActor(start + middle, other_actor) + RestrictTraceToActor(end, other_actor);
+                    { lemma_SplitRestrictTraceToActor(start + middle, end, other_actor); }
+                RestrictTraceToActor((start + middle) + end, other_actor);
+                RestrictTraceToActor(start + middle + end, other_actor);
+                RestrictTraceToActor(trace, other_actor);
+            }
+        }
+        forall other_actor | other_actor != actor 
+            ensures RestrictTraceToActor(trace'[begin_entry_pos..], other_actor) == RestrictTraceToActor(trace[begin_entry_pos..], other_actor);
+        {
+            //assume false;
+            lemma_SplitRestrictTraceToActor([reduced_entry], trace[end_entry_pos+1 ..], other_actor);
+        }
+    }
+
+
     lemma lemma_PerformOneReductionStep(
         trace:Trace,
         db:seq<DistributedSystemState>,
@@ -475,6 +561,10 @@ module ReductionModule
         ensures  DistributedSystemBehaviorRefinesSpec(db')
                  ==> exists sb :: DistributedSystemBehaviorRefinesSpecBehavior(db, sb) &&
                             forall i :: begin_entry_pos <= i <= end_entry_pos && i != begin_entry_pos + pivot + 1 ==> sb[i] == sb[i+1];
+        ensures  trace' == trace[..begin_entry_pos] + [trace[end_entry_pos].reduced_entry] + trace[end_entry_pos+1 ..];
+//        ensures  forall other_actor :: other_actor != actor ==> RestrictTraceToActor(trace', other_actor) == RestrictTraceToActor(trace, other_actor);
+//        ensures  forall other_actor :: other_actor != actor ==> RestrictTraceToActor(trace'[begin_entry_pos..], other_actor) 
+//                                                             == RestrictTraceToActor(trace[begin_entry_pos..], other_actor);
     {
         var entries := trace[begin_entry_pos+1 .. end_entry_pos];
         var reduced_entry := trace[end_entry_pos].reduced_entry;
@@ -503,6 +593,7 @@ module ReductionModule
             assert DistributedSystemBehaviorRefinesSpecBehavior(db, sb);
             assert forall i :: begin_entry_pos <= i <= end_entry_pos && i != begin_entry_pos + pivot + 1 ==> sb[i] == sb[i+1];
         }
+
     }
 
 }
