@@ -215,7 +215,7 @@ module Reduction2Module
                      ==> GetEntryActor(trace[trace_index]) != actor;
         requires 0 <= in_position_left <= pivot <= in_position_right < |actor_indices|;
         requires forall k :: in_position_left <= k <= in_position_right ==> k - pivot == actor_indices[k] - actor_indices[pivot];
-        requires ActorTraceReducible(RestrictTraceToActor(trace[last(actor_indices)+1..], actor), level);
+        requires ActorTraceValid(RestrictTraceToActor(trace[last(actor_indices)+1..], actor), level);
         ensures  |trace'| >= entry_pos;
         ensures  trace'[..entry_pos] == trace[..entry_pos];
         ensures  TraceReducible(trace', level);
@@ -230,11 +230,11 @@ module Reduction2Module
             assert forall i :: begin_entry_pos <= i <= end_entry_pos ==> trace[i] == group[i-begin_entry_pos];
             trace', db' := lemma_PerformOneReductionStep(trace, db, actor, level, begin_entry_pos, end_entry_pos, pivot-1);             
             forall any_actor 
-                ensures ActorTraceReducible(RestrictTraceToActor(trace', any_actor), level)
+                ensures ActorTraceValid(RestrictTraceToActor(trace', any_actor), level)
             {
                 if any_actor == actor {
                     assume false;
-                    assert ActorTraceReducible(RestrictTraceToActor(trace', any_actor), level);
+                    assert ActorTraceValid(RestrictTraceToActor(trace', any_actor), level);
                 } else {
                     lemma_RestrictTraceToActorPreservation(trace, actor, begin_entry_pos, end_entry_pos, trace[end_entry_pos].reduced_entry, trace');
                     assert RestrictTraceToActor(trace', any_actor) == RestrictTraceToActor(trace, any_actor);
@@ -265,7 +265,7 @@ module Reduction2Module
         requires actor_trace == RestrictTraceToActor(trace[entry_pos..], actor);
         requires 0 < group_len <= |actor_trace|;
         requires EntryGroupReducible(actor_trace[..group_len], level);
-        requires ActorTraceReducible(actor_trace[group_len..], level)
+        requires ActorTraceValid(actor_trace[group_len..], level)
         ensures  |trace'| >= entry_pos;
         ensures  trace'[..entry_pos] == trace[..entry_pos];
         ensures  TraceReducible(trace', level);
@@ -318,14 +318,14 @@ module Reduction2Module
 
         if GetEntryLevel(trace[entry_pos]) > level {
             forall any_actor
-                ensures ActorTraceReducible(RestrictTraceToActor(trace_suffix', any_actor), level);
+                ensures ActorTraceValid(RestrictTraceToActor(trace_suffix', any_actor), level);
             {
                 if any_actor == entry_actor {
-                    assert ActorTraceReducible(RestrictTraceToActor(trace_suffix, any_actor), level);
-                    assert ActorTraceReducible(RestrictTraceToActor(trace_suffix', any_actor), level);
+                    assert ActorTraceValid(RestrictTraceToActor(trace_suffix, any_actor), level);
+                    assert ActorTraceValid(RestrictTraceToActor(trace_suffix', any_actor), level);
                 }
                 else {
-                    assert ActorTraceReducible(RestrictTraceToActor(trace_suffix, any_actor), level);
+                    assert ActorTraceValid(RestrictTraceToActor(trace_suffix, any_actor), level);
                     assert RestrictTraceToActor(trace_suffix, any_actor) == RestrictTraceToActor(trace_suffix', any_actor);
                 }
             }
@@ -336,7 +336,7 @@ module Reduction2Module
         var actor_trace := RestrictTraceToActor(trace_suffix, entry_actor);
         var group_len :|    0 < group_len <= |actor_trace|
                          && EntryGroupReducible(actor_trace[..group_len], level)
-                         && ActorTraceReducible(actor_trace[group_len..], level);
+                         && ActorTraceValid(actor_trace[group_len..], level);
         var trace_mid, db_mid := lemma_PerformReductionStartingAtGroupBegin(trace, db, level, entry_actor, actor_trace, entry_pos, group_len);
 
         forall other_actor | other_actor != entry_actor

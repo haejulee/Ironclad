@@ -12,12 +12,13 @@ module ReductionModule
         && (forall i :: 0 <= i < |trace| && (EntryIsRightMover(trace[i]) || EntryIsLeftMover(trace[i])) ==> sb[i] == sb[i+1])
     }
 
-    predicate ValidEntryGroup(entries:seq<Entry>)
+    predicate EntryGroupValid(entries:seq<Entry>)
     {
-           |trace| > 0
-        && trace[0].EntryBeginGroup?
-        && last(trace).EntryEndGroup?
-        && 0 < last(trace).pivot_index < |entries|
+           |entries| > 0
+        && entries[0].EntryBeginGroup?
+        && last(entries).EntryEndGroup?
+        && last(entries).fine_level == entries[0].group_level
+        && 0 < last(entries).pivot_index < |entries|
     }
 
     predicate EntriesReducibleToEntry(entries:seq<Entry>, entry:Entry)
@@ -29,81 +30,180 @@ module ReductionModule
     }
 
     predicate EntriesReducibleUsingPivot(entries:seq<Entry>)
-        requires ValidEntryGroup(entries)
+        requires EntryGroupValid(entries)
     {
-          var pivot := last(trace).pivot_index;
+          var pivot := last(entries).pivot_index;
           (forall i :: 0 <= i < pivot ==> EntryIsRightMover(entries[i]))
        && (forall i :: pivot < i < |entries| ==> EntryIsLeftMover(entries[i]))
     }
 
-    function RestrictTraceToLevel(trace:Trace, level:int) : Trace
-        ensures var t' := RestrictTraceToLevel(trace, level);
-                forall i' :: 0 <= i' < |t'| ==> GetEntryLevel(t'[i']) == level &&
-                    (exists i :: 0 <= i < |trace| && (t'[i'] == trace[i] || (trace[i].EntryEndGroup? && t'[i'] == trace[i].reduced_entry ))
+    function RestrictEntriesToLevel(entries:seq<Entry>, level:int) : Trace
     {
-        if trace == [] then []
-        else if trace[0].EntryEndGroup? && trace[0].coarse_level == level then
-            [trace[0].reduced_entry] + RestrictTraceToLevel(trace[1..], level)
-        else if GetEntryLevel(trace[0]) == level then
-            [trace[0]] + RestrictTraceToLevel(trace[1..], level)
+        if entries == [] then []
+        else if entries[0].EntryEndGroup? && entries[0].coarse_level == level then
+            [entries[0].reduced_entry] + RestrictEntriesToLevel(entries[1..], level)
+        else if GetEntryLevel(entries[0]) == level then
+            [entries[0]] + RestrictEntriesToLevel(entries[1..], level)
         else 
-            RestrictTraceToLevel(trace[1..], level)
-
+            RestrictEntriesToLevel(entries[1..], level)
     }
 
-    predicate EntryGroupReducible(trace:Trace, level:int)
-        requires ValidEntryGroup(entries)
+    predicate EntryGroupValidForLevels(entries:seq<Entry>, min_level:int, max_level:int)
+        decreases |entries|, 0;
     {
-           |trace| > 0
-        && trace[0].EntryBeginGroup?
-        && last(trace).EntryEndGroup?
-        && (forall i :: 0 < i < |trace| - 1 ==> trace[i].EntryAction?)
-        && (forall i :: 0 <= i < |trace| ==> GetEntryLevel(trace[i]) == level)
-        && last(trace).coarse_level > level
-        && EntriesReducibleUsingPivot(trace)
-        && EntriesReducibleToEntry(trace, last(trace).reduced_entry)
+           EntryGroupValid(entries)
+        && min_level <= entries[0].group_level < max_level
+        && last(entries).coarse_level == max_level
+        && GetEntryLevel(last(entries).reduced_entry) == max_level
+        && ActorTraceValid(entries[1..|entries|-1], min_level, entries[0].group_level)
+        && EntriesReducibleUsingPivot(entries)
+        && EntriesReducibleToEntry(RestrictEntriesToLevel(entries, entries[0].group_level), last(entries).reduced_entry)
     }
 
-    predicate ActorTraceReducible(trace:Trace, level:int)
+    predicate ActorTraceValid(trace:Trace, min_level:int, max_level:int)
+        decreases |trace|, 1;
     {
            |trace| == 0
-        || (GetEntryLevel(trace[0]) > level && ActorTraceReducible(trace[1..], level))
+        || (trace[0].EntryAction? && GetEntryLevel(trace[0]) == max_level && ActorTraceValid(trace[1..], min_level, max_level))
         || (exists group_len ::    0 < group_len <= |trace|
-                          && EntryGroupReducible(trace[..group_len], level)
-                          && ActorTraceReducible(trace[group_len..], level)
+                          && EntryGroupValidForLevels(trace[..group_len], min_level, max_level)
+                          && ActorTraceValid(trace[group_len..], min_level, max_level)
            )
     }
 
-    predicate TraceReducible(trace:Trace, level:int)
+    predicate TraceValid(trace:Trace, min_level:int, max_level:int)
     {
-        forall actor :: ActorTraceReducible(RestrictTraceToActor(trace, actor), level)
+        forall actor :: ActorTraceValid(RestrictTraceToActor(trace, actor), min_level, max_level)
     }
 
-    predicate TraceDoneWithReduction(trace:Trace, level:int)
+    lemma lemma_RestrictEntriesToLevelPropertiesHelper(
+        entries:seq<Entry>,
+        entries':seq<Entry>,
+        level:int,
+        entry':Entry
+        )
+        returns (i:int)
+        requires entries' == RestrictEntriesToLevel(entries, level);
+        requires entry' in entries';
+        ensures  0 <= i < |entries|;
+        ensures     (   entry' == entries[i]
+                     && GetEntryLevel(entries[i]) == level)
+                 || (   entries[i].EntryEndGroup?
+                     && entries[i].coarse_level == level
+                     && entry' == entries[i].reduced_entry);
     {
-        forall entry :: entry in trace ==> GetEntryLevel(entry) > level
+        if entries == [] {
+            assert false;
+        }
+        if entries[0].EntryEndGroup? && entries[0].coarse_level == level && entries[0].reduced_entry == entry' {
+            i := 0;
+            return;
+        }
+        if GetEntryLevel(entries[0]) == level && entries[0] == entry' {
+            i := 0;
+            return;
+        }
+        var entries_tail := entries[1..];
+        var entries_tail' := RestrictEntriesToLevel(entries_tail, level);
+        var j := lemma_RestrictEntriesToLevelPropertiesHelper(entries_tail, entries_tail', level, entry');
+        i := j + 1;
+    }
+
+    lemma lemma_IfActorTraceValidThenEndGroupCoarseLevelMatchesReducedActionLevel(trace:seq<Entry>, min_level:int, max_level:int, i:int)
+        requires ActorTraceValid(trace, min_level, max_level);
+        requires 0 <= i < |trace|;
+        requires trace[i].EntryEndGroup?;
+        ensures  trace[i].coarse_level == GetEntryLevel(trace[i].reduced_entry);
+        decreases |trace|;
+    {
+        assert |trace| != 0;
+        if trace[0].EntryAction? && GetEntryLevel(trace[0]) == max_level && ActorTraceValid(trace[1..], min_level, max_level) {
+            lemma_IfActorTraceValidThenEndGroupCoarseLevelMatchesReducedActionLevel(trace[1..], min_level, max_level, i-1);
+            return;
+        }
+        var group_len :|    0 < group_len <= |trace|
+                         && EntryGroupValidForLevels(trace[..group_len], min_level, max_level)
+                         && ActorTraceValid(trace[group_len..], min_level, max_level);
+        if i >= group_len {
+            lemma_IfActorTraceValidThenEndGroupCoarseLevelMatchesReducedActionLevel(trace[group_len..], min_level, max_level, i - group_len);
+            return;
+        }
+        var entries := trace[..group_len];
+        assert EntryGroupValidForLevels(entries, min_level, max_level);
+        assert i != 0;
+        if i == group_len - 1 {
+            return;
+        }
+        assert ActorTraceValid(entries[1..|entries|-1], min_level, entries[0].group_level);
+        lemma_IfActorTraceValidThenEndGroupCoarseLevelMatchesReducedActionLevel(entries[1..|entries|-1], min_level, entries[0].group_level, i-1);
+    }
+
+    lemma lemma_IfEntryGroupValidForLevelsThenReducedEntryAtCorrectLevel(entries:seq<Entry>, min_level:int, max_level:int, i:int)
+        requires EntryGroupValidForLevels(entries, min_level, max_level);
+        requires 0 <= i < |entries|;
+        requires entries[i].EntryEndGroup?;
+        requires entries[i].coarse_level == entries[0].group_level;
+        ensures  GetEntryLevel(entries[i].reduced_entry) == entries[0].group_level;
+    {
+        if i == 0 {
+            assert false;
+        }
+        if i == |entries| - 1 {
+            return;
+        }
+        lemma_IfActorTraceValidThenEndGroupCoarseLevelMatchesReducedActionLevel(entries[1..|entries|-1], min_level, entries[0].group_level, i-1);
+    }
+
+    lemma lemma_RestrictEntriesToLevelProperties(entries:seq<Entry>, entries':seq<Entry>, min_level:int, max_level:int)
+        requires EntryGroupValidForLevels(entries, min_level, max_level);
+        requires entries' == RestrictEntriesToLevel(entries, entries[0].group_level);
+        ensures  forall i' :: 0 <= i' < |entries'| ==> GetEntryLevel(entries'[i']) == entries[0].group_level;
+        ensures  forall i' :: 0 <= i' < |entries'| ==> (exists i ::    0 <= i < |entries|
+                                                        && (   (   entries'[i'] == entries[i]
+                                                                && GetEntryLevel(entries[i]) == entries[0].group_level)
+                                                            || (   entries[i].EntryEndGroup?
+                                                                && entries[i].coarse_level == entries[0].group_level
+                                                                && entries'[i'] == entries[i].reduced_entry)));
+    {
+        var level := entries[0].group_level;
+        forall i' | 0 <= i' < |entries'|
+            ensures GetEntryLevel(entries'[i']) == entries[0].group_level;
+            ensures exists i ::    0 <= i < |entries|
+                           && (   (   entries'[i'] == entries[i]
+                                   && GetEntryLevel(entries[i]) == entries[0].group_level)
+                               || (   entries[i].EntryEndGroup?
+                                   && entries[i].coarse_level == entries[0].group_level
+                                   && entries'[i'] == entries[i].reduced_entry));
+        {
+            var entry' := entries'[i'];
+            var i := lemma_RestrictEntriesToLevelPropertiesHelper(entries, entries', level, entries'[i']);
+            var entry := entries[i];
+            if GetEntryLevel(entry') != level {
+                lemma_IfEntryGroupValidForLevelsThenReducedEntryAtCorrectLevel(entries, min_level, max_level, i);
+            }
+        }
     }
 
     /*
 
-    lemma lemma_IfTraceDoneWithReductionThenTraceReducible(trace:Trace, level:int)
+    lemma lemma_IfTraceDoneWithReductionThenTraceValid(trace:Trace, level:int)
         requires TraceDoneWithReduction(trace, level);
-        ensures  TraceReducible(trace, level);
+        ensures  TraceValid(trace, level);
     {
         forall actor
-            ensures ActorTraceReducible(RestrictTraceToActor(trace, actor), level);
+            ensures ActorTraceValid(RestrictTraceToActor(trace, actor), level);
         {
             var actor_trace := RestrictTraceToActor(trace, actor);
 
             if |actor_trace| == 0 {
-                assert ActorTraceReducible(actor_trace, level);
+                assert ActorTraceValid(actor_trace, level);
             }
             else {
                 var entry := actor_trace[0];
                 assert entry in actor_trace;
                 assert entry in trace;
                 assert GetEntryLevel(entry) > level;
-                lemma_IfTraceDoneWithReductionThenTraceReducible(trace[1..], level);
+                lemma_IfTraceDoneWithReductionThenTraceValid(trace[1..], level);
             }
         }
     }
