@@ -12,6 +12,14 @@ module ReductionModule
         && (forall i :: 0 <= i < |trace| && (EntryIsRightMover(trace[i]) || EntryIsLeftMover(trace[i])) ==> sb[i] == sb[i+1])
     }
 
+    predicate ValidEntryGroup(entries:seq<Entry>)
+    {
+           |trace| > 0
+        && trace[0].EntryBeginGroup?
+        && last(trace).EntryEndGroup?
+        && 0 < last(trace).pivot_index < |entries|
+    }
+
     predicate EntriesReducibleToEntry(entries:seq<Entry>, entry:Entry)
     {
         forall db:seq<DistributedSystemState> ::
@@ -20,19 +28,31 @@ module ReductionModule
              ==> DistributedSystemNextEntryAction(db[0], db[|entries|], entry)
     }
 
-    predicate EntriesReducibleUsingPivot(entries:seq<Entry>, pivot:int)
+    predicate EntriesReducibleUsingPivot(entries:seq<Entry>)
+        requires ValidEntryGroup(entries)
     {
-           0 <= pivot <= |entries|
-        && (forall i :: 0 <= i < pivot ==> EntryIsRightMover(entries[i]))
-        && (forall i :: pivot < i < |entries| ==> EntryIsLeftMover(entries[i]))
+          var pivot := last(trace).pivot_index;
+          (forall i :: 0 <= i < pivot ==> EntryIsRightMover(entries[i]))
+       && (forall i :: pivot < i < |entries| ==> EntryIsLeftMover(entries[i]))
     }
 
-    predicate EntriesReducible(entries:seq<Entry>)
+    function RestrictTraceToLevel(trace:Trace, level:int) : Trace
+        ensures var t' := RestrictTraceToLevel(trace, level);
+                forall i' :: 0 <= i' < |t'| ==> GetEntryLevel(t'[i']) == level &&
+                    (exists i :: 0 <= i < |trace| && (t'[i'] == trace[i] || (trace[i].EntryEndGroup? && t'[i'] == trace[i].reduced_entry ))
     {
-        exists pivot :: EntriesReducibleUsingPivot(entries, pivot)
+        if trace == [] then []
+        else if trace[0].EntryEndGroup? && trace[0].coarse_level == level then
+            [trace[0].reduced_entry] + RestrictTraceToLevel(trace[1..], level)
+        else if GetEntryLevel(trace[0]) == level then
+            [trace[0]] + RestrictTraceToLevel(trace[1..], level)
+        else 
+            RestrictTraceToLevel(trace[1..], level)
+
     }
 
     predicate EntryGroupReducible(trace:Trace, level:int)
+        requires ValidEntryGroup(entries)
     {
            |trace| > 0
         && trace[0].EntryBeginGroup?
@@ -40,8 +60,8 @@ module ReductionModule
         && (forall i :: 0 < i < |trace| - 1 ==> trace[i].EntryAction?)
         && (forall i :: 0 <= i < |trace| ==> GetEntryLevel(trace[i]) == level)
         && last(trace).coarse_level > level
-        && EntriesReducible(trace[1..|trace|-1])
-        && EntriesReducibleToEntry(trace[1..|trace|-1], last(trace).reduced_entry)
+        && EntriesReducibleUsingPivot(trace)
+        && EntriesReducibleToEntry(trace, last(trace).reduced_entry)
     }
 
     predicate ActorTraceReducible(trace:Trace, level:int)
@@ -63,6 +83,8 @@ module ReductionModule
     {
         forall entry :: entry in trace ==> GetEntryLevel(entry) > level
     }
+
+    /*
 
     lemma lemma_IfTraceDoneWithReductionThenTraceReducible(trace:Trace, level:int)
         requires TraceDoneWithReduction(trace, level);
@@ -326,7 +348,7 @@ module ReductionModule
         assert sb[i+1] == ss';
     }
 
-    lemma {:timeLimitMultiplier 3} lemma_AddStuttersForReductionStepHelper3(
+    lemma {:timeLimitMultiplier 2} lemma_AddStuttersForReductionStepHelper3(
         begin_entry_pos:int,
         end_entry_pos:int,
         pivot:int,
@@ -479,7 +501,7 @@ module ReductionModule
     }
 
     lemma lemma_RestrictTraceToActorEmpty(trace:Trace, actor:Actor)
-        requires forall i :: 0 <= i < |trace| ==> GetEntryActor(trace[i]) != actor;
+        requires forall i :: 0 <= i < |trace| ==> GetEntryActor(trace[i]) == actor;
         ensures RestrictTraceToActor(trace, actor) == [];
     {
     }
@@ -503,7 +525,6 @@ module ReductionModule
         var middle := trace[begin_entry_pos..end_entry_pos+1];
         var middle' := [reduced_entry];
         var end := trace[end_entry_pos+1 ..];
-        assert trace == start + middle + end;       // OBSERVE: Extensionality
         forall other_actor | other_actor != actor 
             ensures RestrictTraceToActor(trace', other_actor) == RestrictTraceToActor(trace, other_actor);
         {
@@ -515,14 +536,12 @@ module ReductionModule
                 RestrictTraceToActor(start + middle', other_actor) +  RestrictTraceToActor(end, other_actor);
                     { lemma_SplitRestrictTraceToActor(start, middle', other_actor); }
                 (RestrictTraceToActor(start, other_actor) + RestrictTraceToActor(middle', other_actor)) + RestrictTraceToActor(end, other_actor);
-                    { lemma_RestrictTraceToActorEmpty(middle', other_actor); 
-                      assert RestrictTraceToActor(middle', other_actor) == []; }
+                    { lemma_RestrictTraceToActorEmpty(middle', actor); assert RestrictTraceToActor(middle', other_actor) == []; }
                 RestrictTraceToActor(start, other_actor) + RestrictTraceToActor(end, other_actor);
                 (RestrictTraceToActor(start, other_actor) + []) + RestrictTraceToActor(end, other_actor);
-                    { lemma_RestrictTraceToActorEmpty(middle, other_actor); 
-                      assert RestrictTraceToActor(middle, other_actor) == []; }
+                    { lemma_RestrictTraceToActorEmpty(middle, actor); assert RestrictTraceToActor(middle, other_actor) == []; }
                 (RestrictTraceToActor(start, other_actor) + RestrictTraceToActor(middle, other_actor)) + RestrictTraceToActor(end, other_actor);
-                    { lemma_SplitRestrictTraceToActor(start, middle, other_actor); }
+                    { lemma_SplitRestrictTraceToActor(start + middle, end, other_actor); }
                 RestrictTraceToActor(start + middle, other_actor) + RestrictTraceToActor(end, other_actor);
                     { lemma_SplitRestrictTraceToActor(start + middle, end, other_actor); }
                 RestrictTraceToActor((start + middle) + end, other_actor);
@@ -533,24 +552,8 @@ module ReductionModule
         forall other_actor | other_actor != actor 
             ensures RestrictTraceToActor(trace'[begin_entry_pos..], other_actor) == RestrictTraceToActor(trace[begin_entry_pos..], other_actor);
         {
-            calc {
-                RestrictTraceToActor(trace'[begin_entry_pos..], other_actor);
-                    { assert trace'[begin_entry_pos..] == middle' + end; }
-                RestrictTraceToActor(middle' + end, other_actor);
-                    { lemma_SplitRestrictTraceToActor(middle', end, other_actor); }
-                RestrictTraceToActor(middle', other_actor) + RestrictTraceToActor(end, other_actor);
-                    { lemma_RestrictTraceToActorEmpty(middle', other_actor); 
-                      assert RestrictTraceToActor(middle', other_actor) == []; }
-                RestrictTraceToActor(end, other_actor);
-                RestrictTraceToActor([] + end, other_actor);
-                    { lemma_RestrictTraceToActorEmpty(middle, other_actor); 
-                      assert RestrictTraceToActor(middle, other_actor) == []; }
-                RestrictTraceToActor(middle, other_actor) + RestrictTraceToActor(end, other_actor);
-                    { lemma_SplitRestrictTraceToActor(middle, end, other_actor); }
-                RestrictTraceToActor(middle + end, other_actor);
-                    { assert trace[begin_entry_pos..] == middle + end; }
-                RestrictTraceToActor(trace[begin_entry_pos..], other_actor);
-            }
+            //assume false;
+            lemma_SplitRestrictTraceToActor([reduced_entry], trace[end_entry_pos+1 ..], other_actor);
         }
     }
 
@@ -614,5 +617,6 @@ module ReductionModule
         }
 
     }
+    */
 
 }
