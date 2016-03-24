@@ -4,6 +4,31 @@ module Reduction2Module
 {
     import opened ReductionModule
 
+    lemma lemma_FindEntryGroupValid(
+            trace:Trace,
+            min_level:int,
+            max_level:int,
+            position:int)
+        returns (
+            indices:seq<int>,
+            group:Trace)
+        requires TraceValid(trace, min_level, max_level);
+        requires 0 <= position < |trace|;
+        requires forall i :: 0 <= i < position ==> GetEntryLevel(trace[i]) > min_level;
+        requires GetEntryLevel(trace[position]) == min_level;
+        ensures  trace[position].EntryBeginGroup?;
+        ensures  |indices| == |group| > 0;
+        ensures  indices[0] == position;
+        ensures  forall i, j :: 0 <= i < j < |indices| ==> indices[i] < indices[j];
+        ensures  forall i :: 0 <= i < |indices| ==> 0 <= indices[i] < |trace| && trace[indices[i]] == group[i];
+        ensures  EntryGroupValidForLevels(group, min_level, max_level);
+        ensures  forall i :: 0 <= i < |group| ==> GetEntryActor(group[i]) == GetEntryActor(group[0]);   // All for the same actor
+        ensures  forall group_index, trace_index :: 0 <= group_index < |indices| - 1 
+                                                 && indices[group_index] < trace_index < indices[group_index+1] 
+                                                 ==> GetEntryActor(trace[trace_index]) != GetEntryActor(group[0]);
+
+
+/*
     function GetTraceIndicesForActor(trace:Trace, actor:Actor) : seq<int>
         ensures var indices := GetTraceIndicesForActor(trace, actor);
                 forall index :: index in indices <==> 0 <= index < |trace| && GetEntryActor(trace[index]) == actor;
@@ -207,18 +232,17 @@ module Reduction2Module
         requires EntryGroupReducible(group, level);
         requires forall entry :: entry in group ==> GetEntryActor(entry) == actor;
         requires forall i, j :: 0 <= i < j < |actor_indices| ==> actor_indices[i] < actor_indices[j];
-        requires forall i {:trigger actor_indices[i] } :: 0 <= i < |actor_indices| 
-                    ==> entry_pos <= actor_indices[i] < |trace| && trace[actor_indices[i]] == group[i];
-        requires forall actor_index, trace_index {:trigger actor_indices[actor_index], GetEntryActor(trace[trace_index]) } ::
-                     0 <= actor_index < |actor_indices| - 1 
-                     && actor_indices[actor_index] < trace_index < actor_indices[actor_index+1] 
-                     ==> GetEntryActor(trace[trace_index]) != actor;
+        requires forall i :: 0 <= i < |actor_indices| ==> entry_pos <= actor_indices[i] < |trace| && trace[actor_indices[i]] == group[i];
+        requires forall actor_index, trace_index :: 0 <= actor_index < |actor_indices| - 1 
+                                                 && actor_indices[actor_index] < trace_index < actor_indices[actor_index+1] 
+                                                 ==> GetEntryActor(trace[trace_index]) != actor;
         requires 0 <= in_position_left <= pivot <= in_position_right < |actor_indices|;
         requires forall k :: in_position_left <= k <= in_position_right ==> k - pivot == actor_indices[k] - actor_indices[pivot];
-        requires ActorTraceValid(RestrictTraceToActor(trace[last(actor_indices)+1..], actor), level);
+        requires ActorTraceReducible(RestrictTraceToActor(trace[last(actor_indices)+1..], actor), level);
         ensures  |trace'| >= entry_pos;
         ensures  trace'[..entry_pos] == trace[..entry_pos];
         ensures  TraceReducible(trace', level);
+        //ensures  RestrictTraceToActor(trace'[entry_pos..], actor) == RestrictTraceToActor(trace[entry_pos..], actor);
         ensures  forall other_actor :: other_actor != actor ==> RestrictTraceToActor(trace'[entry_pos..], other_actor) == RestrictTraceToActor(trace[entry_pos..], other_actor);
         ensures  IsValidDistributedSystemTraceAndBehavior(trace', db');
         ensures  DistributedSystemBehaviorRefinesSpec(db') ==> DistributedSystemBehaviorRefinesSpec(db);
@@ -229,14 +253,14 @@ module Reduction2Module
             var end_entry_pos := actor_indices[pivot] + |group| - pivot - 1;
             assert forall i :: begin_entry_pos <= i <= end_entry_pos ==> trace[i] == group[i-begin_entry_pos];
             trace', db' := lemma_PerformOneReductionStep(trace, db, actor, level, begin_entry_pos, end_entry_pos, pivot-1);             
+            //assume ActorTraceReducible(RestrictTraceToActor(trace', actor), level);
             forall any_actor 
-                ensures ActorTraceValid(RestrictTraceToActor(trace', any_actor), level)
+                ensures ActorTraceReducible(RestrictTraceToActor(trace', any_actor), level)
             {
                 if any_actor == actor {
-                    assume false;
-                    assert ActorTraceValid(RestrictTraceToActor(trace', any_actor), level);
+                    //assume false;
+                    assert ActorTraceReducible(RestrictTraceToActor(trace', any_actor), level);
                 } else {
-                    lemma_RestrictTraceToActorPreservation(trace, actor, begin_entry_pos, end_entry_pos, trace[end_entry_pos].reduced_entry, trace');
                     assert RestrictTraceToActor(trace', any_actor) == RestrictTraceToActor(trace, any_actor);
                 }
             }
@@ -265,7 +289,7 @@ module Reduction2Module
         requires actor_trace == RestrictTraceToActor(trace[entry_pos..], actor);
         requires 0 < group_len <= |actor_trace|;
         requires EntryGroupReducible(actor_trace[..group_len], level);
-        requires ActorTraceValid(actor_trace[group_len..], level)
+        requires ActorTraceReducible(actor_trace[group_len..], level)
         ensures  |trace'| >= entry_pos;
         ensures  trace'[..entry_pos] == trace[..entry_pos];
         ensures  TraceReducible(trace', level);
@@ -318,14 +342,14 @@ module Reduction2Module
 
         if GetEntryLevel(trace[entry_pos]) > level {
             forall any_actor
-                ensures ActorTraceValid(RestrictTraceToActor(trace_suffix', any_actor), level);
+                ensures ActorTraceReducible(RestrictTraceToActor(trace_suffix', any_actor), level);
             {
                 if any_actor == entry_actor {
-                    assert ActorTraceValid(RestrictTraceToActor(trace_suffix, any_actor), level);
-                    assert ActorTraceValid(RestrictTraceToActor(trace_suffix', any_actor), level);
+                    assert ActorTraceReducible(RestrictTraceToActor(trace_suffix, any_actor), level);
+                    assert ActorTraceReducible(RestrictTraceToActor(trace_suffix', any_actor), level);
                 }
                 else {
-                    assert ActorTraceValid(RestrictTraceToActor(trace_suffix, any_actor), level);
+                    assert ActorTraceReducible(RestrictTraceToActor(trace_suffix, any_actor), level);
                     assert RestrictTraceToActor(trace_suffix, any_actor) == RestrictTraceToActor(trace_suffix', any_actor);
                 }
             }
@@ -336,7 +360,7 @@ module Reduction2Module
         var actor_trace := RestrictTraceToActor(trace_suffix, entry_actor);
         var group_len :|    0 < group_len <= |actor_trace|
                          && EntryGroupReducible(actor_trace[..group_len], level)
-                         && ActorTraceValid(actor_trace[group_len..], level);
+                         && ActorTraceReducible(actor_trace[group_len..], level);
         var trace_mid, db_mid := lemma_PerformReductionStartingAtGroupBegin(trace, db, level, entry_actor, actor_trace, entry_pos, group_len);
 
         forall other_actor | other_actor != entry_actor
@@ -374,5 +398,5 @@ module Reduction2Module
     {
         trace', db' := lemma_PerformReductionStartingAtEntry(trace, db, level, 0);
     }
-
+*/
 }

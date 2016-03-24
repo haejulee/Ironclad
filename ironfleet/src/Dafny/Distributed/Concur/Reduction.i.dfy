@@ -85,6 +85,22 @@ module ReductionModule
         forall actor :: ActorTraceValid(RestrictTraceToActor(trace, actor), min_level, max_level)
     }
 
+    lemma lemma_ReductionPreservesTraceValid(
+            trace:Trace,
+            min_level:int,
+            max_level:int,
+            position:int,
+            group_len:int)
+        returns (
+            trace':Trace)
+        requires TraceValid(trace, min_level, max_level);
+        requires 0 <= position < position + group_len <= |trace|;
+        requires EntryGroupValidForLevels(trace[position..position+group_len], min_level, max_level);
+        requires trace[position].EntryBeginGroup? && trace[position].begin_group_level == min_level;
+        ensures  trace' == trace[..position] + [trace[position+group_len-1].reduced_entry] + trace[position + group_len..];
+        ensures  TraceValid(trace', min_level, max_level);
+            
+
     /*
 
     lemma lemma_IfTraceDoneWithReductionThenTraceValid(trace:Trace, level:int)
