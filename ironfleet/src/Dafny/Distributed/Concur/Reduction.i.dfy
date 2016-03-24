@@ -365,7 +365,7 @@ module ReductionModule
         assert sb[i+1] == ss';
     }
 
-    lemma {:timeLimitMultiplier 2} lemma_AddStuttersForReductionStepHelper3(
+    lemma {:timeLimitMultiplier 3} lemma_AddStuttersForReductionStepHelper3(
         begin_entry_pos:int,
         end_entry_pos:int,
         pivot:int,
@@ -518,7 +518,7 @@ module ReductionModule
     }
 
     lemma lemma_RestrictTraceToActorEmpty(trace:Trace, actor:Actor)
-        requires forall i :: 0 <= i < |trace| ==> GetEntryActor(trace[i]) == actor;
+        requires forall i :: 0 <= i < |trace| ==> GetEntryActor(trace[i]) != actor;
         ensures RestrictTraceToActor(trace, actor) == [];
     {
     }
@@ -542,6 +542,7 @@ module ReductionModule
         var middle := trace[begin_entry_pos..end_entry_pos+1];
         var middle' := [reduced_entry];
         var end := trace[end_entry_pos+1 ..];
+        assert trace == start + middle + end;       // OBSERVE: Extensionality
         forall other_actor | other_actor != actor 
             ensures RestrictTraceToActor(trace', other_actor) == RestrictTraceToActor(trace, other_actor);
         {
@@ -553,10 +554,12 @@ module ReductionModule
                 RestrictTraceToActor(start + middle', other_actor) +  RestrictTraceToActor(end, other_actor);
                     { lemma_SplitRestrictTraceToActor(start, middle', other_actor); }
                 (RestrictTraceToActor(start, other_actor) + RestrictTraceToActor(middle', other_actor)) + RestrictTraceToActor(end, other_actor);
-                    { lemma_RestrictTraceToActorEmpty(middle', actor); assert RestrictTraceToActor(middle', other_actor) == []; }
+                    { lemma_RestrictTraceToActorEmpty(middle', actor);
+                      assert RestrictTraceToActor(middle', other_actor) == []; }
                 RestrictTraceToActor(start, other_actor) + RestrictTraceToActor(end, other_actor);
                 (RestrictTraceToActor(start, other_actor) + []) + RestrictTraceToActor(end, other_actor);
-                    { lemma_RestrictTraceToActorEmpty(middle, actor); assert RestrictTraceToActor(middle, other_actor) == []; }
+                    { lemma_RestrictTraceToActorEmpty(middle, actor); 
+                      assert RestrictTraceToActor(middle, other_actor) == []; }
                 (RestrictTraceToActor(start, other_actor) + RestrictTraceToActor(middle, other_actor)) + RestrictTraceToActor(end, other_actor);
                     { lemma_SplitRestrictTraceToActor(start + middle, end, other_actor); }
                 RestrictTraceToActor(start + middle, other_actor) + RestrictTraceToActor(end, other_actor);
@@ -569,7 +572,24 @@ module ReductionModule
         forall other_actor | other_actor != actor 
             ensures RestrictTraceToActor(trace'[begin_entry_pos..], other_actor) == RestrictTraceToActor(trace[begin_entry_pos..], other_actor);
         {
-            //assume false;
+            calc {
+                RestrictTraceToActor(trace'[begin_entry_pos..], other_actor);
+                    { assert trace'[begin_entry_pos..] == middle' + end; }
+                RestrictTraceToActor(middle' + end, other_actor);
+                    { lemma_SplitRestrictTraceToActor(middle', end, other_actor); }
+                RestrictTraceToActor(middle', other_actor) + RestrictTraceToActor(end, other_actor);
+                    { lemma_RestrictTraceToActorEmpty(middle', other_actor); 
+                      assert RestrictTraceToActor(middle', other_actor) == []; }
+                RestrictTraceToActor(end, other_actor);
+                RestrictTraceToActor([] + end, other_actor);
+                    { lemma_RestrictTraceToActorEmpty(middle, other_actor); 
+                      assert RestrictTraceToActor(middle, other_actor) == []; }
+                RestrictTraceToActor(middle, other_actor) + RestrictTraceToActor(end, other_actor);
+                    { lemma_SplitRestrictTraceToActor(middle, end, other_actor); }
+                RestrictTraceToActor(middle + end, other_actor);
+                    { assert trace[begin_entry_pos..] == middle + end; }
+                RestrictTraceToActor(trace[begin_entry_pos..], other_actor);
+            }
             lemma_SplitRestrictTraceToActor([reduced_entry], trace[end_entry_pos+1 ..], other_actor);
         }
     }
