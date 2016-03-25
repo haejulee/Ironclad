@@ -18,6 +18,8 @@ module ReductionModule
         && entries[0].EntryBeginGroup?
         && last(entries).EntryEndGroup?
         && last(entries).end_group_level == entries[0].begin_group_level
+        && GetEntryActor(last(entries).reduced_entry) == GetEntryActor(last(entries))
+        && last(entries).reduced_entry.EntryAction?
         && 0 < last(entries).pivot_index < |entries|
     }
 
@@ -190,6 +192,37 @@ module ReductionModule
         }
     }
 
+/*
+    lemma lemma_ActorTraceValid(
+            trace:Trace,
+            min_level:int,
+            max_level:int,
+            position:int)
+        requires ActorTraceValid(trace, min_level, max_level);
+        requires 0 <= position < |trace|;
+        requires EntryGroupValidForLevels(trace[position..position+group_len], min_level, max_level);
+        requires ActorTraceValid(RestrictTraceToActor(trace[position+group_len..], GetEntryActor(trace[position])), min_level, max_level);
+        requires trace[position].EntryBeginGroup? && trace[position].begin_group_level == min_level;
+        requires forall i :: position <= i < position+group_len ==> GetEntryActor(trace[i]) == GetEntryActor(trace[position]);
+        ensures  trace' == trace[..position] + [trace[position+group_len-1].reduced_entry] + trace[position + group_len..];
+        ensures  TraceValid(trace', min_level, max_level);
+    lemma lemma_ActorTraceValid(
+            trace:Trace,
+            min_level:int,
+            max_level:int,
+            position:int,
+            group_len:int)
+        returns (trace':Trace)
+
+        requires TraceValid(trace, min_level, max_level);
+        requires 0 <= position < position + group_len <= |trace|;
+        requires EntryGroupValidForLevels(trace[position..position+group_len], min_level, max_level);
+        requires ActorTraceValid(RestrictTraceToActor(trace[position+group_len..], GetEntryActor(trace[position])), min_level, max_level);
+        requires trace[position].EntryBeginGroup? && trace[position].begin_group_level == min_level;
+        requires forall i :: position <= i < position+group_len ==> GetEntryActor(trace[i]) == GetEntryActor(trace[position]);
+        ensures  trace' == trace[..position] + [trace[position+group_len-1].reduced_entry] + trace[position + group_len..];
+        ensures  TraceValid(trace', min_level, max_level);
+*/
 
     lemma lemma_ReductionPreservesTraceValid(
             trace:Trace,
@@ -197,15 +230,126 @@ module ReductionModule
             max_level:int,
             position:int,
             group_len:int)
-        returns (
-            trace':Trace)
+        returns (trace':Trace)
         requires TraceValid(trace, min_level, max_level);
         requires 0 <= position < position + group_len <= |trace|;
         requires EntryGroupValidForLevels(trace[position..position+group_len], min_level, max_level);
+        requires ActorTraceValid(RestrictTraceToActor(trace[position+group_len..], GetEntryActor(trace[position])), min_level, max_level);
         requires trace[position].EntryBeginGroup? && trace[position].begin_group_level == min_level;
+        requires forall i :: position <= i < position+group_len ==> GetEntryActor(trace[i]) == GetEntryActor(trace[position]);
         ensures  trace' == trace[..position] + [trace[position+group_len-1].reduced_entry] + trace[position + group_len..];
         ensures  TraceValid(trace', min_level, max_level);
-            
+    {
+        trace' := trace[..position] + [trace[position+group_len-1].reduced_entry] + trace[position + group_len..];
+        //assert TraceValid(trace[..position], min_level, max_level);   // Doesn't believe this.  Probably not true.
+
+        var this_actor := GetEntryActor(trace[position]);
+        lemma_RestrictTraceToActorPreservation(trace, this_actor, position, position+group_len-1, trace[position+group_len-1].reduced_entry, trace');
+        if position == 0 {
+        } else {
+//            forall actor
+//                ensures ActorTraceValid(RestrictTraceToActor(trace', actor), min_level, max_level);
+//            {
+                assert trace[0] == trace'[0];
+                if trace'[0].EntryAction? && GetEntryLevel(trace'[0]) == max_level {
+                    forall actor 
+                        ensures ActorTraceValid(RestrictTraceToActor(trace[1..], actor), min_level, max_level);
+                    {
+                        lemma_SplitRestrictTraceToActor([trace[0]], trace[1..], actor);
+                        //assert |trace[1..]| != 0 ==> ActorTraceValid(trace[1..], min_level, max_level);
+
+                        if actor != GetEntryActor(trace[0]) {
+                            calc ==> {
+                                true;
+                                ActorTraceValid(RestrictTraceToActor(trace, actor), min_level, max_level);
+                                ActorTraceValid(RestrictTraceToActor([trace[0]] + trace[1..], actor), min_level, max_level);
+                                    { lemma_SplitRestrictTraceToActor([trace[0]], trace[1..], actor); }
+                                ActorTraceValid(RestrictTraceToActor([trace[0]], actor) + RestrictTraceToActor(trace[1..], actor), min_level, max_level);
+                                ActorTraceValid([] + RestrictTraceToActor(trace[1..], actor), min_level, max_level);
+                                ActorTraceValid(RestrictTraceToActor(trace[1..], actor), min_level, max_level);
+                            }
+                        } else {
+                            var a_trace := RestrictTraceToActor(trace, actor);
+                            calc ==> {
+                                true;
+                                ActorTraceValid(a_trace, min_level, max_level);
+                               |a_trace| == 0
+                            || (a_trace[0].EntryAction? && GetEntryLevel(a_trace[0]) == max_level && ActorTraceValid(a_trace[1..], min_level, max_level))
+                            || (exists g_len ::    0 < g_len <= |a_trace|
+                                              && EntryGroupValidForLevels(a_trace[..g_len], min_level, max_level)
+                                              && ActorTraceValid(a_trace[g_len..], min_level, max_level));
+                                ActorTraceValid(a_trace[1..], min_level, max_level);
+                            }
+                            assert RestrictTraceToActor(trace[1..], actor) == a_trace[1..];
+                            assert ActorTraceValid(RestrictTraceToActor(trace[1..], actor), min_level, max_level);
+                        }
+                    }
+                    assert TraceValid(trace[1..], min_level, max_level);
+                    var _ := lemma_ReductionPreservesTraceValid(trace[1..], min_level, max_level, position-1, group_len);
+                    assume false;
+                } else {
+
+                    assume false;
+                }
+//            }
+        }
+
+        /*
+        forall actor
+            ensures ActorTraceValid(RestrictTraceToActor(trace', actor), min_level, max_level);
+        {
+            var this_actor := GetEntryActor(trace[position]);
+            lemma_RestrictTraceToActorPreservation(trace, this_actor, position, position+group_len-1, trace[position+group_len-1].reduced_entry, trace');
+            assert GetEntryLevel(trace[position+group_len-1].reduced_entry) == max_level;
+            if this_actor == actor {
+                var a_trace  := RestrictTraceToActor(trace, this_actor);
+                var a_trace' := RestrictTraceToActor(trace', this_actor);
+
+                if position == 0 {
+                    //calc {
+
+                    lemma_SplitRestrictTraceToActor(trace[..position+group_len], trace[position + group_len..], this_actor);
+//                    assert trace == trace[..position+group_len] + trace[position + group_len..];
+//                    calc {
+//                        ActorTraceValid(RestrictTraceToActor(trace[position+group_len..], GetEntryActor(trace[position])), min_level, max_level);
+//                        ActorTraceValid(RestrictTraceToActor(trace[position+group_len..], this_actor), min_level, max_level);
+//                        ActorTraceValid(a_trace'[1..], min_level, max_level);
+//                    }
+//
+//                    assert ActorTraceValid(a_trace'[1..], min_level, max_level);
+//                    assert GetEntryLevel(a_trace'[0]) == max_level;
+//                    assert a_trace'[0].EntryAction?;
+//                    calc ==> {
+//                        true;
+//                        a_trace'[0].EntryAction? && GetEntryLevel(a_trace'[0]) == max_level && ActorTraceValid(a_trace'[1..], min_level, max_level);
+//                        ActorTraceValid(a_trace', min_level, max_level);
+//
+//                    }
+////                    calc ==> {
+////                        ActorTraceValid(a_trace, min_level, max_level);
+////                        exists group_len' :: 0 < group_len' <= |a_trace|
+////                          && EntryGroupValidForLevels(a_trace[..group_len'], min_level, max_level)
+////                          && ActorTraceValid(a_trace[group_len'..], min_level, max_level);
+////                    }
+                    assert ActorTraceValid(RestrictTraceToActor(trace', actor), min_level, max_level);
+                } else {
+//                    var begin := trace[..position];
+//                    var middle := trace[position..position+group_len];
+//                    var end := trace[position+group_len..];
+//
+//                    lemma_SplitRestrictTraceToActor(begin, trace[position..], this_actor);
+//                    lemma_SplitRestrictTraceToActor(trace[..position+group_len], trace[position + group_len..], this_actor);
+                    assume ActorTraceValid(RestrictTraceToActor(trace[..position], actor), min_level, max_level);
+                    assert ActorTraceValid(RestrictTraceToActor(trace', actor), min_level, max_level);
+                }
+            } else {
+                assert RestrictTraceToActor(trace', actor) == RestrictTraceToActor(trace, actor);
+                assert ActorTraceValid(RestrictTraceToActor(trace', actor), min_level, max_level);
+            }
+        }
+        */
+
+    }
 
     /*
 
