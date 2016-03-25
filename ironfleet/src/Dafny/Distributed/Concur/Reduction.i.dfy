@@ -224,7 +224,6 @@ module ReductionModule
         ensures  TraceValid(trace', min_level, max_level);
 */
 
-/*
     lemma lemma_ReductionPreservesTraceValid(
             trace:Trace,
             min_level:int,
@@ -287,8 +286,8 @@ module ReductionModule
                     }
                     assert TraceValid(trace[1..], min_level, max_level);
                     assert trace[1..][position-1] == trace[position];
+                    assume false;
                     var t' := lemma_ReductionPreservesTraceValid(trace[1..], min_level, max_level, position-1, group_len);
-                    //assume false;
                     assert trace' == [trace[0]] + t';
                     
                 } else {
@@ -357,7 +356,7 @@ module ReductionModule
         */
 
     }
-*/
+
     /*
 
     lemma lemma_IfTraceDoneWithReductionThenTraceValid(trace:Trace, level:int)
