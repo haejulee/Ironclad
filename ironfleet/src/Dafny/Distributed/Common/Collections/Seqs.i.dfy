@@ -114,5 +114,30 @@ lemma lemma_SeqCat_equivalent<T>(seqs:seq<seq<T>>)
     }
 }
 
+lemma lemma_ElementFromSequenceSlice<T>(s:seq<T>, s':seq<T>, a:int, b:int, pos:int)
+    requires 0 <= a <= b <= |s|;
+    requires s' == s[a..b];
+    requires a <= pos < b;
+    ensures  0 <= pos - a < |s'|;
+    ensures  s'[pos-a] == s[pos];
+{
+}
+
+lemma lemma_ElementFromSequencePrefix<T>(s:seq<T>, s':seq<T>, a:int, pos:int)
+    requires 0 <= a <= |s|;
+    requires s' == s[..a];
+    requires 0 <= pos < a;
+    ensures  s'[pos] == s[pos];
+{
+}
+
+lemma lemma_ElementFromSequenceSuffix<T>(s:seq<T>, s':seq<T>, a:int, pos:int)
+    requires 0 <= a <= |s|;
+    requires s' == s[a..];
+    requires a <= pos < |s|;
+    ensures  s'[pos-a] == s[pos];
+{
+}
+
 
 }
