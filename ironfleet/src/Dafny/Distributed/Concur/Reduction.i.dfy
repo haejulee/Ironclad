@@ -285,9 +285,15 @@ module ReductionModule
                         }
                     }
                     assert TraceValid(trace[1..], min_level, max_level);
-                    var _ := lemma_ReductionPreservesTraceValid(trace[1..], min_level, max_level, position-1, group_len);
-                    assume false;
+                    assert trace[1..][position-1] == trace[position];
+                    var t' := lemma_ReductionPreservesTraceValid(trace[1..], min_level, max_level, position-1, group_len);
+                    //assume false;
+                    assert trace' == [trace[0]] + t';
+                    
                 } else {
+//                    var g_len :| 0 < g_len <= |trace|
+//                          && EntryGroupValidForLevels(trace[..g_len], min_level, max_level)
+//                          && ActorTraceValid(trace[g_len..], min_level, max_level);
 
                     assume false;
                 }
