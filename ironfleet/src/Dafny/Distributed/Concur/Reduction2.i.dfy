@@ -6,34 +6,6 @@ module Reduction2Module
     import opened ReductionModule
     import opened Collections__Seqs_i
 
-    lemma lemma_SplitRestrictTraceToActor(t1:Trace, t2:Trace, actor:Actor)
-        ensures RestrictTraceToActor(t1, actor) + RestrictTraceToActor(t2, actor) == RestrictTraceToActor(t1 + t2, actor);
-    {
-        if |t1| == 0 {
-            return;
-        }
-
-        lemma_SplitRestrictTraceToActor(t1[1..], t2, actor);
-        var t := t1 + t2;
-
-        assert t[1..] == t1[1..] + t2;
-
-        if GetEntryActor(t[0]) != actor {
-            calc {
-                RestrictTraceToActor(t, actor);
-                RestrictTraceToActor(t1[1..], actor) + RestrictTraceToActor(t2, actor);
-                RestrictTraceToActor(t1, actor) + RestrictTraceToActor(t2, actor);
-            }
-        }
-        else {
-            calc {
-                RestrictTraceToActor(t, actor);
-                [t[0]] + RestrictTraceToActor(t1[1..], actor) + RestrictTraceToActor(t2, actor);
-                RestrictTraceToActor(t1, actor) + RestrictTraceToActor(t2, actor);
-            }
-        }
-    }
-
     function GetTraceIndicesForActor(trace:Trace, actor:Actor) : seq<int>
         ensures var indices := GetTraceIndicesForActor(trace, actor);
                 forall index :: index in indices <==> 0 <= index < |trace| && GetEntryActor(trace[index]) == actor;

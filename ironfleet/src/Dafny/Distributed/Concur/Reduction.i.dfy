@@ -224,6 +224,7 @@ module ReductionModule
         ensures  TraceValid(trace', min_level, max_level);
 */
 
+/*
     lemma lemma_ReductionPreservesTraceValid(
             trace:Trace,
             min_level:int,
@@ -356,7 +357,7 @@ module ReductionModule
         */
 
     }
-
+*/
     /*
 
     lemma lemma_IfTraceDoneWithReductionThenTraceValid(trace:Trace, level:int)
@@ -531,18 +532,15 @@ module ReductionModule
 
         lemma_AddStuttersForReductionStepHelper1(trace, db, begin_entry_pos, end_entry_pos, pivot_index, trace', db', sb', sb, i-1);
 
-        var group := trace[begin_entry_pos+1 .. end_entry_pos];
+        var group := trace[begin_entry_pos .. end_entry_pos+1];
         var k := i - 1;
-        var j := k - (begin_entry_pos+1);
+        var j := k - begin_entry_pos;
+        assert j >= 0;
 
-        if j == - 1 {
-          assert trace[k].EntryBeginGroup?;
-        } else {
-          seq_index_helper(trace, begin_entry_pos+1, end_entry_pos, k, j);
-          assert trace[k] == group[j];
-          assert EntryIsRightMover(trace[k]);
-          lemma_RightMoverForwardPreservation(trace[k], db[k], db[k+1], sb[k]);
-        }
+        lemma_ElementFromSequenceSlice(trace, group, begin_entry_pos, end_entry_pos+1, k);
+        assert trace[k] == group[j];
+        assert EntryIsRightMover(trace[k]);
+        lemma_RightMoverForwardPreservation(trace[k], db[k], db[k+1], sb[k]);
     }
 
     lemma seq_index_helper(s:seq, begin:int, end:int, absolute_index:int, relative_index:int)
@@ -611,7 +609,7 @@ module ReductionModule
         assert sb[i+1] == ss';
     }
 
-    lemma {:timeLimitMultiplier 4} lemma_AddStuttersForReductionStepHelper3(
+    lemma {:timeLimitMultiplier 3} lemma_AddStuttersForReductionStepHelper3(
         begin_entry_pos:int,
         end_entry_pos:int,
         pivot_index:int,
@@ -635,12 +633,15 @@ module ReductionModule
         assert SpecNext(ss, ss') || ss == ss';
 
         if 0 <= i < begin_entry_pos - 1 {
+            lemma_ElementFromSequencePrefix(sb', sb'[..begin_entry_pos], begin_entry_pos, i);
+            lemma_ElementFromSequencePrefix(sb', sb'[..begin_entry_pos], begin_entry_pos, i+1);
             assert sb[i] == sb'[i];
             assert sb[i+1] == sb'[i+1];
             assert SpecNext(sb[i], sb[i+1]) || sb[i] == sb[i+1];
         }
         else if i == begin_entry_pos - 1 {
             assert i >= 0;
+            lemma_ElementFromSequencePrefix(sb', sb'[..begin_entry_pos], begin_entry_pos, i);
             assert sb[i] == sb'[i];
             assert sb[i+1] == sb'[begin_entry_pos] == sb'[i+1];
             assert SpecNext(sb[i], sb[i+1]) || sb[i] == sb[i+1];
@@ -767,7 +768,15 @@ module ReductionModule
 
         var tiny_db := db[begin_entry_pos .. end_entry_pos+2];
         assert |tiny_db| == |entries| + 1;
-        assert forall i :: 0 <= i < |tiny_db|-1 ==> DistributedSystemNextEntryAction(tiny_db[i], tiny_db[i+1], entries[i]);
+        forall i | 0 <= i < |tiny_db|-1
+            ensures DistributedSystemNextEntryAction(tiny_db[i], tiny_db[i+1], entries[i]);
+        {
+            var j := i + begin_entry_pos;
+            lemma_ElementFromSequenceSlice(trace, entries, begin_entry_pos, end_entry_pos+1, j);
+            assert DistributedSystemNextEntryAction(db[j], db[j+1], trace[j]);
+            lemma_ElementFromSequenceSlice(db, tiny_db, begin_entry_pos, end_entry_pos+2, j);
+            lemma_ElementFromSequenceSlice(db, tiny_db, begin_entry_pos, end_entry_pos+2, j+1);
+        }
         assert DistributedSystemNextEntryAction(tiny_db[0], tiny_db[|entries|], reduced_entry);
 
         assert db[begin_entry_pos] == db[begin_entry_pos+1];
