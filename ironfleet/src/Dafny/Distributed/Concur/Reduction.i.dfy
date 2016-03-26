@@ -75,7 +75,8 @@ module ReductionModule
         && GetEntryLevel(last(entries).reduced_entry) == max_level
         && ActorTraceValid(entries[1..|entries|-1], min_level, entries[0].begin_group_level)
         && EntriesReducibleUsingPivot(entries)
-        && EntriesReducibleToEntry(RestrictEntriesToLevel(entries, entries[0].begin_group_level), last(entries).reduced_entry)
+        && EntriesReducibleToEntry(RestrictEntriesToLevel(entries[1..|entries|-1], entries[0].begin_group_level),
+                                   last(entries).reduced_entry)
     }
 
     predicate ActorTraceValid(trace:Trace, min_level:int, max_level:int)
@@ -1049,7 +1050,7 @@ assume false;       // Stuff below verifies, but it's a bit flaky
         requires forall i :: begin_entry_pos <= i <= end_entry_pos ==> GetEntryActor(trace[i]) == actor;
         requires forall i :: begin_entry_pos <= i <= end_entry_pos ==> GetEntryLevel(trace[i]) == level;
         requires EntriesReducibleUsingPivot(trace[begin_entry_pos .. end_entry_pos+1]);
-        requires EntriesReducibleToEntry(trace[begin_entry_pos .. end_entry_pos+1], trace[end_entry_pos].reduced_entry);
+        requires EntriesReducibleToEntry(trace[begin_entry_pos+1 .. end_entry_pos], trace[end_entry_pos].reduced_entry);
         requires pivot_index == trace[end_entry_pos].pivot_index;
         ensures  IsValidDistributedSystemTraceAndBehavior(trace', db');
         ensures  DistributedSystemBehaviorRefinesSpec(db')
@@ -1065,18 +1066,22 @@ assume false;       // Stuff below verifies, but it's a bit flaky
         trace' := trace[..begin_entry_pos] + [reduced_entry] + trace[end_entry_pos+1 ..];
         db' := db[..begin_entry_pos+1] + db[end_entry_pos+1 ..];
 
-        var tiny_db := db[begin_entry_pos .. end_entry_pos+2];
-        assert |tiny_db| == |entries| + 1;
+        var reducible_entries := entries[1..|entries|-1];
+        var tiny_db := db[begin_entry_pos+1 .. end_entry_pos+1];
+        assert |tiny_db| == |entries| - 1;
         forall i | 0 <= i < |tiny_db|-1
-            ensures DistributedSystemNextEntryAction(tiny_db[i], tiny_db[i+1], entries[i]);
+            ensures DistributedSystemNextEntryAction(tiny_db[i], tiny_db[i+1], reducible_entries[i]);
         {
-            var j := i + begin_entry_pos;
+            var j := i + begin_entry_pos + 1;
             lemma_ElementFromSequenceSlice(trace, entries, begin_entry_pos, end_entry_pos+1, j);
+            assert trace[j] == entries[j - begin_entry_pos] == entries[i+1] == reducible_entries[i];
             assert DistributedSystemNextEntryAction(db[j], db[j+1], trace[j]);
-            lemma_ElementFromSequenceSlice(db, tiny_db, begin_entry_pos, end_entry_pos+2, j);
-            lemma_ElementFromSequenceSlice(db, tiny_db, begin_entry_pos, end_entry_pos+2, j+1);
+            lemma_ElementFromSequenceSlice(db, tiny_db, begin_entry_pos+1, end_entry_pos+1, j);
+            assert db[j] == tiny_db[j - (begin_entry_pos+1)] == tiny_db[i];
+            lemma_ElementFromSequenceSlice(db, tiny_db, begin_entry_pos+1, end_entry_pos+1, j+1);
+            assert db[j+1] == tiny_db[j+1 - (begin_entry_pos+1)] == tiny_db[i+1];
         }
-        assert DistributedSystemNextEntryAction(tiny_db[0], tiny_db[|entries|], reduced_entry);
+        assert DistributedSystemNextEntryAction(tiny_db[0], last(tiny_db), reduced_entry);
 
         assert db[begin_entry_pos] == db[begin_entry_pos+1];
         assert db[end_entry_pos] == db[end_entry_pos+1];

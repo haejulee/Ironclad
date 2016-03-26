@@ -60,264 +60,6 @@ module Reduction2Module
         }
     }
 
-    lemma {:timeLimitMultiplier 2} lemma_ActorTraceStartsWithBegin(
-            trace:Trace,
-            min_level:int,
-            max_level:int,
-            position:int)
-            returns
-            (group:Trace,
-             reduced_level:int)
-        requires ActorTraceValid(trace, min_level, max_level);
-        requires min_level < max_level;
-        requires 0 <= position < |trace|;
-        requires forall i :: 0 <= i < position ==> GetEntryLevel(trace[i]) > min_level;
-        requires GetEntryLevel(trace[position]) == min_level;
-        ensures  trace[position].EntryBeginGroup?;
-        ensures  position + |group| <= |trace|;
-        ensures  forall i :: 0 <= i < |group| ==> group[i] == trace[position+i];
-        ensures  EntryGroupValidForLevels(group, min_level, reduced_level);
-        ensures  min_level <= reduced_level <= max_level;
-        decreases |trace|;
-    {
-        if |trace| == 0 {
-            return;
-        }
-
-        if trace[0].EntryAction? && GetEntryLevel(trace[0]) == max_level && ActorTraceValid(trace[1..], min_level, max_level) {
-            group, reduced_level := lemma_ActorTraceStartsWithBegin(trace[1..], min_level, max_level, position-1);
-            return;
-        }
-
-        var group_len :|    0 < group_len <= |trace|
-                         && EntryGroupValidForLevels(trace[..group_len], min_level, max_level)
-                         && ActorTraceValid(trace[group_len..], min_level, max_level);
-        if position == 0 {
-            group := trace[..group_len];
-            reduced_level := max_level;
-            assert EntryGroupValidForLevels(group, min_level, reduced_level);
-        }
-        else if position == group_len - 1 {
-            assert false;
-        }
-        else if position < group_len {
-            var subgroup := trace[..group_len];
-            var subtrace := trace[1..group_len-1];
-            assert subtrace == subgroup[1..group_len-1];
-            var subtrace_pos := position - 1;
-            lemma_ElementFromSequencePrefix(trace, subgroup, group_len, position);
-            lemma_ElementFromSequenceSlice(subgroup, subtrace, 1, group_len-1, position);
-            assert trace[position] == subtrace[subtrace_pos];
-            group, reduced_level := lemma_ActorTraceStartsWithBegin(subtrace, min_level, subgroup[0].begin_group_level, subtrace_pos);
-            assert EntryGroupValidForLevels(group, min_level, reduced_level);
-            forall i | 0 <= i < |group|
-                ensures group[i] == trace[position+i];
-            {
-                calc {
-                    trace[position+i];
-                    { lemma_ElementFromSequenceSlice(trace, subtrace, 1, group_len-1, position+i); }
-                    subtrace[position+i-1];
-                    subtrace[subtrace_pos+i];
-                    group[i];
-                }
-            }
-        }
-        else {
-            var next_group := trace[group_len..];
-            var next_group_pos := position - group_len;
-            lemma_ElementFromSequenceSuffix(trace, next_group, group_len, position);
-            assert trace[position] == next_group[next_group_pos];
-            group, reduced_level := lemma_ActorTraceStartsWithBegin(next_group, min_level, max_level, next_group_pos);
-            forall i | 0 <= i < |group|
-                ensures group[i] == trace[position+i];
-            {
-                calc {
-                    trace[position+i];
-                    { lemma_ElementFromSequenceSuffix(trace, next_group, group_len, position+i); }
-                    next_group[position+i-group_len];
-                    next_group[next_group_pos+i];
-                    group[i];
-                }
-            }
-        }
-    }
-
-    lemma {:timeLimitMultiplier 4} lemma_FindEntryGroupValid(
-            trace:Trace,
-            min_level:int,
-            max_level:int,
-            position:int)
-        returns (
-            indices:seq<int>,
-            group:Trace,
-            reduced_level:int)
-        requires TraceValid(trace, min_level, max_level);
-        requires min_level < max_level;
-        requires 0 <= position < |trace|;
-        requires forall i :: 0 <= i < position ==> GetEntryLevel(trace[i]) > min_level;
-        requires GetEntryLevel(trace[position]) == min_level;
-        ensures  trace[position].EntryBeginGroup?;
-        ensures  |indices| == |group| > 0;
-        ensures  indices[0] == position;
-        ensures  forall i, j :: 0 <= i < j < |indices| ==> indices[i] < indices[j];
-        ensures  forall i :: 0 <= i < |indices| ==> 0 <= indices[i] < |trace| && trace[indices[i]] == group[i];
-        ensures  EntryGroupValidForLevels(group, min_level, reduced_level);
-        ensures  forall i :: 0 <= i < |group| ==> GetEntryActor(group[i]) == GetEntryActor(group[0]);   // All for the same actor
-        ensures  forall group_index, trace_index :: 0 <= group_index < |indices| - 1 
-                                                 && indices[group_index] < trace_index < indices[group_index+1] 
-                                                 ==> GetEntryActor(trace[trace_index]) != GetEntryActor(group[0]);
-    {
-        var actor, actor_trace, actor_indices, actor_indices_index := GetCorrespondingActorTraceAndIndexForEntry(trace, position);
-        group, reduced_level := lemma_ActorTraceStartsWithBegin(actor_trace, min_level, max_level, actor_indices_index);
-        indices := actor_indices[actor_indices_index .. actor_indices_index + |group|];
-        forall group_index, trace_index | 0 <= group_index < |indices| - 1 && indices[group_index] < trace_index < indices[group_index+1]
-            ensures GetEntryActor(trace[trace_index]) != GetEntryActor(group[0]);
-        {
-            var shifted_group_index := group_index + actor_indices_index;
-            lemma_ElementFromSequenceSlice(actor_indices, indices, actor_indices_index, actor_indices_index + |group|, shifted_group_index);
-            assert actor_indices[shifted_group_index] == indices[shifted_group_index - actor_indices_index] == indices[group_index];
-            var shifted_group_index_plus_one := shifted_group_index + 1;
-            lemma_ElementFromSequenceSlice(actor_indices, indices, actor_indices_index, actor_indices_index + |group|, shifted_group_index_plus_one);
-            assert actor_indices[shifted_group_index_plus_one] == indices[shifted_group_index_plus_one - actor_indices_index] == indices[group_index + 1];
-            lemma_InterveningTraceIndicesFromDifferentActor(trace, actor, actor_indices, group_index + actor_indices_index, trace_index);
-        }
-        forall i, j | 0 <= i < j < |indices|
-            ensures indices[i] < indices[j];
-        {
-            var i' := i + actor_indices_index;
-            var j' := j + actor_indices_index;
-            lemma_ElementFromSequenceSlice(actor_indices, indices, actor_indices_index, actor_indices_index + |group|, i');
-            assert indices[i] == indices[i' - actor_indices_index] == actor_indices[i'];
-            lemma_ElementFromSequenceSlice(actor_indices, indices, actor_indices_index, actor_indices_index + |group|, j');
-            assert indices[j] == indices[j' - actor_indices_index] == actor_indices[j'];
-            assert i' < j';
-            assert actor_indices[i'] < actor_indices[j'];
-        }
-        forall i | 0 <= i < |indices|
-            ensures 0 <= indices[i] < |trace|;
-            ensures trace[indices[i]] == group[i];
-        {
-            var i' := i + actor_indices_index;
-            lemma_ElementFromSequenceSlice(actor_indices, indices, actor_indices_index, actor_indices_index + |group|, i');
-            assert i == i' - actor_indices_index;
-            assert actor_indices[i'] == indices[i' - actor_indices_index] == indices[i];
-            assert trace[indices[i]] == trace[actor_indices[i + actor_indices_index]] == group[i];
-        }
-    }
-
-    lemma lemma_RestrictTraceToActor(trace:Trace, actor:Actor)
-        ensures |RestrictTraceToActor(trace, actor)| <= |trace|;
-    {
-    }
-
-/*
-    lemma lemma_PerformReductionOfSpecificIndices(
-        trace:Trace,
-        db:seq<DistributedSystemState>,
-        level:int,
-        actor:Actor,
-        group:Trace,
-        entry_pos:int,
-        pivot:int,
-        actor_indices:seq<int>,
-        in_position_left:int,   // Index into actor_indices indicating that everything from here to pivot is in position
-        in_position_right:int
-        ) returns (
-        trace':Trace,
-        db':seq<DistributedSystemState>
-        )
-        requires IsValidDistributedSystemTraceAndBehavior(trace, db);
-        requires TraceReducible(trace, level);
-        requires 0 <= entry_pos < |trace|;
-        requires TraceReducible(trace[entry_pos..], level);
-        requires |actor_indices| == |group|;
-        requires 0 < pivot < |group|;
-        requires EntriesReducibleUsingPivot(group, pivot);
-        requires EntryGroupReducible(group, level);
-        requires forall entry :: entry in group ==> GetEntryActor(entry) == actor;
-        requires forall i, j :: 0 <= i < j < |actor_indices| ==> actor_indices[i] < actor_indices[j];
-        requires forall {:trigger actor_indices[i] } i :: 0 <= i < |actor_indices| 
-                    ==> entry_pos <= actor_indices[i] < |trace| && trace[actor_indices[i]] == group[i];
-        requires forall actor_index, trace_index {:trigger actor_indices[actor_index], GetEntryActor(trace[trace_index]) } :: 
-                    0 <= actor_index < |actor_indices| - 1 
-                    && actor_indices[actor_index] < trace_index < actor_indices[actor_index+1] 
-                    ==> GetEntryActor(trace[trace_index]) != actor;
-        requires 0 <= in_position_left <= pivot <= in_position_right < |actor_indices|;
-        requires forall k :: in_position_left <= k <= in_position_right ==> k - pivot == actor_indices[k] - actor_indices[pivot];
-        requires ActorTraceReducible(RestrictTraceToActor(trace[last(actor_indices)+1..], actor), level);
-        ensures  |trace'| >= entry_pos;
-        ensures  trace'[..entry_pos] == trace[..entry_pos];
-        ensures  TraceReducible(trace', level);
-        //ensures  RestrictTraceToActor(trace'[entry_pos..], actor) == RestrictTraceToActor(trace[entry_pos..], actor);
-        ensures  forall other_actor :: other_actor != actor ==> RestrictTraceToActor(trace'[entry_pos..], other_actor) == RestrictTraceToActor(trace[entry_pos..], other_actor);
-        ensures  IsValidDistributedSystemTraceAndBehavior(trace', db');
-        ensures  DistributedSystemBehaviorRefinesSpec(db') ==> DistributedSystemBehaviorRefinesSpec(db);
-        ensures  |trace'| < |trace|;
-    {
-        if in_position_left == 0 && in_position_right == |actor_indices| - 1 {
-            var begin_entry_pos := actor_indices[pivot] - pivot;
-            var end_entry_pos := actor_indices[pivot] + |group| - pivot - 1;
-            assert forall i :: begin_entry_pos <= i <= end_entry_pos ==> trace[i] == group[i-begin_entry_pos];
-            trace', db' := lemma_PerformOneReductionStep(trace, db, actor, level, begin_entry_pos, end_entry_pos, pivot-1);             
-            //assume ActorTraceReducible(RestrictTraceToActor(trace', actor), level);
-            forall any_actor 
-                ensures ActorTraceReducible(RestrictTraceToActor(trace', any_actor), level)
-            {
-                if any_actor == actor {
-                    //assume false;
-                    assert ActorTraceReducible(RestrictTraceToActor(trace', any_actor), level);
-                } else {
-                    assert RestrictTraceToActor(trace', any_actor) == RestrictTraceToActor(trace, any_actor);
-                }
-            }
-            return;
-        }
-        assume false;
-    }
-
-    lemma lemma_PerformReductionStartingAtGroupBegin(
-        trace:Trace,
-        db:seq<DistributedSystemState>,
-        level:int,
-        actor:Actor,
-        actor_trace:Trace,
-        entry_pos:int,
-        group_len:int
-        ) returns (
-        trace':Trace,
-        db':seq<DistributedSystemState>
-        )
-        requires IsValidDistributedSystemTraceAndBehavior(trace, db);
-        requires TraceReducible(trace, level);
-        requires 0 <= entry_pos < |trace|;
-        requires TraceReducible(trace[entry_pos..], level);
-        requires GetEntryActor(trace[entry_pos]) == actor;
-        requires actor_trace == RestrictTraceToActor(trace[entry_pos..], actor);
-        requires 0 < group_len <= |actor_trace|;
-        requires EntryGroupReducible(actor_trace[..group_len], level);
-        requires ActorTraceReducible(actor_trace[group_len..], level)
-        ensures  |trace'| >= entry_pos;
-        ensures  trace'[..entry_pos] == trace[..entry_pos];
-        ensures  TraceReducible(trace', level);
-        ensures  RestrictTraceToActor(trace'[entry_pos..], actor) == actor_trace[group_len..];
-        ensures  forall other_actor :: other_actor != actor ==> RestrictTraceToActor(trace'[entry_pos..], other_actor) == RestrictTraceToActor(trace[entry_pos..], other_actor);
-        ensures  IsValidDistributedSystemTraceAndBehavior(trace', db');
-        ensures  DistributedSystemBehaviorRefinesSpec(db') ==> DistributedSystemBehaviorRefinesSpec(db);
-        ensures  |trace'| < |trace|;
-    {
-        //lemma_TraceIndicesForActor_length(trace, actor);
-        
-        calc {
-            |RestrictTraceToActor(trace[entry_pos..], actor)|;
-            <= { lemma_RestrictTraceToActor(trace[entry_pos..], actor); }
-            |trace[entry_pos..]|;  
-        }
-        var indices := FindIndices(trace, actor, actor_trace, entry_pos);
-        assume false;
-    }
-
- */
-
     lemma lemma_IfActorTraceValidThenEntryLevelWithinRange(
         trace:Trace,
         min_level:int,
@@ -422,6 +164,300 @@ module Reduction2Module
         }
     }
 
+    lemma {:timeLimitMultiplier 2} lemma_ActorTraceStartsWithBegin(
+            trace:Trace,
+            min_level:int,
+            max_level:int,
+            position:int)
+            returns
+            (group:Trace,
+             reduced_level:int)
+        requires ActorTraceValid(trace, min_level, max_level);
+        requires min_level < max_level;
+        requires 0 <= position < |trace|;
+        requires forall i :: 0 <= i < position ==> GetEntryLevel(trace[i]) > min_level;
+        requires GetEntryLevel(trace[position]) == min_level;
+        ensures  trace[position].EntryBeginGroup?;
+        ensures  position + |group| <= |trace|;
+        ensures  forall i :: 0 <= i < |group| ==> group[i] == trace[position+i];
+        ensures  EntryGroupValidForLevels(group, min_level, reduced_level);
+        ensures  min_level <= reduced_level <= max_level;
+        decreases |trace|;
+    {
+        if |trace| == 0 {
+            return;
+        }
+
+        if trace[0].EntryAction? && GetEntryLevel(trace[0]) == max_level && ActorTraceValid(trace[1..], min_level, max_level) {
+            group, reduced_level := lemma_ActorTraceStartsWithBegin(trace[1..], min_level, max_level, position-1);
+            return;
+        }
+
+        var group_len :|    0 < group_len <= |trace|
+                         && EntryGroupValidForLevels(trace[..group_len], min_level, max_level)
+                         && ActorTraceValid(trace[group_len..], min_level, max_level);
+        if position == 0 {
+            group := trace[..group_len];
+            reduced_level := max_level;
+            assert EntryGroupValidForLevels(group, min_level, reduced_level);
+        }
+        else if position == group_len - 1 {
+            assert false;
+        }
+        else if position < group_len {
+            var subgroup := trace[..group_len];
+            var subtrace := trace[1..group_len-1];
+            assert subtrace == subgroup[1..group_len-1];
+            var subtrace_pos := position - 1;
+            lemma_ElementFromSequencePrefix(trace, subgroup, group_len, position);
+            lemma_ElementFromSequenceSlice(subgroup, subtrace, 1, group_len-1, position);
+            assert trace[position] == subtrace[subtrace_pos];
+            group, reduced_level := lemma_ActorTraceStartsWithBegin(subtrace, min_level, subgroup[0].begin_group_level, subtrace_pos);
+            assert EntryGroupValidForLevels(group, min_level, reduced_level);
+            forall i | 0 <= i < |group|
+                ensures group[i] == trace[position+i];
+            {
+                calc {
+                    trace[position+i];
+                    { lemma_ElementFromSequenceSlice(trace, subtrace, 1, group_len-1, position+i); }
+                    subtrace[position+i-1];
+                    subtrace[subtrace_pos+i];
+                    group[i];
+                }
+            }
+        }
+        else {
+            var next_group := trace[group_len..];
+            var next_group_pos := position - group_len;
+            lemma_ElementFromSequenceSuffix(trace, next_group, group_len, position);
+            assert trace[position] == next_group[next_group_pos];
+            group, reduced_level := lemma_ActorTraceStartsWithBegin(next_group, min_level, max_level, next_group_pos);
+            forall i | 0 <= i < |group|
+                ensures group[i] == trace[position+i];
+            {
+                calc {
+                    trace[position+i];
+                    { lemma_ElementFromSequenceSuffix(trace, next_group, group_len, position+i); }
+                    next_group[position+i-group_len];
+                    next_group[next_group_pos+i];
+                    group[i];
+                }
+            }
+        }
+    }
+
+    lemma {:timeLimitMultiplier 4} lemma_FindEntryGroupValid(
+            trace:Trace,
+            min_level:int,
+            max_level:int,
+            position:int)
+        returns (
+            indices:seq<int>,
+            group:Trace,
+            reduced_level:int)
+        requires TraceValid(trace, min_level, max_level);
+        requires min_level < max_level;
+        requires 0 <= position < |trace|;
+        requires forall i :: 0 <= i < position ==> GetEntryLevel(trace[i]) > min_level;
+        requires GetEntryLevel(trace[position]) == min_level;
+        ensures  trace[position].EntryBeginGroup?;
+        ensures  |indices| == |group| > 0;
+        ensures  indices[0] == position;
+        ensures  forall i, j {:trigger indices[i] < indices[j]} :: 0 <= i < j < |indices| ==> indices[i] < indices[j];
+        ensures  forall i :: 0 <= i < |indices| ==> 0 <= indices[i] < |trace| && trace[indices[i]] == group[i];
+        ensures  EntryGroupValidForLevels(group, min_level, reduced_level);
+        ensures  min_level <= reduced_level <= max_level;
+        ensures  forall i :: 0 <= i < |group| ==> GetEntryActor(group[i]) == GetEntryActor(group[0]);   // All for the same actor
+        ensures  forall group_index, trace_index :: 0 <= group_index < |indices| - 1 
+                                                 && indices[group_index] < trace_index < indices[group_index+1] 
+                                                 ==> GetEntryActor(trace[trace_index]) != GetEntryActor(group[0]);
+    {
+        var actor, actor_trace, actor_indices, actor_indices_index := GetCorrespondingActorTraceAndIndexForEntry(trace, position);
+        group, reduced_level := lemma_ActorTraceStartsWithBegin(actor_trace, min_level, max_level, actor_indices_index);
+        indices := actor_indices[actor_indices_index .. actor_indices_index + |group|];
+        forall group_index, trace_index | 0 <= group_index < |indices| - 1 && indices[group_index] < trace_index < indices[group_index+1]
+            ensures GetEntryActor(trace[trace_index]) != GetEntryActor(group[0]);
+        {
+            var shifted_group_index := group_index + actor_indices_index;
+            lemma_ElementFromSequenceSlice(actor_indices, indices, actor_indices_index, actor_indices_index + |group|, shifted_group_index);
+            assert actor_indices[shifted_group_index] == indices[shifted_group_index - actor_indices_index] == indices[group_index];
+            var shifted_group_index_plus_one := shifted_group_index + 1;
+            lemma_ElementFromSequenceSlice(actor_indices, indices, actor_indices_index, actor_indices_index + |group|, shifted_group_index_plus_one);
+            assert actor_indices[shifted_group_index_plus_one] == indices[shifted_group_index_plus_one - actor_indices_index] == indices[group_index + 1];
+            lemma_InterveningTraceIndicesFromDifferentActor(trace, actor, actor_indices, group_index + actor_indices_index, trace_index);
+        }
+        forall i, j | 0 <= i < j < |indices|
+            ensures indices[i] < indices[j];
+        {
+            var i' := i + actor_indices_index;
+            var j' := j + actor_indices_index;
+            lemma_ElementFromSequenceSlice(actor_indices, indices, actor_indices_index, actor_indices_index + |group|, i');
+            assert indices[i] == indices[i' - actor_indices_index] == actor_indices[i'];
+            lemma_ElementFromSequenceSlice(actor_indices, indices, actor_indices_index, actor_indices_index + |group|, j');
+            assert indices[j] == indices[j' - actor_indices_index] == actor_indices[j'];
+            assert i' < j';
+            assert actor_indices[i'] < actor_indices[j'];
+        }
+        forall i | 0 <= i < |indices|
+            ensures 0 <= indices[i] < |trace|;
+            ensures trace[indices[i]] == group[i];
+        {
+            var i' := i + actor_indices_index;
+            lemma_ElementFromSequenceSlice(actor_indices, indices, actor_indices_index, actor_indices_index + |group|, i');
+            assert i == i' - actor_indices_index;
+            assert actor_indices[i'] == indices[i' - actor_indices_index] == indices[i];
+            assert trace[indices[i]] == trace[actor_indices[i + actor_indices_index]] == group[i];
+        }
+    }
+
+    lemma lemma_RestrictTraceToActor(trace:Trace, actor:Actor)
+        ensures |RestrictTraceToActor(trace, actor)| <= |trace|;
+    {
+    }
+
+    lemma lemma_AidToCallPerformOneReductionStep(
+        trace:Trace,
+        min_level:int,
+        max_level:int,
+        reduced_level:int,
+        group:seq<Entry>,
+        actor:Actor,
+        begin_entry_pos:int,
+        end_entry_pos:int
+        )
+        requires TraceValid(trace, min_level, max_level);
+        requires min_level <= reduced_level <= max_level;
+        requires 0 <= begin_entry_pos <= end_entry_pos < |trace|;
+        requires group == trace[begin_entry_pos..end_entry_pos+1];
+        requires EntryGroupValidForLevels(group, min_level, reduced_level);
+        requires GetEntryLevel(group[0]) == min_level;
+        requires forall entry :: entry in group ==> GetEntryActor(entry) == actor;
+        ensures  forall i :: begin_entry_pos <= i <= end_entry_pos ==> GetEntryActor(trace[i]) == actor;
+        ensures  forall i :: begin_entry_pos < i < end_entry_pos ==> trace[i].EntryAction?;
+        ensures  forall i :: begin_entry_pos <= i <= end_entry_pos ==> GetEntryLevel(trace[i]) == min_level;
+        ensures  RestrictEntriesToLevel(group[1..|group|-1], group[0].begin_group_level) == group[1..|group|-1];
+    {
+        assume false;
+    }
+
+    lemma lemma_PerformReductionOfSpecificIndices(
+        trace:Trace,
+        db:seq<DistributedSystemState>,
+        min_level:int,
+        max_level:int,
+        entry_pos:int,
+        indices:seq<int>,
+        group:seq<Entry>,
+        reduced_level:int,
+        pivot_index:int,
+        in_position_left:int,
+        in_position_right:int
+        ) returns (
+        trace':Trace,
+        db':seq<DistributedSystemState>
+        )
+        requires IsValidDistributedSystemTraceAndBehavior(trace, db);
+        requires TraceValid(trace, min_level, max_level);
+        requires |indices| == |group| > 0;
+        requires 0 <= entry_pos <= indices[0];
+        requires forall i, j {:trigger indices[i] < indices[j]} :: 0 <= i < j < |indices| ==> indices[i] < indices[j];
+        requires forall i :: 0 <= i < |indices| ==> 0 <= indices[i] < |trace| && trace[indices[i]] == group[i];
+        requires min_level <= reduced_level <= max_level;
+        requires EntryGroupValidForLevels(group, min_level, reduced_level);
+        requires GetEntryLevel(group[0]) == min_level;
+        requires pivot_index == last(group).pivot_index;
+        requires forall i :: 0 <= i < |group| ==> GetEntryActor(group[i]) == GetEntryActor(group[0]);   // All for the same actor
+        requires forall group_index, trace_index :: 0 <= group_index < |indices| - 1 
+                                                 && indices[group_index] < trace_index < indices[group_index+1] 
+                                                 ==> GetEntryActor(trace[trace_index]) != GetEntryActor(group[0]);
+        requires 0 <= in_position_left <= pivot_index <= in_position_right < |group|;
+        requires forall k :: in_position_left <= k <= in_position_right ==> k - pivot_index == indices[k] - indices[pivot_index];
+
+        ensures  TraceValid(trace', min_level, max_level);
+        ensures  IsValidDistributedSystemTraceAndBehavior(trace', db');
+        ensures  DistributedSystemBehaviorRefinesSpec(db') ==> DistributedSystemBehaviorRefinesSpec(db);
+        ensures  entry_pos <= |trace'| < |trace|;
+        ensures  trace'[..entry_pos] == trace[..entry_pos];
+    {
+        var actor := GetEntryActor(group[0]);
+
+        if in_position_left == 0 && in_position_right == |indices| - 1 {
+            var begin_entry_pos := indices[pivot_index] - pivot_index;
+            var end_entry_pos := indices[pivot_index] + |group| - pivot_index - 1;
+
+            forall i | begin_entry_pos <= i <= end_entry_pos
+                ensures trace[i] == group[i-begin_entry_pos];
+            {
+                var k := i - begin_entry_pos;
+                assert in_position_left <= k <= in_position_right;
+                assert k - pivot_index == indices[k] - indices[pivot_index];
+                calc {
+                    group[i-begin_entry_pos];
+                    group[k];
+                    trace[indices[k]];
+                    trace[k - pivot_index + indices[pivot_index]];
+                    trace[k + begin_entry_pos];
+                    trace[i];
+                }
+            }
+            assume trace[begin_entry_pos .. end_entry_pos + 1] == group;
+
+            lemma_AidToCallPerformOneReductionStep(trace, min_level, max_level, reduced_level, group, actor, begin_entry_pos, end_entry_pos);
+            trace', db' := lemma_PerformOneReductionStep(trace, db, actor, min_level, begin_entry_pos, end_entry_pos, pivot_index);
+            assume false;
+            forall any_actor 
+                ensures ActorTraceValid(RestrictTraceToActor(trace', any_actor), min_level, max_level);
+            {
+                if any_actor == actor {
+                    assume ActorTraceValid(RestrictTraceToActor(trace', any_actor), min_level, max_level);
+                } else {
+                    assert RestrictTraceToActor(trace', any_actor) == RestrictTraceToActor(trace, any_actor);
+                }
+            }
+            return;
+        }
+
+        assume false;
+    }
+
+    lemma lemma_PerformReductionStartingAtGroupBegin(
+        trace:Trace,
+        db:seq<DistributedSystemState>,
+        min_level:int,
+        max_level:int,
+        entry_pos:int,
+        indices:seq<int>,
+        group:seq<Entry>,
+        reduced_level:int
+        ) returns (
+        trace':Trace,
+        db':seq<DistributedSystemState>
+        )
+        requires IsValidDistributedSystemTraceAndBehavior(trace, db);
+        requires TraceValid(trace, min_level, max_level);
+        requires |indices| == |group| > 0;
+        requires 0 <= entry_pos <= indices[0];
+        requires forall i, j {:trigger indices[i] < indices[j]} :: 0 <= i < j < |indices| ==> indices[i] < indices[j];
+        requires forall i :: 0 <= i < |indices| ==> 0 <= indices[i] < |trace| && trace[indices[i]] == group[i];
+        requires min_level <= reduced_level <= max_level;
+        requires EntryGroupValidForLevels(group, min_level, reduced_level);
+        requires GetEntryLevel(group[0]) == min_level;
+        requires forall i :: 0 <= i < |group| ==> GetEntryActor(group[i]) == GetEntryActor(group[0]);   // All for the same actor
+        requires forall group_index, trace_index :: 0 <= group_index < |indices| - 1 
+                                                 && indices[group_index] < trace_index < indices[group_index+1] 
+                                                 ==> GetEntryActor(trace[trace_index]) != GetEntryActor(group[0]);
+
+        ensures  TraceValid(trace', min_level, max_level);
+        ensures  IsValidDistributedSystemTraceAndBehavior(trace', db');
+        ensures  DistributedSystemBehaviorRefinesSpec(db') ==> DistributedSystemBehaviorRefinesSpec(db);
+        ensures  entry_pos <= |trace'| < |trace|;
+        ensures  trace'[..entry_pos] == trace[..entry_pos];
+    {
+        var pivot_index := last(group).pivot_index;
+        trace', db' := lemma_PerformReductionOfSpecificIndices(trace, db, min_level, max_level, entry_pos, indices, group, reduced_level,
+                                                               pivot_index, pivot_index, pivot_index);
+    }
+
     lemma lemma_PerformReductionStartingAtEntry(
         trace:Trace,
         db:seq<DistributedSystemState>,
@@ -456,11 +492,8 @@ module Reduction2Module
 
         lemma_IfTraceValidThenEntryLevelWithinRange(trace, min_level, max_level, entry_pos);
         var indices, group, reduced_level := lemma_FindEntryGroupValid(trace, min_level, max_level, entry_pos);
-        assume false;
-        /*
-        var trace_mid, db_mid := lemma_PerformReductionStartingAtGroupBegin(trace, db, min_level, max_level, indices, group, reduced_level);
-        trace', db' := lemma_PerformReductionStartingAtEntry(trace_mid, db_mid, level, entry_pos + 1);
-        */
+        var trace_mid, db_mid := lemma_PerformReductionStartingAtGroupBegin(trace, db, min_level, max_level, entry_pos, indices, group, reduced_level);
+        trace', db' := lemma_PerformReductionStartingAtEntry(trace_mid, db_mid, min_level, max_level, entry_pos);
     }
 
     lemma lemma_PerformReduction(
