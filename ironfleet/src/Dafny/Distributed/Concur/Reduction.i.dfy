@@ -252,7 +252,7 @@ module ReductionModule
             }
             assert j >= i;
             if j > i + 1 {
-                assert indices[j] > indices[i+1];
+                assert indices[i+1] < indices[j];
                 assert false;
             }
             assert j <= i + 1;
@@ -266,11 +266,14 @@ module ReductionModule
     
     function GetTraceIndicesForActor(trace:Trace, actor:Actor) : seq<int>
         ensures var indices := GetTraceIndicesForActor(trace, actor);
-                forall index :: index in indices <==> 0 <= index < |trace| && GetEntryActor(trace[index]) == actor;
+                forall index {:trigger GetEntryActor(trace[index])} {:trigger index in indices } :: 
+                    index in indices <==> 0 <= index < |trace| && GetEntryActor(trace[index]) == actor;
         ensures var indices := GetTraceIndicesForActor(trace, actor);
-                forall i :: 0 <= i < |indices| ==> 0 <= indices[i] < |trace| && GetEntryActor(trace[indices[i]]) == actor;
+                forall i {:trigger indices[i]} :: 0 <= i < |indices| ==> 0 <= indices[i] < |trace|; 
         ensures var indices := GetTraceIndicesForActor(trace, actor);
-                forall i, j :: 0 <= i < j < |indices| ==> indices[i] < indices[j];
+                forall i {:trigger GetEntryActor(trace[indices[i]])} :: 0 <= i < |indices| ==> GetEntryActor(trace[indices[i]]) == actor;
+        ensures var indices := GetTraceIndicesForActor(trace, actor);
+                forall i, j {:trigger indices[i] < indices[j] } :: 0 <= i < j < |indices| ==> indices[i] < indices[j];
     {
         if |trace| == 0 then
             []
@@ -403,7 +406,7 @@ module ReductionModule
         ensures  0 <= actor_indices_index < |actor_indices|;
         ensures  actor_indices[actor_indices_index] == trace_index;
         ensures  actor_trace[actor_indices_index] == trace[trace_index];
-        ensures  forall i :: 0 <= i < |actor_indices| ==> trace[actor_indices[i]] == actor_trace[i];
+        ensures  forall i {:trigger trace[actor_indices[i]]} {:trigger actor_trace[i] } :: 0 <= i < |actor_indices| ==> trace[actor_indices[i]] == actor_trace[i];
 /*
         ensures  forall i, j :: 0 <= i < j < |actor_indices| ==> actor_indices[i] < actor_indices[j];
         ensures  forall actor_index, intermediate_index :: 0 <= actor_index < |actor_indices| - 1 
