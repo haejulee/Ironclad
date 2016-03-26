@@ -38,6 +38,12 @@ module Reduction2Module
         lemma_CorrespondenceBetweenGetTraceIndicesAndRestrictTraces(sub_trace, actor);
         lemma_TraceIndicesForActor_length(sub_trace, actor);
 
+        forall i, j | 0 <= i < j < |indices|
+            ensures indices[i] < indices[j];
+        {
+            assert relative_indices[i] < relative_indices[j];
+        }
+
         forall i | 0 <= i < |indices| 
             ensures entry_pos <= indices[i] < |trace| && trace[indices[i]] == actor_trace[i];
         {
@@ -54,7 +60,7 @@ module Reduction2Module
         }
     }
 
-    lemma lemma_ActorTraceStartsWithBegin(
+    lemma {:timeLimitMultiplier 2} lemma_ActorTraceStartsWithBegin(
             trace:Trace,
             min_level:int,
             max_level:int,
