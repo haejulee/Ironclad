@@ -129,6 +129,16 @@ module ReductionModule
     {
     }
 
+    lemma lemma_RestrictTraceToActorSeqSliceTake(trace:Trace, actor:Actor, trace_index:int, actor_index:int)
+        requires var indices := GetTraceIndicesForActor(trace, actor); 0 <= actor_index < |indices| && indices[actor_index] == trace_index;
+        ensures |RestrictTraceToActor(trace, actor)| == |GetTraceIndicesForActor(trace, actor)|;
+        ensures RestrictTraceToActor(trace, actor)[..actor_index] == RestrictTraceToActor(trace[..trace_index], actor);
+
+    lemma lemma_RestrictTraceToActorSeqSliceDrop(trace:Trace, actor:Actor, trace_index:int, actor_index:int)
+        requires var indices := GetTraceIndicesForActor(trace, actor); 0 <= actor_index < |indices| && indices[actor_index] == trace_index;
+        ensures |RestrictTraceToActor(trace, actor)| == |GetTraceIndicesForActor(trace, actor)|;
+        ensures RestrictTraceToActor(trace, actor)[actor_index+1..] == RestrictTraceToActor(trace[trace_index+1..], actor);
+
     lemma lemma_RestrictTraceToActorPreservation(
         trace:Trace,
         actor:Actor,
@@ -433,13 +443,15 @@ module ReductionModule
     lemma lemma_ReductionPreservesActorTraceValid(
             trace:Trace,
             min_level:int,
+            mid_level:int,
             max_level:int,
             position:int,
             group_len:int,
             trace':Trace)
         requires ActorTraceValid(trace, min_level, max_level);
         requires 0 <= position < position + group_len <= |trace|;
-        requires EntryGroupValidForLevels(trace[position..position+group_len], min_level, max_level);
+        requires min_level < mid_level <= max_level;
+        requires EntryGroupValidForLevels(trace[position..position+group_len], min_level, mid_level);
         //requires ActorTraceValid(RestrictTraceToActor(trace[position+group_len..], GetEntryActor(trace[position])), min_level, max_level);
         requires trace[position].EntryBeginGroup? && trace[position].begin_group_level == min_level;
         requires forall i :: 0 <= i < |trace| ==> GetEntryActor(trace[i]) == GetEntryActor(trace[0]);
@@ -450,13 +462,15 @@ module ReductionModule
             trace:Trace,
             position:int,
             group_len:int,
+            actor_indices_index:int,
             i:int)
         requires |trace| > 0;
         requires 0 <= position <= position + group_len <= |trace|;
         requires forall j :: position <= j < position + group_len ==> GetEntryActor(trace[j]) == GetEntryActor(trace[position]);
         requires 0 <= i < group_len;
+        requires 0 <= actor_indices_index < |GetTraceIndicesForActor(trace, GetEntryActor(trace[position]))| 
+              && GetTraceIndicesForActor(trace, GetEntryActor(trace[position]))[actor_indices_index] == position;
         ensures  var indices := GetTraceIndicesForActor(trace, GetEntryActor(trace[position]));
-                 var actor_indices_index :| 0 <= actor_indices_index < |indices| && indices[actor_indices_index] == position;
                  0 <= actor_indices_index + i < |indices| && indices[actor_indices_index+i] == position+i;
     // TODO {}
                 
@@ -473,7 +487,6 @@ module ReductionModule
         requires min_level < mid_level <= max_level;
         requires 0 <= position < position + group_len <= |trace|;
         requires EntryGroupValidForLevels(trace[position..position+group_len], min_level, mid_level);
-        //requires ActorTraceValid(RestrictTraceToActor(trace[position+group_len..], GetEntryActor(trace[position])), min_level, max_level);
         requires trace[position].EntryBeginGroup? && trace[position].begin_group_level == min_level;
         requires forall i :: position <= i < position+group_len ==> GetEntryActor(trace[i]) == GetEntryActor(trace[position]);
         ensures  trace' == trace[..position] + [trace[position+group_len-1].reduced_entry] + trace[position + group_len..];
@@ -494,7 +507,8 @@ module ReductionModule
                     ensures actor_indices[actor_indices_index+i] == position+i;
                     ensures actor_trace[actor_indices_index+i] == trace[position+i];
                 {  
-                    lemma_ConsecutiveActorEntries(trace, position, group_len, i);
+                    lemma_TraceIndicesForActor_length(trace, actor);
+                    lemma_ConsecutiveActorEntries(trace, position, group_len, actor_indices_index, i);
                 }
 
                 var j := group_len-1;
@@ -517,16 +531,41 @@ module ReductionModule
                                                              position, position+group_len, position+i); }
                         trace_subset[i];
                     }
-                }
-                assume forall i :: 0 <= i < |actor_trace_subset| ==> actor_trace_subset[i] == trace_subset[i];
+                }                
                 assert actor_trace_subset == trace_subset;
-                assume false;
+                assert actor_trace[actor_indices_index+j] == trace[position + j];
+                assert actor_trace[actor_indices_index+j].EntryEndGroup?;
+                assert actor_trace[actor_indices_index+group_len-1] == actor_trace[actor_indices_index+j];
 
-                assert actor_trace[actor_indices_index+group_len-1].EntryEndGroup?;
                 var b_trace := actor_trace[..actor_indices_index] + [actor_trace[actor_indices_index+group_len-1].reduced_entry] + actor_trace[actor_indices_index + group_len..];
+
+                calc {
+                    a_trace;
+                    RestrictTraceToActor(trace', actor);
+                    RestrictTraceToActor(trace[..position] + [trace[position+group_len-1].reduced_entry] + trace[position + group_len..], actor);
+                        { lemma_SplitRestrictTraceToActor(trace[..position] + [trace[position+group_len-1].reduced_entry], trace[position + group_len..], actor); }
+                    RestrictTraceToActor(trace[..position] + [trace[position+group_len-1].reduced_entry], actor) + RestrictTraceToActor(trace[position + group_len..], actor);
+                        { lemma_SplitRestrictTraceToActor(trace[..position], [trace[position+group_len-1].reduced_entry], actor); }
+                    RestrictTraceToActor(trace[..position], actor) + RestrictTraceToActor([trace[position+group_len-1].reduced_entry], actor) + RestrictTraceToActor(trace[position + group_len..], actor);
+                        { lemma_RestrictTraceToActorSeqSliceTake(trace, actor, position, actor_indices_index); }
+                    actor_trace[..actor_indices_index] + RestrictTraceToActor([trace[position+group_len-1].reduced_entry], actor) + RestrictTraceToActor(trace[position + group_len..], actor);
+                        { lemma_RestrictTraceToActorSeqSliceDrop(trace, actor, position+j, actor_indices_index+j); 
+                          assert position + j + 1 == position + group_len;
+                          assert actor_indices_index+j+1 == actor_indices_index+group_len;
+                        }
+                    actor_trace[..actor_indices_index] + RestrictTraceToActor([trace[position+group_len-1].reduced_entry], actor) + actor_trace[actor_indices_index + group_len..];
+                        { assert position+group_len-1 == position + j;
+                          assert trace[position+group_len-1] == trace[position + j]; 
+                          assert position <= position + j < position + group_len;
+                        }
+                    actor_trace[..actor_indices_index] + [actor_trace[actor_indices_index+group_len-1].reduced_entry] + actor_trace[actor_indices_index + group_len..];
+                    b_trace;
+
+                }
+
                 assert a_trace == b_trace;
 
-                lemma_ReductionPreservesActorTraceValid(actor_trace, min_level, max_level, actor_indices_index, group_len, a_trace);
+                lemma_ReductionPreservesActorTraceValid(actor_trace, min_level, mid_level, max_level, actor_indices_index, group_len, a_trace);
                 assert ActorTraceValid(RestrictTraceToActor(trace', actor), min_level, max_level);
             } else {
                 lemma_RestrictTraceToActorPreservation(trace, this_actor, position, position+group_len-1,
