@@ -71,5 +71,5 @@ predicate Host_Next(s:Host, s':Host, recv:Packet, out:set<Packet>)
        s'.constants == s.constants
     && s'.me == s.me
     && Process_Message(s, s', recv, out)
-} 
+}
 }
