@@ -1,7 +1,7 @@
 include "../../Common/Framework/AbstractService.s.dfy"
 include "WS.s.dfy"
 
-module AbstractServiceSHT_s exclusively refines AbstractService_s {
+module AbstractServiceWS_s exclusively refines AbstractService_s {
 import opened WS__WS_s
 
 datatype AppRequest = AppGetRequest(fileName:seq<char>)
@@ -53,7 +53,6 @@ function Uint64ToBytes(u:uint64) : seq<byte>
 
 function StringToBytes(arr:seq<char>) : seq<byte>
 
-
 function MarshallServiceGetRequest(app:AppRequest) : seq<byte>
     requires app.AppGetRequest?
 {
@@ -62,12 +61,13 @@ function MarshallServiceGetRequest(app:AppRequest) : seq<byte>
 
 function MarshallServiceReply(app:AppReply) : seq<byte>
 {
-    if app.response.Response? then
+    if app.response.ResponseValid? then
         app.response.r
     else
         []
 }
 
+/*
 predicate Service_Correspondence(concretePkts:set<LPacket<EndPoint, seq<byte>>>, serviceState:ServiceState) 
 {
        (forall p, reply :: 
@@ -79,4 +79,5 @@ predicate Service_Correspondence(concretePkts:set<LPacket<EndPoint, seq<byte>>>,
                       ==> exists p :: p in concretePkts && p.dst in serviceState.serverAddresses 
                                                    && p.msg == MarshallServiceGetRequest(req))
 }
+*/
 }
