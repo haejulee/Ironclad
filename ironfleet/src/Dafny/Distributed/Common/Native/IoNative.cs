@@ -7,7 +7,10 @@ using System.Collections.Generic;
 using FStream = System.IO.FileStream;
 using UClient = System.Net.Sockets.UdpClient;
 using IEndPoint = System.Net.IPEndPoint;
-
+using IPAddress = System.Net.IPAddress;
+using NetworkStream = System.Net.Sockets.NetworkStream;
+using NTcpClient = System.Net.Sockets.TcpClient;
+using NTcpListener = System.Net.Sockets.TcpListener;
 
 namespace @_Native____Io__s {
 
@@ -210,6 +213,79 @@ public partial class UdpClient
 
 }
 
+// TODO: catch and report all exceptions
+partial class TcpClient
+{
+    internal NTcpClient client;
+    NetworkStream stream;
+
+    public TcpClient(NTcpClient client)
+    {
+        this.client = client;
+        stream = client.GetStream();
+    }
+
+    public void Read(byte[] buffer, int offset, int size, out int bytesRead, out bool alive)
+    {
+        try
+        {
+            bytesRead = stream.Read(buffer, offset, size);
+            alive = true;
+        }
+        catch (Exception)
+        {
+            bytesRead = 0;
+            alive = false;
+        }
+    }
+
+    public void Write(byte[] buffer, int offset, int size, out bool alive)
+    {
+        try
+        {
+            stream.Write(buffer, offset, size);
+            alive = true;
+        }
+        catch (Exception)
+        {
+            alive = false;
+        }
+    }
+
+    public void Close()
+    {
+        stream.Close();
+        client.Close();
+    }
+}
+
+partial class TcpListener
+{
+    internal NTcpListener listener;
+
+    public TcpListener() { }
+
+    public void New()
+    {
+        listener = new NTcpListener(new IPEndPoint(IPAddress.Any, 0));
+    }
+
+    public void Start()
+    {
+        listener.Start();
+    }
+
+    public void GetPort(out int port)
+    {
+        port = ((IPEndPoint)listener.LocalEndpoint).Port;
+    }
+
+    public void AcceptTcpClient(out TcpClient client)
+    {
+        client = new TcpClient(listener.AcceptTcpClient());
+    }
+}
+
 public partial class FileStream
 {
     internal FStream fstream;
@@ -395,6 +471,17 @@ public partial class @Arrays
 
 }
 
+partial class __default
+{
+    public static ushort CharToUShort(char c)
+    {
+        return c;
+    }
 
+    public static char UShortToChar(ushort u)
+    {
+        return (char)u;
+    }
+}
 }
 

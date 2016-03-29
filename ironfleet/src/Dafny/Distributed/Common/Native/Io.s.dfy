@@ -204,6 +204,50 @@ class UdpClient
 
 }
 
+class TcpClient
+{
+    ghost var open:bool;
+
+    method{:axiom} Read(buffer:array<byte>, offset:int32, size:int32) returns(bytesRead:int32, alive:bool)
+        requires open;
+        requires int(offset) + int(size) < 0x80000000;
+        requires buffer != null;
+        requires 0 <= int(offset) <= int(offset + size) <= buffer.Length;
+        modifies this`open;
+        ensures  alive ==> open && 0 <= bytesRead <= size;
+
+    method{:axiom} Write(buffer:array<byte>, offset:int32, size:int32) returns(alive:bool)
+        requires open;
+        requires int(offset) + int(size) < 0x80000000;
+        requires buffer != null;
+        requires 0 <= int(offset) <= int(offset + size) <= buffer.Length;
+        modifies this`open;
+        ensures  alive ==> open;
+
+    method{:axiom} Close()
+        modifies this`open;
+}
+
+class TcpListener
+{
+    ghost var started:bool;
+
+    constructor{:axiom} New()
+
+    method{:axiom} Start()
+        modifies this`started;
+        ensures  started;
+
+    method{:axiom} GetPort() returns(port:int32)
+        requires started;
+
+    method{:axiom} AcceptTcpClient() returns(client:TcpClient)
+        requires started;
+        ensures  client != null;
+        ensures  client.open;
+        ensures  fresh(client);
+}
+
 class MutableSet<T(==)>
 {
     static function method {:axiom} SetOf(s:MutableSet<T>) : set<T>
@@ -302,8 +346,6 @@ class Arrays
         ensures  forall i :: int(srcIndex) <= i < int(srcIndex) + int(len) ==>
                     src[i] == dst[i - int(srcIndex) + int(dstIndex)];
 }
-
-
 
 //////////////////////////////////////////////////////////////////////////////
 // File System
@@ -407,4 +449,15 @@ class FileStream
         ensures  ok ==> FileOpEnsures(old(env.files.state()), env.files.state(), Name(), FileFlush);
 }
 
+newtype{:nativeType "sbyte"} sbyte = i:int | -0x80 <= i < 0x80
+newtype{:nativeType "byte"} byte = i:int | 0 <= i < 0x100
+newtype{:nativeType "short"} int16 = i:int | -0x8000 <= i < 0x8000
+newtype{:nativeType "ushort"} uint16 = i:int | 0 <= i < 0x10000
+newtype{:nativeType "int"} int32 = i:int | -0x80000000 <= i < 0x80000000
+newtype{:nativeType "uint"} uint32 = i:int | 0 <= i < 0x100000000
+newtype{:nativeType "long"} int64 = i:int | -0x8000000000000000 <= i < 0x8000000000000000
+newtype{:nativeType "ulong"} uint64 = i:int | 0 <= i < 0x10000000000000000
+
+static function method{:axiom} CharToUShort(c:char):uint16
+static function method{:axiom} UShortToChar(u:uint16):char
 } 
