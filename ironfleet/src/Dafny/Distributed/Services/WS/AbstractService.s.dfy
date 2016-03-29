@@ -5,7 +5,7 @@ module AbstractServiceWS_s exclusively refines AbstractService_s {
 import opened WS__WS_s
 
 datatype AppRequest = AppGetRequest(fileName:seq<char>)
-datatype AppReply   = AppReply(response:Response)
+datatype AppReply   = AppReply(response:HTTPResponse)
     
 datatype ServiceState' = ServiceState'(
     serverAddresses:set<EndPoint>,
@@ -31,7 +31,7 @@ predicate Service_Next_ServerExecutesRequest(s:ServiceState, s':ServiceState, re
     && s'.requests == s.requests + { req }
     && s'.fs == s.fs
     && s.fs != null
-    && (req.AppGetRequest? ==> Get(s.fs, Request(req.fileName[..]), rep.response) && s'.replies == s.replies + { rep })
+    && (req.AppGetRequest? ==> Get(s.fs, req.fileName[..], rep.response) && s'.replies == s.replies + { rep })
 }
 
 predicate Service_Next(s:ServiceState, s':ServiceState)
