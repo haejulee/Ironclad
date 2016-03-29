@@ -4,8 +4,8 @@ include "WS.s.dfy"
 module AbstractServiceWS_s exclusively refines AbstractService_s {
 import opened WS__WS_s
 
-datatype AppRequest = AppGetRequest(fileName:seq<char>)
-datatype AppReply   = AppReply(response:HTTPResponse)
+type AppRequest = HTTPRequest
+type AppReply   = HTTPResponse
     
 datatype ServiceState' = ServiceState'(
     serverAddresses:set<EndPoint>,
@@ -25,13 +25,13 @@ predicate Service_Init(s:ServiceState, serverAddresses:set<EndPoint>)
     && s.replies == {}
 }
 
-predicate Service_Next_ServerExecutesRequest(s:ServiceState, s':ServiceState, req:AppRequest, rep:AppReply)
+predicate Service_Next_ServerExecutesRequest(s:ServiceState, s':ServiceState, req:AppRequest, resp:AppReply)
 {
        s'.serverAddresses == s.serverAddresses
     && s'.requests == s.requests + { req }
     && s'.fs == s.fs
     && s.fs != null
-    && (req.AppGetRequest? ==> Get(s.fs, req.fileName[..], rep.response) && s'.replies == s.replies + { rep })
+    && Get(s.fs, req, resp) && s'.replies == s.replies + { resp }
 }
 
 predicate Service_Next(s:ServiceState, s':ServiceState)
@@ -39,32 +39,16 @@ predicate Service_Next(s:ServiceState, s':ServiceState)
     exists request, reply :: Service_Next_ServerExecutesRequest(s, s', request, reply)
 }
 
-function Uint64ToBytes(u:uint64) : seq<byte>
-{
-    [byte( u/0x1000000_00000000),
-     byte((u/  0x10000_00000000)%0x100),
-     byte((u/    0x100_00000000)%0x100),
-     byte((u/      0x1_00000000)%0x100),
-     byte((u/         0x1000000)%0x100),
-     byte((u/           0x10000)%0x100),
-     byte((u/             0x100)%0x100),
-     byte( u                    %0x100)]
-}
-
 function StringToBytes(arr:seq<char>) : seq<byte>
 
 function MarshallServiceGetRequest(app:AppRequest) : seq<byte>
-    requires app.AppGetRequest?
 {
-    StringToBytes(app.fileName)
+    StringToBytes(app)
 }
 
 function MarshallServiceReply(app:AppReply) : seq<byte>
 {
-    if app.response.ResponseValid? then
-        app.response.r
-    else
-        []
+    app
 }
 
 /*

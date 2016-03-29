@@ -49,7 +49,7 @@ predicate Host_Init(s:Host, id:NodeIdentity, hostIds:seq<NodeIdentity>, params:P
 predicate NextGetRequest_Reply(s:Host, s':Host, src:NodeIdentity, req:AppRequest, m:Message, out:set<Packet>)
 { 
         s.fs != null
-     && exists res :: Get(s.fs, Request(req.fileName), res)     
+     && exists res :: Get(s.fs, req, res)     
      && m == GetResponse(res) 
      && s'.receivedRequests == s.receivedRequests + [req]
      && out == {Packet(src, s.me, m)}
@@ -58,7 +58,7 @@ predicate NextGetRequest_Reply(s:Host, s':Host, src:NodeIdentity, req:AppRequest
 predicate NextGetRequest(s:Host, s':Host, pkt:Packet, out:set<Packet>)
 {
        pkt.msg.GetRequest?
-    && (exists m :: NextGetRequest_Reply(s, s', pkt.src, AppGetRequest(pkt.msg.req.fileName), m, out))
+    && (exists m :: NextGetRequest_Reply(s, s', pkt.src, pkt.msg.req, m, out))
 }
 
 predicate Process_Message(s:Host, s':Host, recv:Packet, out:set<Packet>)
