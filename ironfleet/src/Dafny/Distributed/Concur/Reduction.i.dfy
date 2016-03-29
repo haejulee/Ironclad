@@ -59,10 +59,10 @@ module ReductionModule
                                                                 && entries'[i'] == entries[i].reduced_entry)));
     {
         if entries == [] then []
-        else if entries[0].EntryEndGroup? && GetEntryLevel(entries[0].reduced_entry) == level then
-            [entries[0].reduced_entry] + RestrictEntriesToLevel(entries[1..], level)
         else if GetEntryLevel(entries[0]) == level then
             [entries[0]] + RestrictEntriesToLevel(entries[1..], level)
+        else if entries[0].EntryEndGroup? && GetEntryLevel(entries[0].reduced_entry) == level then
+            [entries[0].reduced_entry] + RestrictEntriesToLevel(entries[1..], level)
         else 
             RestrictEntriesToLevel(entries[1..], level)
     }
@@ -464,13 +464,15 @@ module ReductionModule
     lemma lemma_ReductionPreservesTraceValid(
             trace:Trace,
             min_level:int,
+            mid_level:int,
             max_level:int,
             position:int,
             group_len:int)
         returns (trace':Trace)
         requires TraceValid(trace, min_level, max_level);
+        requires min_level < mid_level <= max_level;
         requires 0 <= position < position + group_len <= |trace|;
-        requires EntryGroupValidForLevels(trace[position..position+group_len], min_level, max_level);
+        requires EntryGroupValidForLevels(trace[position..position+group_len], min_level, mid_level);
         //requires ActorTraceValid(RestrictTraceToActor(trace[position+group_len..], GetEntryActor(trace[position])), min_level, max_level);
         requires trace[position].EntryBeginGroup? && trace[position].begin_group_level == min_level;
         requires forall i :: position <= i < position+group_len ==> GetEntryActor(trace[i]) == GetEntryActor(trace[position]);
