@@ -12,8 +12,8 @@ import opened Impl_Parameters_i
 import opened Logic__Option_i
 
 datatype CMessage =
-      CGetRequest(req:Request)
-    | CGetResponse(response:Response)
+      CGetRequest(req:HTTPRequest)
+    | CGetResponse(response:HTTPResponse)
     
 
 datatype CPacket = CPacket(dst:EndPoint, src:EndPoint, msg:CMessage)

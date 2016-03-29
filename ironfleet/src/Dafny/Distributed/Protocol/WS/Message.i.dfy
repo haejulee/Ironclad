@@ -6,6 +6,6 @@ import opened Common__NodeIdentity_s
 import opened WS__WS_s
 
 datatype Message =
-      GetRequest(req:Request)
-    | GetResponse(resp:Response)
+      GetRequest(req:HTTPRequest)
+    | GetResponse(resp:HTTPResponse)
 } 
