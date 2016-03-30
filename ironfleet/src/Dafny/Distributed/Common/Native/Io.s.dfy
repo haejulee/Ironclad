@@ -449,7 +449,7 @@ class FileStream
         ensures  ok ==> FileOpEnsures(old(env.files.state()), env.files.state(), Name(), FileFlush);
 }
 
-newtype{:nativeType "sbyte"} sbyte = i:int | -0x80 <= i < 0x80
+/*newtype{:nativeType "sbyte"} sbyte = i:int | -0x80 <= i < 0x80
 newtype{:nativeType "byte"} byte = i:int | 0 <= i < 0x100
 newtype{:nativeType "short"} int16 = i:int | -0x8000 <= i < 0x8000
 newtype{:nativeType "ushort"} uint16 = i:int | 0 <= i < 0x10000
@@ -459,5 +459,5 @@ newtype{:nativeType "long"} int64 = i:int | -0x8000000000000000 <= i < 0x8000000
 newtype{:nativeType "ulong"} uint64 = i:int | 0 <= i < 0x10000000000000000
 
 static function method{:axiom} CharToUShort(c:char):uint16
-static function method{:axiom} UShortToChar(u:uint16):char
+static function method{:axiom} UShortToChar(u:uint16):char*/
 } 
