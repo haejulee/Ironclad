@@ -731,8 +731,9 @@ assume false;       // Stuff below verifies, but it's a bit flaky
         requires EntryIsRightMover(trace[first_entry_pos]);
         ensures  IsValidDistributedSystemTraceAndBehavior(trace', db');
         ensures  |db'| == |db|;
-        ensures  (exists sb' :: DistributedSystemBehaviorRefinesSpecBehavior(db', sb') && sb'[first_entry_pos+1] == sb'[first_entry_pos+2])
-                 ==> exists sb :: DistributedSystemBehaviorRefinesSpecBehavior(db, sb) && sb[first_entry_pos] == sb[first_entry_pos+1];
+        ensures  forall sb' :: DistributedSystemBehaviorRefinesSpecBehavior(db', sb') && sb'[first_entry_pos+1] == sb'[first_entry_pos+2]
+                 ==> DistributedSystemBehaviorRefinesSpecBehavior(db, sb'[first_entry_pos+1 := sb'[first_entry_pos]]);
+        ensures  trace' == trace[first_entry_pos := trace[first_entry_pos+1]][first_entry_pos + 1 := trace[first_entry_pos]];
     {
         var entry1 := trace[first_entry_pos];
         var entry2 := trace[first_entry_pos+1];
@@ -744,7 +745,8 @@ assume false;       // Stuff below verifies, but it's a bit flaky
         var ds2' := lemma_MoverCommutativityForEntries(entry1, entry2, ds1, ds2, ds3);
         db' := db[first_entry_pos + 1 := ds2'];
 
-        if sb' :| DistributedSystemBehaviorRefinesSpecBehavior(db', sb') && sb'[first_entry_pos+1] == sb'[first_entry_pos+2]
+        forall sb' | DistributedSystemBehaviorRefinesSpecBehavior(db', sb') && sb'[first_entry_pos+1] == sb'[first_entry_pos+2]
+            ensures DistributedSystemBehaviorRefinesSpecBehavior(db, sb'[first_entry_pos+1 := sb'[first_entry_pos]]);
         {
             var sb := sb'[first_entry_pos + 1 := sb'[first_entry_pos]];
             lemma_RightMoverForwardPreservation(entry1, ds1, ds2, sb[first_entry_pos]);
@@ -767,8 +769,9 @@ assume false;       // Stuff below verifies, but it's a bit flaky
         requires EntryIsLeftMover(trace[first_entry_pos+1]);
         ensures  IsValidDistributedSystemTraceAndBehavior(trace', db');
         ensures  |db'| == |db|;
-        ensures  (exists sb' :: DistributedSystemBehaviorRefinesSpecBehavior(db', sb') && sb'[first_entry_pos] == sb'[first_entry_pos+1])
-                 ==> exists sb :: DistributedSystemBehaviorRefinesSpecBehavior(db, sb) && sb[first_entry_pos+1] == sb[first_entry_pos+2];
+        ensures  forall sb' :: DistributedSystemBehaviorRefinesSpecBehavior(db', sb') && sb'[first_entry_pos] == sb'[first_entry_pos+1]
+                 ==> DistributedSystemBehaviorRefinesSpecBehavior(db, sb'[first_entry_pos+1 := sb'[first_entry_pos+2]]);
+        ensures  trace' == trace[first_entry_pos := trace[first_entry_pos+1]][first_entry_pos + 1 := trace[first_entry_pos]];
     {
         var entry1 := trace[first_entry_pos];
         var entry2 := trace[first_entry_pos+1];
@@ -780,7 +783,8 @@ assume false;       // Stuff below verifies, but it's a bit flaky
         var ds2' := lemma_MoverCommutativityForEntries(entry1, entry2, ds1, ds2, ds3);
         db' := db[first_entry_pos + 1 := ds2'];
 
-        if sb' :| DistributedSystemBehaviorRefinesSpecBehavior(db', sb') && sb'[first_entry_pos] == sb'[first_entry_pos+1]
+        forall sb' | DistributedSystemBehaviorRefinesSpecBehavior(db', sb') && sb'[first_entry_pos] == sb'[first_entry_pos+1]
+            ensures DistributedSystemBehaviorRefinesSpecBehavior(db, sb'[first_entry_pos+1 := sb'[first_entry_pos+2]]);
         {
             var sb := sb'[first_entry_pos + 1 := sb'[first_entry_pos+2]];
             lemma_LeftMoverBackwardPreservation(entry2, ds2, ds3, sb[first_entry_pos+1]);
