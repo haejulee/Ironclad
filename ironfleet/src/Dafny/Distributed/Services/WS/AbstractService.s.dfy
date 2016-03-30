@@ -39,8 +39,6 @@ predicate Service_Next(s:ServiceState, s':ServiceState)
     exists request, reply :: Service_Next_ServerExecutesRequest(s, s', request, reply)
 }
 
-function StringToBytes(arr:seq<char>) : seq<byte>
-
 function MarshallServiceGetRequest(app:AppRequest) : seq<byte>
 {
     StringToBytes(app)
@@ -48,7 +46,7 @@ function MarshallServiceGetRequest(app:AppRequest) : seq<byte>
 
 function MarshallServiceReply(app:AppReply) : seq<byte>
 {
-    app
+    StringToBytes(app)
 }
 
 /*
