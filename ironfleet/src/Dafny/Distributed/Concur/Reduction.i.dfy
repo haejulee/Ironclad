@@ -660,62 +660,41 @@ assume false;       // Stuff below verifies, but it's a bit flaky
     }
 */
 
-    /*
-
-    lemma lemma_IfTraceDoneWithReductionThenTraceValid(trace:Trace, level:int)
-        requires TraceDoneWithReduction(trace, level);
-        ensures  TraceValid(trace, level);
-    {
-        forall actor
-            ensures ActorTraceValid(RestrictTraceToActor(trace, actor), level);
-        {
-            var actor_trace := RestrictTraceToActor(trace, actor);
-
-            if |actor_trace| == 0 {
-                assert ActorTraceValid(actor_trace, level);
-            }
-            else {
-                var entry := actor_trace[0];
-                assert entry in actor_trace;
-                assert entry in trace;
-                assert GetEntryLevel(entry) > level;
-                lemma_IfTraceDoneWithReductionThenTraceValid(trace[1..], level);
-            }
-        }
-    }
-
-    lemma lemma_IfEntriesReducibleAndOneIsntRightMoverThenRestAreLeftMovers(entries:seq<Entry>, i:int, j:int)
+    lemma lemma_IfEntriesReducibleAndOneIsntRightMoverThenRestAreLeftMovers(entries:seq<Entry>, pivot_index:int, i:int, j:int)
         requires 0 <= i < j < |entries|;
-        requires EntriesReducible(entries);
+        requires 0 <= pivot_index <= |entries|;
+        requires forall k :: 0 <= k < pivot_index ==> EntryIsRightMover(entries[k]);
+        requires forall k :: pivot_index < k < |entries| ==> EntryIsLeftMover(entries[k]);
         requires !EntryIsRightMover(entries[i]);
         ensures  EntryIsLeftMover(entries[j]);
         decreases j;
     {
-        var pivot :| EntriesReducibleUsingPivot(entries, pivot);
-        assert !(i < pivot);
-        assert j > pivot;
+        assert !(i < pivot_index);
+        assert j > pivot_index;
     }
 
-    lemma lemma_IfEntriesReducibleThenSuffixIs(entries:seq<Entry>)
+    lemma lemma_IfEntriesReducibleThenSuffixIs(entries:seq<Entry>, entries':seq<Entry>, pivot_index:int) returns (new_pivot_index:int)
         requires |entries| > 0;
-        requires EntriesReducible(entries);
-        ensures  EntriesReducible(entries[1..]);
+        requires entries' == entries[1..];
+        requires 0 <= pivot_index <= |entries|;
+        requires forall i :: 0 <= i < pivot_index ==> EntryIsRightMover(entries[i]);
+        requires forall i :: pivot_index < i < |entries| ==> EntryIsLeftMover(entries[i]);
+        ensures  0 <= new_pivot_index <= |entries'|;
+        ensures  forall i :: 0 <= i < new_pivot_index ==> EntryIsRightMover(entries'[i]);
+        ensures  forall i :: new_pivot_index < i < |entries'| ==> EntryIsLeftMover(entries'[i]);
     {
-        var entries' := entries[1..];
         if |entries'| == 0 {
-            assert EntriesReducibleUsingPivot(entries', 0);
+            new_pivot_index := 0;
             return;
         }
         
-        var pivot :| EntriesReducibleUsingPivot(entries, pivot);
-        if pivot == 0 {
-            assert EntriesReducibleUsingPivot(entries', 0);
+        if pivot_index == 0 {
+            new_pivot_index := 0;
         }
         else {
-            assert EntriesReducibleUsingPivot(entries', pivot-1);
+            new_pivot_index := pivot_index - 1;
         }
     }
-*/
 
     lemma lemma_PerformMoveRight(
         trace:Trace,
