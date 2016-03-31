@@ -257,6 +257,11 @@ module Reduction3Module
             trace', db' := lemma_PerformOneReductionStep(trace, db, actor, min_level, begin_entry_pos, end_entry_pos, pivot_index);
             var trace'' := lemma_ReductionPreservesTraceValid(trace, min_level, mid_level, max_level, begin_entry_pos, |group|);
             assert trace' == trace'';
+            if DistributedSystemBehaviorRefinesSpec(db') {
+                var sb :|    DistributedSystemBehaviorRefinesSpecBehavior(db, sb) &&
+                          forall i :: begin_entry_pos <= i <= end_entry_pos && i != begin_entry_pos + pivot_index ==> sb[i] == sb[i+1];
+                assert DistributedSystemBehaviorRefinesSpecBehaviorWithNonPivotsAsStutters(db, sb, indices, pivot_index);
+            }
         }
     }
 
@@ -289,7 +294,8 @@ module Reduction3Module
 
         ensures  TraceValid(trace', min_level, max_level);
         ensures  IsValidDistributedSystemTraceAndBehavior(trace', db');
-        ensures  DistributedSystemBehaviorRefinesSpec(db') ==> DistributedSystemBehaviorRefinesSpec(db);
+        ensures  DistributedSystemBehaviorRefinesSpec(db')
+                 ==> exists sb :: DistributedSystemBehaviorRefinesSpecBehaviorWithNonPivotsAsStutters(db, sb, indices, last(group).pivot_index);
         ensures  entry_pos <= |trace'| < |trace|;
         ensures  trace'[..entry_pos] == trace[..entry_pos];
     {
