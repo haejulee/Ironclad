@@ -643,15 +643,6 @@ module Reduction2Module
         requires DistributedSystemBehaviorRefinesSpecBehavior(db, sb);
         ensures  DistributedSystemBehaviorRefinesSpecBehaviorWithNonPivotsAsStutters(db, sb, indices, pivot_index);
     {
-        calc {
-            first_entry_pos+1;
-            indices[index_to_update]+1;
-            indices_mid[index_to_update];
-        }
-        assert index_to_update != pivot_index;
-        assert sb_mid[indices_mid[index_to_update]] == sb_mid[indices_mid[index_to_update]+1];
-        assert sb_mid[first_entry_pos+1] == sb_mid[first_entry_pos+2];
-        
         forall i | 0 <= i < |indices| && i != pivot_index
             ensures sb[indices[i]] == sb[indices[i]+1];
         {
@@ -796,6 +787,17 @@ module Reduction2Module
         if sb' :| DistributedSystemBehaviorRefinesSpecBehaviorWithNonPivotsAsStutters(db', sb', indices', pivot_index)
         {
             var sb_mid :| DistributedSystemBehaviorRefinesSpecBehaviorWithNonPivotsAsStutters(db_mid, sb_mid, indices_mid, pivot_index);
+
+            calc {
+                first_entry_pos+1;
+                indices[index_to_update]+1;
+                trace_index;
+                indices_mid[index_to_update];
+            }
+        
+            assert index_to_update != pivot_index;
+            assert sb_mid[indices_mid[index_to_update]] == sb_mid[indices_mid[index_to_update]+1];
+            assert sb_mid[first_entry_pos+1] == sb_mid[first_entry_pos+2];
             var sb := sb_mid[first_entry_pos+1 := sb_mid[first_entry_pos]];
             lemma_MoveRightMoverIntoPlaceHelper(trace, db, indices, sb, group, pivot_index, index_to_update, first_entry_pos, trace_mid, db_mid, indices_mid, sb_mid, trace', db', indices', sb');
             assert DistributedSystemBehaviorRefinesSpecBehaviorWithNonPivotsAsStutters(db, sb, indices, pivot_index);
