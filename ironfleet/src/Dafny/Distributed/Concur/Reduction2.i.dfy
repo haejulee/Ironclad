@@ -195,7 +195,15 @@ module Reduction2Module
     {
     }
 
-    lemma {:timeLimitMultiplier 2} lemma_ActorTraceStartsWithBegin(
+    lemma lemma_TakeThenGetMiddle<T>(s:seq<T>, s':seq<T>, s'':seq<T>, len:int)
+        requires |s| >= len > 1;
+        requires s' == s[..len];
+        requires s'' == s[1..len-1];
+        ensures  s'' == s'[1..len-1];
+    {
+    }
+
+    lemma {:timeLimitMultiplier 3} lemma_ActorTraceStartsWithBegin(
             trace:Trace,
             min_level:int,
             max_level:int,
@@ -250,6 +258,7 @@ module Reduction2Module
         else if position < group_len {
             var subgroup := trace[..group_len];
             var subtrace := trace[1..group_len-1];
+            lemma_TakeThenGetMiddle(trace, subgroup, subtrace, group_len);
             assert subtrace == subgroup[1..group_len-1];
             var subtrace_pos := position - 1;
             lemma_ElementFromSequencePrefix(trace, subgroup, group_len, position);
@@ -402,7 +411,7 @@ module Reduction2Module
         }
     }
 
-    lemma lemma_SwappingAdjacentEntriesFromDifferentActorsPreservesVariousProperties(
+    lemma lemma_SwappingAdjacentEntriesWhereLeftMatchesActorPreservesVariousProperties(
         trace:Trace,
         trace':Trace,
         min_level:int,
@@ -495,7 +504,206 @@ module Reduction2Module
     {
     }
 
-    lemma {:timeLimitMultiplier 3} lemma_MoveRightMoverIntoPlace(
+    lemma lemma_SwappingAdjacentEntriesWhereRightMatchesActorPreservesVariousProperties(
+        trace:Trace,
+        trace':Trace,
+        min_level:int,
+        max_level:int,
+        indices:seq<int>,
+        indices':seq<int>,
+        group:seq<Entry>,
+        index_to_update:int,
+        swap_pos:int
+        )
+        requires TraceValid(trace, min_level, max_level);
+        requires |indices| == |group| > 0;
+        requires forall i, j {:trigger indices[i] < indices[j]} :: 0 <= i < j < |indices| ==> indices[i] < indices[j];
+        requires forall i :: 0 <= i < |indices| ==> 0 <= indices[i] < |trace| && trace[indices[i]] == group[i];
+        requires forall i :: 0 <= i < |group| ==> GetEntryActor(group[i]) == GetEntryActor(group[0]);   // All for the same actor
+        requires 0 <= swap_pos < |trace| - 1;
+        requires GetEntryActor(trace[swap_pos]) != GetEntryActor(trace[swap_pos+1]);
+        requires 0 < index_to_update < |indices|;
+        requires indices[index_to_update] == swap_pos + 1;
+        requires indices[index_to_update-1] < swap_pos;
+        requires trace' == trace[swap_pos := trace[swap_pos+1]][swap_pos + 1 := trace[swap_pos]];
+        requires indices' == indices[index_to_update := swap_pos];
+        ensures  TraceValid(trace', min_level, max_level);
+        ensures  forall i, j {:trigger indices'[i] < indices'[j]} :: 0 <= i < j < |indices'| ==> indices'[i] < indices'[j];
+        ensures  forall i :: 0 <= i < |indices'| ==> 0 <= indices'[i] < |trace'| && trace'[indices'[i]] == group[i];
+    {
+        lemma_SwappingAdjacentEntriesFromDifferentActorsPreservesTraceValid(trace, trace', min_level, max_level, swap_pos);
+
+        forall i, j {:trigger indices'[i] < indices'[j]} | 0 <= i < j < |indices'|
+            ensures indices'[i] < indices'[j];
+        {
+            assert indices[i] < indices[j];
+            if i == index_to_update {
+                assert indices'[i] < indices'[j];
+            }
+            else if j == index_to_update {
+                assert indices'[i] < indices'[j];
+            }
+            else {
+                assert indices'[i] < indices'[j];
+            }
+        }
+
+        forall i | 0 <= i < |indices'|
+            ensures 0 <= indices'[i] < |trace'|;
+            ensures trace'[indices'[i]] == group[i];
+        {
+            assert trace[indices[i]] == group[i];
+            if i < index_to_update - 1 {
+                assert indices'[i] == indices[i] < indices[index_to_update-1] < swap_pos;
+            }
+            else if i == index_to_update - 1 {
+                assert indices'[i] == indices[index_to_update-1] < swap_pos;
+            }
+            else if i == index_to_update {
+                assert indices'[i] == swap_pos;
+            }
+            else {
+                assert swap_pos + 1 == indices[index_to_update] < indices[i] == indices'[i];
+            }
+            assert trace'[indices'[i]] == trace[indices[i]];
+        }
+    }
+
+    lemma lemma_SwappingAdjacentEntriesWhereRightMatchesActorPreservesNoIntermediateActors(
+        trace:Trace,
+        trace':Trace,
+        indices:seq<int>,
+        indices':seq<int>,
+        actor:Actor,
+        index_to_update:int,
+        swap_pos:int
+        )
+        requires forall i :: 0 <= i < |indices| ==> 0 <= indices[i] < |trace|;
+        requires forall i, j {:trigger indices[i] < indices[j]} :: 0 <= i < j < |indices| ==> indices[i] < indices[j];
+        requires forall group_index, trace_index :: 0 <= group_index < |indices| - 1
+                                                 && indices[group_index] < trace_index < indices[group_index+1] 
+                                                 ==> GetEntryActor(trace[trace_index]) != actor;
+        requires 0 <= swap_pos < |trace| - 1;
+        requires 0 < index_to_update < |indices|;
+        requires indices[index_to_update] == swap_pos + 1;
+        requires indices[index_to_update-1] < swap_pos;
+        requires trace' == trace[swap_pos := trace[swap_pos+1]][swap_pos + 1 := trace[swap_pos]];
+        requires indices' == indices[index_to_update := swap_pos];
+        requires GetEntryActor(trace[swap_pos]) != actor;
+        requires GetEntryActor(trace[swap_pos+1]) == actor;
+        ensures  forall group_index, trace_index ::    0 <= group_index < |indices'| - 1
+                                               && indices'[group_index] < trace_index < indices'[group_index+1] 
+                                               ==> GetEntryActor(trace'[trace_index]) != actor;
+    {
+    }
+
+    predicate DistributedSystemBehaviorRefinesSpecBehaviorWithNonPivotsAsStutters(
+        db:seq<DistributedSystemState>,
+        sb:seq<SpecState>,
+        indices:seq<int>,
+        pivot_index:int
+        )
+    {
+           DistributedSystemBehaviorRefinesSpecBehavior(db, sb)
+        && forall i :: 0 <= i < |indices| && i != pivot_index ==> 0 <= indices[i] && indices[i] < |sb|-1 && sb[indices[i]] == sb[indices[i]+1]
+    }
+
+    lemma {:timeLimitMultiplier 2} lemma_MoveRightMoverIntoPlaceHelper(
+        trace:Trace,
+        db:seq<DistributedSystemState>,
+        indices:seq<int>,
+        sb:seq<SpecState>,
+        group:seq<Entry>,
+        pivot_index:int,
+        index_to_update:int,
+        first_entry_pos:int,
+        trace_mid:Trace,
+        db_mid:seq<DistributedSystemState>,
+        indices_mid:seq<int>,
+        sb_mid:seq<SpecState>,
+        trace':Trace,
+        db':seq<DistributedSystemState>,
+        indices':seq<int>,
+        sb':seq<SpecState>
+        )
+        requires IsValidDistributedSystemTraceAndBehavior(trace, db);
+        requires IsValidDistributedSystemTraceAndBehavior(trace_mid, db_mid);
+        requires IsValidDistributedSystemTraceAndBehavior(trace', db');
+        requires |indices| == |group| > 0;
+        requires forall i, j {:trigger indices[i] < indices[j]} :: 0 <= i < j < |indices| ==> indices[i] < indices[j];
+        requires forall i :: 0 <= i < |indices| ==> 0 <= indices[i] < |trace| && trace[indices[i]] == group[i];
+        requires 0 <= index_to_update < pivot_index < |group|;
+        requires indices_mid == indices[index_to_update := indices[index_to_update] + 1];
+        requires indices[index_to_update] + 1 < indices[index_to_update+1];
+        requires first_entry_pos == indices[index_to_update];
+        requires first_entry_pos + 1 < |sb_mid|;
+        requires sb == sb_mid[first_entry_pos+1 := sb_mid[first_entry_pos]];
+        requires DistributedSystemBehaviorRefinesSpecBehaviorWithNonPivotsAsStutters(db', sb', indices', pivot_index);
+        requires DistributedSystemBehaviorRefinesSpecBehaviorWithNonPivotsAsStutters(db_mid, sb_mid, indices_mid, pivot_index);
+        requires DistributedSystemBehaviorRefinesSpecBehavior(db, sb);
+        ensures  DistributedSystemBehaviorRefinesSpecBehaviorWithNonPivotsAsStutters(db, sb, indices, pivot_index);
+    {
+        calc {
+            first_entry_pos+1;
+            indices[index_to_update]+1;
+            indices_mid[index_to_update];
+        }
+        assert index_to_update != pivot_index;
+        assert sb_mid[indices_mid[index_to_update]] == sb_mid[indices_mid[index_to_update]+1];
+        assert sb_mid[first_entry_pos+1] == sb_mid[first_entry_pos+2];
+        
+        forall i | 0 <= i < |indices| && i != pivot_index
+            ensures sb[indices[i]] == sb[indices[i]+1];
+        {
+            if i < index_to_update {
+                assert indices[i] < indices[index_to_update] == first_entry_pos;
+                calc {
+                    sb[indices[i]];
+                        { assert indices[i] < first_entry_pos; }
+                    sb_mid[indices[i]];
+                        { assert indices[i] == indices_mid[i]; }
+                    sb_mid[indices[i]+1];
+                        { assert indices[i] + 1 <= first_entry_pos; }
+                    sb[indices[i]+1];
+                }
+            }
+            else if i == index_to_update {
+                assert indices[i] == first_entry_pos;
+                calc {
+                    sb[indices[i]];
+                    sb[first_entry_pos];
+                    sb_mid[first_entry_pos];
+                    sb[first_entry_pos+1];
+                    sb[indices[i]+1];
+                }
+            }
+            else {
+                if index_to_update + 1 < i {
+                    assert indices[index_to_update+1] < indices[i];
+                    assert indices[index_to_update+1] <= indices[i];
+                }
+                else {
+                    assert index_to_update+1 == i;
+                    assert indices[index_to_update+1] == indices[i];
+                    assert indices[index_to_update+1] <= indices[i];
+                }
+                assert first_entry_pos + 1 < indices[index_to_update+1] <= indices[i];
+                calc {
+                    sb[indices[i]];
+                        { assert indices[i] > first_entry_pos + 1; }
+                    sb_mid[indices[i]];
+                        { assert indices[i] == indices_mid[i]; }
+                    sb_mid[indices[i]+1];
+                        { assert indices[i] + 1 > first_entry_pos + 1; }
+                    sb[indices[i]+1];
+                }
+            }
+               
+        }
+        assert DistributedSystemBehaviorRefinesSpecBehaviorWithNonPivotsAsStutters(db, sb, indices, pivot_index);
+    }
+
+    lemma {:timeLimitMultiplier 4} lemma_MoveRightMoverIntoPlace(
         trace:Trace,
         db:seq<DistributedSystemState>,
         min_level:int,
@@ -542,10 +750,8 @@ module Reduction2Module
         ensures  |trace'| == |trace|;
         ensures  trace'[..entry_pos] == trace[..entry_pos];
         ensures  indices'[in_position_left-1] == indices'[in_position_left] - 1;
-        ensures  (exists sb' :: (   DistributedSystemBehaviorRefinesSpecBehavior(db', sb') &&
-                           forall i :: 0 <= i < |indices'| && i != pivot_index ==> sb'[indices'[i]] == sb'[indices'[i]+1]))
-                 ==> (exists sb :: ( DistributedSystemBehaviorRefinesSpecBehavior(db, sb) &&
-                              forall i :: 0 <= i < |indices| && i != pivot_index ==> sb[indices[i]] == sb[indices[i]+1]));
+        ensures  (exists sb' :: DistributedSystemBehaviorRefinesSpecBehaviorWithNonPivotsAsStutters(db', sb', indices', pivot_index))
+                 ==> (exists sb :: DistributedSystemBehaviorRefinesSpecBehaviorWithNonPivotsAsStutters(db, sb, indices, pivot_index));
 
         decreases indices[in_position_left] - indices[in_position_left-1];
     {
@@ -575,7 +781,7 @@ module Reduction2Module
         var trace_mid, db_mid := lemma_PerformMoveRight(trace, db, first_entry_pos);
         var indices_mid := indices[index_to_update := trace_index];
 
-        lemma_SwappingAdjacentEntriesFromDifferentActorsPreservesVariousProperties(trace, trace_mid, min_level, max_level, indices, indices_mid, group, index_to_update, first_entry_pos);
+        lemma_SwappingAdjacentEntriesWhereLeftMatchesActorPreservesVariousProperties(trace, trace_mid, min_level, max_level, indices, indices_mid, group, index_to_update, first_entry_pos);
         lemma_SwappingAdjacentEntriesWhereLeftMatchesActorPreservesNoIntermediateActors(trace, trace_mid, indices, indices_mid, GetEntryActor(group[0]), index_to_update, first_entry_pos);
 
         trace', db', indices' := lemma_MoveRightMoverIntoPlace(trace_mid, db_mid, min_level, mid_level, max_level, entry_pos, indices_mid, group, pivot_index, in_position_left, in_position_right);
@@ -587,21 +793,110 @@ module Reduction2Module
             assert entry_pos <= indices[0] < first_entry_pos;
         }
 
-        if sb' :|    DistributedSystemBehaviorRefinesSpecBehavior(db', sb')
-                  && forall i :: 0 <= i < |indices'| && i != pivot_index ==> sb'[indices'[i]] == sb'[indices'[i]+1]
+        if sb' :| DistributedSystemBehaviorRefinesSpecBehaviorWithNonPivotsAsStutters(db', sb', indices', pivot_index)
         {
-            var sb_mid :|    DistributedSystemBehaviorRefinesSpecBehavior(db_mid, sb_mid)
-                          && forall i :: 0 <= i < |indices_mid| && i != pivot_index ==> sb_mid[indices_mid[i]] == sb_mid[indices_mid[i]+1];
-            assume sb_mid[first_entry_pos+1] == sb_mid[first_entry_pos+2];
-            var sb_witness := sb_mid[first_entry_pos+1 := sb_mid[first_entry_pos]];
-            assert    DistributedSystemBehaviorRefinesSpecBehavior(db, sb_witness)
-                   && forall i :: 0 <= i < |indices| && i != pivot_index ==> sb_witness[indices[i]] == sb_witness[indices[i]+1];
-            assert exists sb :: (   DistributedSystemBehaviorRefinesSpecBehavior(db, sb)
-                            && forall i :: 0 <= i < |indices| && i != pivot_index ==> sb[indices[i]] == sb[indices[i]+1]);
+            var sb_mid :| DistributedSystemBehaviorRefinesSpecBehaviorWithNonPivotsAsStutters(db_mid, sb_mid, indices_mid, pivot_index);
+            var sb := sb_mid[first_entry_pos+1 := sb_mid[first_entry_pos]];
+            lemma_MoveRightMoverIntoPlaceHelper(trace, db, indices, sb, group, pivot_index, index_to_update, first_entry_pos, trace_mid, db_mid, indices_mid, sb_mid, trace', db', indices', sb');
+            assert DistributedSystemBehaviorRefinesSpecBehaviorWithNonPivotsAsStutters(db, sb, indices, pivot_index);
         }
     }
 
-    lemma lemma_MoveLeftMoverIntoPlace(        
+    lemma {:timeLimitMultiplier 2} lemma_MoveLeftMoverIntoPlaceHelper(
+        trace:Trace,
+        db:seq<DistributedSystemState>,
+        indices:seq<int>,
+        sb:seq<SpecState>,
+        group:seq<Entry>,
+        pivot_index:int,
+        index_to_update:int,
+        first_entry_pos:int,
+        trace_mid:Trace,
+        db_mid:seq<DistributedSystemState>,
+        indices_mid:seq<int>,
+        sb_mid:seq<SpecState>,
+        trace':Trace,
+        db':seq<DistributedSystemState>,
+        indices':seq<int>,
+        sb':seq<SpecState>
+        )
+        requires IsValidDistributedSystemTraceAndBehavior(trace, db);
+        requires IsValidDistributedSystemTraceAndBehavior(trace_mid, db_mid);
+        requires IsValidDistributedSystemTraceAndBehavior(trace', db');
+        requires |indices| == |group| > 0;
+        requires forall i, j {:trigger indices[i] < indices[j]} :: 0 <= i < j < |indices| ==> indices[i] < indices[j];
+        requires forall i :: 0 <= i < |indices| ==> 0 <= indices[i] < |trace| && trace[indices[i]] == group[i];
+        requires 0 <= pivot_index < index_to_update < |group|;
+        requires indices_mid == indices[index_to_update := indices[index_to_update] - 1];
+        requires indices[index_to_update-1] + 1 < indices[index_to_update];
+        requires first_entry_pos == indices[index_to_update] - 1;
+        requires first_entry_pos + 2 < |sb_mid|;
+        requires sb == sb_mid[first_entry_pos+1 := sb_mid[first_entry_pos+2]];
+        requires DistributedSystemBehaviorRefinesSpecBehaviorWithNonPivotsAsStutters(db', sb', indices', pivot_index);
+        requires DistributedSystemBehaviorRefinesSpecBehaviorWithNonPivotsAsStutters(db_mid, sb_mid, indices_mid, pivot_index);
+        requires DistributedSystemBehaviorRefinesSpecBehavior(db, sb);
+        ensures  DistributedSystemBehaviorRefinesSpecBehaviorWithNonPivotsAsStutters(db, sb, indices, pivot_index);
+    {
+        assert index_to_update != pivot_index;
+        assert sb_mid[indices_mid[index_to_update]] == sb_mid[indices_mid[index_to_update]+1];
+        assert sb_mid[first_entry_pos] == sb_mid[first_entry_pos+1];
+
+        calc {
+            first_entry_pos + 2;
+            indices[index_to_update] + 1;
+            < |trace| + 1;
+            == |db|;
+            |sb|;
+            |sb_mid|;
+        }
+        
+        forall i | 0 <= i < |indices| && i != pivot_index
+            ensures sb[indices[i]] == sb[indices[i]+1];
+        {
+            if i <= index_to_update - 1 {
+                if i < index_to_update - 1 {
+                    assert indices[i] < indices[index_to_update-1] < first_entry_pos;
+                }
+                else {
+                    assert i == index_to_update - 1;
+                    assert indices[i] == indices[index_to_update-1] < first_entry_pos;
+                }
+                calc {
+                    sb[indices[i]];
+                        { assert indices[i] < first_entry_pos + 1; }
+                    sb_mid[indices[i]];
+                    sb_mid[indices[i]+1];
+                        { assert indices[i] + 1 < first_entry_pos + 1; }
+                    sb[indices[i]+1];
+                }
+            }
+            else if i == index_to_update {
+                assert indices[i] == first_entry_pos + 1;
+                calc {
+                    sb[indices[i]];
+                    sb_mid[first_entry_pos+2];
+                    sb[first_entry_pos+1];
+                    sb[indices[i]+1];
+                }
+            }
+            else {
+                assert i > index_to_update;
+                assert first_entry_pos < indices[index_to_update] < indices[i];
+                calc {
+                    sb[indices[i]];
+                        { assert indices[i] > first_entry_pos + 1; }
+                    sb_mid[indices[i]];
+                    sb_mid[indices[i]+1];
+                        { assert indices[i] + 1 > first_entry_pos + 1; }
+                    sb[indices[i]+1];
+                }
+            }
+               
+        }
+        assert DistributedSystemBehaviorRefinesSpecBehaviorWithNonPivotsAsStutters(db, sb, indices, pivot_index);
+    }
+
+    lemma {:timeLimitMultiplier 4} lemma_MoveLeftMoverIntoPlace(
         trace:Trace,
         db:seq<DistributedSystemState>,
         min_level:int,
@@ -648,8 +943,55 @@ module Reduction2Module
         ensures  |trace'| == |trace|;
         ensures  trace'[..entry_pos] == trace[..entry_pos];
         ensures  indices'[in_position_right+1] == indices'[in_position_right] + 1;
-        ensures  (exists sb' :: DistributedSystemBehaviorRefinesSpecBehavior(db', sb') &&
-                           forall i :: 0 <= i < |indices'| && i != pivot_index ==> sb'[indices'[i]] == sb'[indices'[i]+1])
-                 ==> (exists sb :: DistributedSystemBehaviorRefinesSpecBehavior(db, sb) &&
-                           forall i :: 0 <= i < |indices| && i != pivot_index ==> sb[indices[i]] == sb[indices[i]+1])
+        ensures  (exists sb' :: DistributedSystemBehaviorRefinesSpecBehaviorWithNonPivotsAsStutters(db', sb', indices', pivot_index))
+                 ==> (exists sb :: DistributedSystemBehaviorRefinesSpecBehaviorWithNonPivotsAsStutters(db, sb, indices, pivot_index));
+
+        decreases indices[in_position_right+1];
+    {
+        if indices[in_position_right+1] == indices[in_position_right]+1 {
+            trace', db', indices' := trace, db, indices;
+            forall k | in_position_left <= k <= in_position_right + 1
+                ensures k - pivot_index == indices'[k] - indices'[pivot_index];
+            {
+                if k == in_position_right + 1 {
+                    assert in_position_right - pivot_index == indices[in_position_right] - indices[pivot_index];
+                }
+            }
+            return;
+        }
+
+        // Let trace_index be the index of the entry in the trace
+        // just before the one we want to move left.  It must be from a
+        // different actor because it's between the one we want to move and
+        // the previous one in the group.
+
+        var index_to_update := in_position_right + 1;
+        var first_entry_pos := indices[index_to_update] - 1;
+        assert indices[in_position_right] < indices[in_position_right+1] < |trace|;
+        assert indices[in_position_right] < first_entry_pos < indices[in_position_right+1] == indices[index_to_update];
+        assert GetEntryActor(trace[first_entry_pos]) != GetEntryActor(group[0]);
+        assert GetEntryActor(trace[first_entry_pos+1]) == GetEntryActor(trace[indices[index_to_update]]) == GetEntryActor(group[0]);
+        var trace_mid, db_mid := lemma_PerformMoveLeft(trace, db, first_entry_pos);
+        var indices_mid := indices[index_to_update := first_entry_pos];
+
+        lemma_SwappingAdjacentEntriesWhereRightMatchesActorPreservesVariousProperties(trace, trace_mid, min_level, max_level, indices, indices_mid, group, index_to_update, first_entry_pos);
+        lemma_SwappingAdjacentEntriesWhereRightMatchesActorPreservesNoIntermediateActors(trace, trace_mid, indices, indices_mid, GetEntryActor(group[0]), index_to_update, first_entry_pos);
+
+        trace', db', indices' := lemma_MoveLeftMoverIntoPlace(trace_mid, db_mid, min_level, mid_level, max_level, entry_pos, indices_mid, group, pivot_index, in_position_left, in_position_right);
+
+        if index_to_update == 0 {
+            assert entry_pos <= first_entry_pos;
+        }
+        else {
+            assert entry_pos <= indices[0] < first_entry_pos;
+        }
+
+        if sb' :| DistributedSystemBehaviorRefinesSpecBehaviorWithNonPivotsAsStutters(db', sb', indices', pivot_index)
+        {
+            var sb_mid :| DistributedSystemBehaviorRefinesSpecBehaviorWithNonPivotsAsStutters(db_mid, sb_mid, indices_mid, pivot_index);
+            var sb := sb_mid[first_entry_pos+1 := sb_mid[first_entry_pos+2]];
+            lemma_MoveLeftMoverIntoPlaceHelper(trace, db, indices, sb, group, pivot_index, index_to_update, first_entry_pos, trace_mid, db_mid, indices_mid, sb_mid, trace', db', indices', sb');
+            assert DistributedSystemBehaviorRefinesSpecBehaviorWithNonPivotsAsStutters(db, sb, indices, pivot_index);
+        }
+    }
 }

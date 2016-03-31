@@ -231,8 +231,7 @@ module Reduction3Module
         ensures  TraceValid(trace', min_level, max_level);
         ensures  IsValidDistributedSystemTraceAndBehavior(trace', db');
         ensures  DistributedSystemBehaviorRefinesSpec(db')
-                 ==> exists sb :: DistributedSystemBehaviorRefinesSpecBehavior(db, sb) &&
-                            forall i :: 0 <= i < |indices| && i != pivot_index ==> sb[indices[i]] == sb[indices[i]+1];
+                 ==> exists sb :: DistributedSystemBehaviorRefinesSpecBehaviorWithNonPivotsAsStutters(db, sb, indices, pivot_index);
         ensures  entry_pos <= |trace'| < |trace|;
         ensures  trace'[..entry_pos] == trace[..entry_pos];
         decreases |group| - in_position_right + in_position_left;
