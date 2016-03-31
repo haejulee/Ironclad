@@ -1,7 +1,7 @@
 include "../Common/CmdLineParser.i.dfy"
 include "ConstantsState.i.dfy"
 
-module ShtCmdLineParser_i {
+module WSCmdLineParser_i {
 
 import opened CmdLineParser_i
 import opened WS__ConstantsState_i

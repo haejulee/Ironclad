@@ -36,6 +36,11 @@ predicate CMessageSeqIsAbstractable(cs:seq<CMessage>)
     forall m :: m in cs ==> CMessageIsAbstractable(m)
 }
 
+predicate CMessageIsValid(cm:CMessage)
+{
+    CMessageIsAbstractable(cm)
+}
+
 function AbstractifySeqOfCMessageToSeqOfMessage(cs:seq<CMessage>) : seq<Message>
     requires CMessageSeqIsAbstractable(cs);                                          
 {
@@ -51,7 +56,7 @@ predicate CPacketIsAbstractable(cpacket:CPacket)
     && CMessageIsAbstractable(cpacket.msg)
 }
 
-function AbstractifyCPacketToShtPacket(cpacket:CPacket) : Packet
+function AbstractifyCPacketToWsPacket(cpacket:CPacket) : Packet
     requires CPacketIsAbstractable(cpacket);
 {
     Packet(AbstractifyEndPointToNodeIdentity(cpacket.dst),
@@ -66,9 +71,9 @@ predicate CPacketsIsAbstractable(cps:set<CPacket>)
 
 function {:opaque} AbstractifyCPacketsToPackets(cps:set<CPacket>) : set<Packet>
     requires CPacketsIsAbstractable(cps);
-    ensures forall p :: p in cps ==> AbstractifyCPacketToShtPacket(p) in AbstractifyCPacketsToPackets(cps);
+    ensures forall p :: p in cps ==> AbstractifyCPacketToWsPacket(p) in AbstractifyCPacketsToPackets(cps);
 {
-    set p | p in cps :: AbstractifyCPacketToShtPacket(p)
+    set p | p in cps :: AbstractifyCPacketToWsPacket(p)
 }
 
 predicate CPacketSeqIsAbstractable(cps:seq<CPacket>)
@@ -76,11 +81,11 @@ predicate CPacketSeqIsAbstractable(cps:seq<CPacket>)
     forall p :: p in cps ==> CPacketIsAbstractable(p)
 }
 
-function {:opaque} AbstractifySeqOfCPacketsToSetOfShtPackets(cps:seq<CPacket>) : set<Packet>
+function {:opaque} AbstractifySeqOfCPacketsToSetOfWsPackets(cps:seq<CPacket>) : set<Packet>
     requires CPacketSeqIsAbstractable(cps);
-    ensures forall p :: p in cps ==> AbstractifyCPacketToShtPacket(p) in AbstractifySeqOfCPacketsToSetOfShtPackets(cps);
+    ensures forall p :: p in cps ==> AbstractifyCPacketToWsPacket(p) in AbstractifySeqOfCPacketsToSetOfWsPackets(cps);
 {
-    set p | p in cps :: AbstractifyCPacketToShtPacket(p)
+    set p | p in cps :: AbstractifyCPacketToWsPacket(p)
 }
 
 predicate OptionCPacketIsAbstractable(cp:Option<CPacket>)
@@ -91,11 +96,11 @@ predicate OptionCPacketIsAbstractable(cp:Option<CPacket>)
     }
 }
 
-function AbstractifyOptionCPacketToOptionShtPacket(cp:Option<CPacket>) : Option<Packet>
+function AbstractifyOptionCPacketToOptionWsPacket(cp:Option<CPacket>) : Option<Packet>
     requires OptionCPacketIsAbstractable(cp);
 {
     match cp {
-        case Some(p) => Some(AbstractifyCPacketToShtPacket(p))
+        case Some(p) => Some(AbstractifyCPacketToWsPacket(p))
         case None => None()
     }
 }

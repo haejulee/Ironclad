@@ -22,6 +22,4 @@ function method StaticParams() : CParameters
     CParameters(0xffff_ffff_ffff_ffff)  // max seqno = 2^64-1
 
 }
-
-
 }

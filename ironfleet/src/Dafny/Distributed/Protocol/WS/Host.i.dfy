@@ -39,10 +39,11 @@ function ExtractPacketsFromLWSPackets(seqPackets:seq<LWSPacket>) : set<Packet>
     MapSeqToSet(seqPackets, LWSPacketToPacket)
 }
 
-predicate Host_Init(s:Host, id:NodeIdentity, hostIds:seq<NodeIdentity>, params:Parameters) {
+predicate Host_Init(s:Host, fs:FileSystemState, id:NodeIdentity, hostIds:seq<NodeIdentity>, params:Parameters) {
        s.constants == Constants(hostIds, params)
     && s.me == id
     && s.fs != null
+    && s.fs == fs
     && s.receivedRequests == []
 }
 
