@@ -472,7 +472,13 @@ module ReductionModule
               && GetTraceIndicesForActor(trace, GetEntryActor(trace[position]))[actor_indices_index] == position;
         ensures  var indices := GetTraceIndicesForActor(trace, GetEntryActor(trace[position]));
                  0 <= actor_indices_index + i < |indices| && indices[actor_indices_index+i] == position+i;
-    // TODO {}
+    {
+        if i == 0 {
+        } else {
+            lemma_ConsecutiveActorEntries(trace, position, group_len, actor_indices_index, i - 1);
+            lemma_CorrespondenceBetweenGetTraceIndicesAndRestrictTraces(trace, GetEntryActor(trace[position]));
+        }
+    }
                 
 
     lemma lemma_ReductionPreservesTraceValid(
