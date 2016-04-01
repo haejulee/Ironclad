@@ -520,14 +520,44 @@ module ReductionModule
         }
     }
 
-    lemma lemma_ConsecutiveActorEntriesTestConclusion(
-            trace:Trace)
+    lemma lemma_ConsecutiveActorEntriesTestConclusion(trace:Trace)
         requires |trace| > 0;
         requires forall j :: 0 <= j < |trace| ==> GetEntryActor(trace[j]) == GetEntryActor(trace[0]);
         ensures  var indices := GetTraceIndicesForActorFwd(trace, GetEntryActor(trace[0]));
                  forall i :: 0 <= i < |indices| ==> indices[i] == i;
     {
         lemma_ConsecutiveActorEntriesTest(trace, 0);
+    }
+
+    lemma lemma_ConsecutiveActorEntriesLen(trace:Trace, index:int)
+        requires |trace| > 0;
+        requires forall j :: 0 <= j < |trace| ==> GetEntryActor(trace[j]) == GetEntryActor(trace[0]);
+        ensures  var indices := GetTraceIndicesForActorFwdIndex(trace, GetEntryActor(trace[0]), index);
+                 |indices| == |trace|;
+    {
+        var actor := GetEntryActor(trace[0]);
+        assert GetTraceIndicesForActorFwdIndex(trace, actor, index) == [index] + GetTraceIndicesForActorFwdIndex(trace[1..], actor, index+1);
+        if |trace| == 1 {
+        } else {
+            lemma_ConsecutiveActorEntriesLen(trace[1..], index+1);
+        }
+    }
+
+    lemma lemma_ConsecutiveActorEntriesFwdSensible(
+            trace:Trace,
+            position:int,
+            group_len:int,
+            i:int)
+        requires |trace| > 0;
+        requires 0 <= position <= position + group_len <= |trace|;
+        requires forall j :: position <= j < position + group_len ==> GetEntryActor(trace[j]) == GetEntryActor(trace[position]);
+        requires 0 <= i < group_len;
+        ensures  var indices := GetTraceIndicesForActorFwd(trace, GetEntryActor(trace[position]));
+                 0 <= i < |indices| && indices[i] == position+i;
+    {
+        lemma_CorrespondenceBetweenGetTraceIndicesAndRestrictTraces(trace, GetEntryActor(trace[position]));
+        lemma_ConsecutiveActorEntriesLen(trace, 0);
+        lemma_ConsecutiveActorEntriesTestConclusion(trace[position..position+group_len]);
     }
 
     lemma lemma_ConsecutiveActorEntriesFwd(
