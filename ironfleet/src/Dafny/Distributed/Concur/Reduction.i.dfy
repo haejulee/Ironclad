@@ -458,6 +458,64 @@ module ReductionModule
         requires trace' == trace[..position] + [trace[position+group_len-1].reduced_entry] + trace[position + group_len..];
         ensures  ActorTraceValid(trace', min_level, max_level);
 
+
+    function GetTraceIndicesForActorFwd(trace:Trace, actor:Actor) : seq<int>
+    {
+        GetTraceIndicesForActorFwdIndex(trace, actor, 0) 
+    }
+
+    function GetTraceIndicesForActorFwdIndex(trace:Trace, actor:Actor, index:int) : seq<int>
+    {
+        if |trace| == 0 then
+            []
+        else if GetEntryActor(trace[0]) == actor then
+            [index] + GetTraceIndicesForActorFwdIndex(trace[1..], actor, index + 1) 
+        else
+            GetTraceIndicesForActorFwdIndex(trace[1..], actor, index + 1)
+    }
+
+
+    lemma lemma_ConsecutiveActorEntriesTest(
+            trace:Trace,
+            index:int)
+        requires |trace| > 0;
+        requires forall j :: 0 <= j < |trace| ==> GetEntryActor(trace[j]) == GetEntryActor(trace[0]);
+        ensures  var indices := GetTraceIndicesForActorFwdIndex(trace, GetEntryActor(trace[0]), index);
+                 forall i :: 0 <= i < |indices| ==> indices[i] == index + i;
+    {
+        var actor := GetEntryActor(trace[0]);
+        var indices := GetTraceIndicesForActorFwd(trace, actor);
+
+        if |trace| == 1 {
+            if GetEntryActor(trace[0]) == actor {
+                assert indices == [index] + GetTraceIndicesForActorFwdIndex(trace[1..], actor, index+1);
+            } else {
+                assert indices == [];
+            }
+        } else {
+            lemma_ConsecutiveActorEntriesTest(trace[1..], index+1);
+            var indices' := GetTraceIndicesForActorFwdIndex(trace[1..], GetEntryActor(trace[1]), index+1);
+            assert GetEntryActor(trace[1]) == GetEntryActor(trace[0]);
+            assert forall j :: 0 <= j < |indices'| ==> indices'[j] == index+1+j;
+
+            if GetEntryActor(trace[0]) == actor {
+                assert indices == [index] + GetTraceIndicesForActorFwdIndex(trace[1..], actor, index+1);
+                forall i | 0 <= i < |indices| 
+                    ensures indices[i] == index+i;
+                {
+                    if i == 0 {
+
+                    } else {
+                        assert indices[i] == indices'[i-1] == index + i - 1;                        
+                    }
+                }
+            } else {
+                assert indices == GetTraceIndicesForActorFwdIndex(trace[1..], actor, 1);
+            }
+        }
+    }
+
+
     lemma lemma_ConsecutiveActorEntries(
             trace:Trace,
             position:int,
@@ -477,6 +535,10 @@ module ReductionModule
         } else {
             lemma_ConsecutiveActorEntries(trace, position, group_len, actor_indices_index, i - 1);
             lemma_CorrespondenceBetweenGetTraceIndicesAndRestrictTraces(trace, GetEntryActor(trace[position]));
+            var indices := GetTraceIndicesForActor(trace, GetEntryActor(trace[position]));
+            //0 <= actor_indices_index + i < |indices| && indices[actor_indices_index+i] == position+i;
+
+
         }
     }
                 
