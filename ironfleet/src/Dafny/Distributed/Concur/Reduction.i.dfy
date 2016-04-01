@@ -458,7 +458,7 @@ module ReductionModule
         requires trace' == trace[..position] + [trace[position+group_len-1].reduced_entry] + trace[position + group_len..];
         ensures  ActorTraceValid(trace', min_level, max_level);
 
-
+/*
     function GetTraceIndicesForActorFwd(trace:Trace, actor:Actor) : seq<int>
     {
         GetTraceIndicesForActorFwdIndex(trace, actor, 0) 
@@ -474,6 +474,41 @@ module ReductionModule
             GetTraceIndicesForActorFwdIndex(trace[1..], actor, index + 1)
     }
 
+    lemma lemma_TraceIndicesForActorFwd(
+            trace:Trace,
+            actor:Actor,
+            index:int)
+        ensures  var indices := GetTraceIndicesForActorFwdIndex(trace, actor, index);
+                 forall i :: 0 <= i < |indices| ==> 
+                             0 <= indices[i] - index < |trace| 
+                          && GetEntryActor(trace[indices[i]-index]) == actor 
+                          && indices[i+1..] == GetTraceIndicesForActorFwdIndex(trace[indices[i]-index+1..], actor, index+1);
+    {   
+        var indices := GetTraceIndicesForActorFwdIndex(trace, actor, index);
+        forall i | 0 <= i < |indices| 
+            ensures 0 <= indices[i] - index < |trace| 
+                 && GetEntryActor(trace[indices[i]-index]) == actor 
+                 && indices[i+1..] == GetTraceIndicesForActorFwdIndex(trace[indices[i]-index+1..], actor, index+1);
+        {
+            if |trace| == 0 {
+            } else {
+                if i == 0 {
+                    if GetEntryActor(trace[0]) == actor {
+                        assert GetEntryActor(trace[indices[i]-index]) == actor;
+                        assert indices[i+1..] == GetTraceIndicesForActorFwdIndex(trace[indices[i]-index+1..], actor, index+1);
+                    } else {
+                        lemma_TraceIndicesForActorFwd(trace[1..], actor, index+1);
+                        assert GetEntryActor(trace[indices[i]-index]) == actor;
+                        assert indices[i+1..] == GetTraceIndicesForActorFwdIndex(trace[indices[i]-index+1..], actor, index+1);
+                    }
+                } else {
+                    lemma_TraceIndicesForActorFwd(trace[1..], actor, index+1);
+                    assert GetEntryActor(trace[indices[i]-index]) == actor;
+                    assert indices[i+1..] == GetTraceIndicesForActorFwdIndex(trace[indices[i]-index+1..], actor, index+1);
+                }
+            }
+        }
+    }
 
     lemma lemma_ConsecutiveActorEntriesTest(
             trace:Trace,
@@ -543,6 +578,7 @@ module ReductionModule
         }
     }
 
+    /*
     lemma lemma_ConsecutiveActorEntriesFwdSensible(
             trace:Trace,
             position:int,
@@ -552,13 +588,19 @@ module ReductionModule
         requires 0 <= position <= position + group_len <= |trace|;
         requires forall j :: position <= j < position + group_len ==> GetEntryActor(trace[j]) == GetEntryActor(trace[position]);
         requires 0 <= i < group_len;
-        ensures  var indices := GetTraceIndicesForActorFwd(trace, GetEntryActor(trace[position]));
+        ensures  var indices := GetTraceIndicesForActorFwd(trace[position..position+group_len], GetEntryActor(trace[position]));
                  0 <= i < |indices| && indices[i] == position+i;
     {
-        lemma_CorrespondenceBetweenGetTraceIndicesAndRestrictTraces(trace, GetEntryActor(trace[position]));
-        lemma_ConsecutiveActorEntriesLen(trace, 0);
-        lemma_ConsecutiveActorEntriesTestConclusion(trace[position..position+group_len]);
+        var sub_trace := trace[position..position+group_len];
+        var indices := GetTraceIndicesForActorFwd(sub_trace, GetEntryActor(trace[position]));
+
+        lemma_CorrespondenceBetweenGetTraceIndicesAndRestrictTraces(sub_trace, GetEntryActor(trace[position]));
+        lemma_ConsecutiveActorEntriesLen(sub_trace, 0);
+        lemma_ConsecutiveActorEntriesTestConclusion(sub_trace);
+
+        assert indices[i] == i
     }
+    */
 
     lemma lemma_ConsecutiveActorEntriesFwd(
             trace:Trace,
@@ -575,9 +617,25 @@ module ReductionModule
         ensures  var indices := GetTraceIndicesForActorFwd(trace, GetEntryActor(trace[position]));
                  0 <= actor_indices_index + i < |indices| && indices[actor_indices_index+i] == position+i;
     {
+        if i == 0 {
+
+        } else {
+            var indices := GetTraceIndicesForActorFwd(trace, GetEntryActor(trace[position]));
+            assert indices[actor_indices_index] == position;
+            //assert indices[actor_indices_index + i] == 
+
+
+        }
+        /*
+        var sub_trace := trace[position..position+group_len];
+        var indices := GetTraceIndicesForActorFwd(trace, GetEntryActor(trace[position]));
         lemma_CorrespondenceBetweenGetTraceIndicesAndRestrictTraces(trace, GetEntryActor(trace[position]));
-        lemma_ConsecutiveActorEntriesTestConclusion(trace[position..position+group_len]);
+        lemma_ConsecutiveActorEntriesTestConclusion(sub_trace);
+        lemma_ConsecutiveActorEntriesLen(sub_trace, 0);
+        */
+
     }
+    */
 
     lemma lemma_ConsecutiveActorEntries(
             trace:Trace,
@@ -597,11 +655,29 @@ module ReductionModule
         if i == 0 {
         } else {
             lemma_ConsecutiveActorEntries(trace, position, group_len, actor_indices_index, i - 1);
-            lemma_CorrespondenceBetweenGetTraceIndicesAndRestrictTraces(trace, GetEntryActor(trace[position]));
+            //lemma_CorrespondenceBetweenGetTraceIndicesAndRestrictTraces(trace, GetEntryActor(trace[position]));
             var indices := GetTraceIndicesForActor(trace, GetEntryActor(trace[position]));
             //0 <= actor_indices_index + i < |indices| && indices[actor_indices_index+i] == position+i;
+            var prev_trace_index := position+i-1;
+            var curr_trace_index := position+i;
+            assert indices[actor_indices_index+i-1] == prev_trace_index;
+            //assert curr_trace_index > prev_trace_index;
+            assert GetEntryActor(trace[curr_trace_index]) == GetEntryActor(trace[position]);
+            assert curr_trace_index in indices;
+            var curr_trace_index_index :| 0 <= curr_trace_index_index < |indices| && indices[curr_trace_index_index] == curr_trace_index;
+            var prev_a_index := actor_indices_index + i - 1;
+            var curr_a_index := actor_indices_index + i;
 
+            if !(prev_a_index < curr_trace_index_index) {
+                assert indices[curr_trace_index_index] < indices[prev_a_index];
+                assert false;
+            }
 
+            if curr_a_index < curr_trace_index_index {
+                assert indices[prev_a_index] < indices[curr_a_index]; 
+                assert indices[curr_a_index] < indices[curr_trace_index_index]; 
+                assert false;
+            }
         }
     }
                 
