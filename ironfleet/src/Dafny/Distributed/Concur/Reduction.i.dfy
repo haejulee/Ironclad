@@ -475,7 +475,7 @@ module ReductionModule
         ensures var indices := GetTraceIndicesForActor(trace, actor);
                 forall i {:trigger GetEntryActor(trace[indices[i]])} :: 0 <= i < |indices| ==> GetEntryActor(trace[indices[i]]) == actor;
         ensures var indices := GetTraceIndicesForActor(trace, actor);
-                forall i, j {:trigger indices[i] < indices[j] } :: 0 <= i < j < |indices| ==> indices[i] < indices[j];
+                forall i, j {:trigger indices[i], indices[j] } :: 0 <= i < j < |indices| ==> indices[i] < indices[j];
     {
         if |trace| == 0 then
             []

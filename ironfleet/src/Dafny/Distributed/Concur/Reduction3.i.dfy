@@ -21,7 +21,7 @@ module Reduction3Module
         requires TraceValid(trace, min_level, max_level);
         requires |indices| == |group| > 0;
         requires 0 <= entry_pos <= indices[0];
-        requires forall i, j {:trigger indices[i] < indices[j]} :: 0 <= i < j < |indices| ==> indices[i] < indices[j];
+        requires forall i, j {:trigger indices[i], indices[j]} :: 0 <= i < j < |indices| ==> indices[i] < indices[j];
         requires forall i :: 0 <= i < |indices| ==> 0 <= indices[i] < |trace| && trace[indices[i]] == group[i];
         requires min_level < mid_level <= max_level;
         requires EntryGroupValidForLevels(group, min_level, mid_level);
@@ -215,7 +215,7 @@ module Reduction3Module
         requires TraceValid(trace, min_level, max_level);
         requires |indices| == |group| > 0;
         requires 0 <= entry_pos <= indices[0];
-        requires forall i, j {:trigger indices[i] < indices[j]} :: 0 <= i < j < |indices| ==> indices[i] < indices[j];
+        requires forall i, j {:trigger indices[i], indices[j]} :: 0 <= i < j < |indices| ==> indices[i] < indices[j];
         requires forall i :: 0 <= i < |indices| ==> 0 <= indices[i] < |trace| && trace[indices[i]] == group[i];
         requires min_level < mid_level <= max_level;
         requires EntryGroupValidForLevels(group, min_level, mid_level);
@@ -282,7 +282,7 @@ module Reduction3Module
         requires TraceValid(trace, min_level, max_level);
         requires |indices| == |group| > 0;
         requires 0 <= entry_pos <= indices[0];
-        requires forall i, j {:trigger indices[i] < indices[j]} :: 0 <= i < j < |indices| ==> indices[i] < indices[j];
+        requires forall i, j {:trigger indices[i], indices[j]} :: 0 <= i < j < |indices| ==> indices[i] < indices[j];
         requires forall i :: 0 <= i < |indices| ==> 0 <= indices[i] < |trace| && trace[indices[i]] == group[i];
         requires min_level < mid_level <= max_level;
         requires EntryGroupValidForLevels(group, min_level, mid_level);
