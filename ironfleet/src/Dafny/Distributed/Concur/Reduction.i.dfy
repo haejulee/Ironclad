@@ -484,7 +484,7 @@ module ReductionModule
                  forall i :: 0 <= i < |indices| ==> indices[i] == index + i;
     {
         var actor := GetEntryActor(trace[0]);
-        var indices := GetTraceIndicesForActorFwd(trace, actor);
+        var indices := GetTraceIndicesForActorFwdIndex(trace, actor, index);
 
         if |trace| == 1 {
             if GetEntryActor(trace[0]) == actor {
@@ -506,7 +506,12 @@ module ReductionModule
                     if i == 0 {
 
                     } else {
-                        assert indices[i] == indices'[i-1] == index + i - 1;                        
+                        var j := i - 1;
+                        calc {
+                            indices[i];
+                            indices'[i-1];
+                            index + i; 
+                        }
                     }
                 }
             } else {
@@ -515,6 +520,34 @@ module ReductionModule
         }
     }
 
+    lemma lemma_ConsecutiveActorEntriesTestConclusion(
+            trace:Trace)
+        requires |trace| > 0;
+        requires forall j :: 0 <= j < |trace| ==> GetEntryActor(trace[j]) == GetEntryActor(trace[0]);
+        ensures  var indices := GetTraceIndicesForActorFwd(trace, GetEntryActor(trace[0]));
+                 forall i :: 0 <= i < |indices| ==> indices[i] == i;
+    {
+        lemma_ConsecutiveActorEntriesTest(trace, 0);
+    }
+
+    lemma lemma_ConsecutiveActorEntriesFwd(
+            trace:Trace,
+            position:int,
+            group_len:int,
+            actor_indices_index:int,
+            i:int)
+        requires |trace| > 0;
+        requires 0 <= position <= position + group_len <= |trace|;
+        requires forall j :: position <= j < position + group_len ==> GetEntryActor(trace[j]) == GetEntryActor(trace[position]);
+        requires 0 <= i < group_len;
+        requires 0 <= actor_indices_index < |GetTraceIndicesForActorFwd(trace, GetEntryActor(trace[position]))| 
+              && GetTraceIndicesForActorFwd(trace, GetEntryActor(trace[position]))[actor_indices_index] == position;
+        ensures  var indices := GetTraceIndicesForActorFwd(trace, GetEntryActor(trace[position]));
+                 0 <= actor_indices_index + i < |indices| && indices[actor_indices_index+i] == position+i;
+    {
+        lemma_CorrespondenceBetweenGetTraceIndicesAndRestrictTraces(trace, GetEntryActor(trace[position]));
+        lemma_ConsecutiveActorEntriesTestConclusion(trace[position..position+group_len]);
+    }
 
     lemma lemma_ConsecutiveActorEntries(
             trace:Trace,
