@@ -129,15 +129,206 @@ module ReductionModule
     {
     }
 
+    lemma lemma_RestrictTraceToActorSeqSliceTakeLength(trace:Trace, actor:Actor, trace_index:int, actor_index:int)
+        requires var indices := GetTraceIndicesForActor(trace, actor); 
+                 0 <= actor_index < |indices| && indices[actor_index] == trace_index;
+        decreases actor_index;
+        ensures |RestrictTraceToActor(trace, actor)| == |GetTraceIndicesForActor(trace, actor)|;
+        ensures |RestrictTraceToActor(trace, actor)[..actor_index]| == |RestrictTraceToActor(trace[..trace_index], actor)|;
+        ensures actor_index == |RestrictTraceToActor(trace[..trace_index], actor)|;
+    {
+        lemma_TraceIndicesForActor_length(trace, actor);
+
+        assert |RestrictTraceToActor(trace, actor)[..actor_index]| == actor_index;
+        var indices := GetTraceIndicesForActor(trace, actor); 
+        var a_trace := RestrictTraceToActor(trace[..trace_index], actor);
+        var a_indices := GetTraceIndicesForActor(trace[..trace_index], actor); 
+        lemma_TraceIndicesForActor_length(trace[..trace_index], actor);
+        assert |a_trace| == |a_indices|;
+
+        if actor_index == 0 {
+            if x :| 0 <= x < |a_indices| {
+                assert 0 <= a_indices[x] < trace_index; 
+                assert trace_index == indices[actor_index];
+                assert a_indices[x] in indices;
+                assert false;
+            }
+        } else {
+            var i := actor_index - 1;
+            lemma_RestrictTraceToActorSeqSliceTakeLength(trace, actor, indices[i], i);
+            calc {
+                |RestrictTraceToActor(trace[..trace_index], actor)|;     
+                    { lemma_SplitRestrictTraceToActor(trace[..indices[i]], 
+                                                      trace[indices[i]..trace_index], 
+                                                      actor); 
+                      assert trace[..indices[i]] + trace[indices[i]..trace_index] == trace[..trace_index];
+                    }
+                |RestrictTraceToActor(trace[..indices[i]], actor)| + |RestrictTraceToActor(trace[indices[i]..trace_index], actor)|;     
+                i + |RestrictTraceToActor(trace[indices[i]..trace_index], actor)|; 
+                    { lemma_SplitRestrictTraceToActor(trace[..indices[i]], 
+                                                      trace[indices[i]..trace_index], 
+                                                      actor); 
+                      assert trace[..indices[i]] + trace[indices[i]..trace_index] == trace[..trace_index];
+                    }
+            }
+
+            assume false;
+        }
+
+        assert |a_trace| == actor_index;
+    }
+
     lemma lemma_RestrictTraceToActorSeqSliceTake(trace:Trace, actor:Actor, trace_index:int, actor_index:int)
-        requires var indices := GetTraceIndicesForActor(trace, actor); 0 <= actor_index < |indices| && indices[actor_index] == trace_index;
+        requires var indices := GetTraceIndicesForActor(trace, actor); 
+                 0 <= actor_index < |indices| && indices[actor_index] == trace_index;
+        decreases actor_index;
         ensures |RestrictTraceToActor(trace, actor)| == |GetTraceIndicesForActor(trace, actor)|;
         ensures RestrictTraceToActor(trace, actor)[..actor_index] == RestrictTraceToActor(trace[..trace_index], actor);
+    {
+        lemma_CorrespondenceBetweenGetTraceIndicesAndRestrictTraces(trace, actor);
+        lemma_TraceIndicesForActor_length(trace, actor);
+        var indices := GetTraceIndicesForActor(trace, actor);
+        var a_trace := RestrictTraceToActor(trace, actor);
+        var sub_a_trace := a_trace[..actor_index];
+        var sub_trace := trace[..trace_index];
+        var a_trace' := RestrictTraceToActor(sub_trace, actor);
+
+        if actor_index == 0 {
+            assert RestrictTraceToActor(trace, actor)[..actor_index] == [];
+            if x :| 0 <= x < trace_index && GetEntryActor(trace[x]) == actor {
+                assert x in indices;
+                var x_index :| 0 <= x_index < |indices| && indices[x_index] == x;
+                if x_index < actor_index {
+                    assert indices[x_index] < indices[actor_index];
+                    assert false;
+                } else if x_index == actor_index {
+                    assert trace_index == indices[actor_index];
+                    assert indices[x_index] < trace_index;
+                    assert false;
+                } else {
+                    assert indices[actor_index] < indices[x_index];
+                    assert trace_index < x;
+                    assert false;
+                }
+            }
+            lemma_RestrictTraceToActorEmpty(trace[..trace_index], actor);
+            assert RestrictTraceToActor(trace[..trace_index], actor) == [];
+        } else {
+            lemma_RestrictTraceToActorSeqSliceTakeLength(trace, actor, trace_index, actor_index);
+            assert |RestrictTraceToActor(trace, actor)[..actor_index]| == |RestrictTraceToActor(trace[..trace_index], actor)|;
+
+            forall i | 0 <= i < actor_index 
+                ensures RestrictTraceToActor(trace, actor)[..actor_index][i] == RestrictTraceToActor(trace[..trace_index], actor)[i];
+            {
+                forall t | indices[actor_index-1] < t < indices[actor_index] 
+                    ensures GetEntryActor(trace[t]) != actor;
+                {
+                    lemma_InterveningTraceIndicesFromDifferentActor(trace, actor, indices, actor_index-1, t);
+                }
+                if i < actor_index-1 {
+                    assert indices[actor_index-1] < trace_index;
+                    assert trace_index <= |trace|;
+                    calc {
+                        RestrictTraceToActor(trace, actor)[..actor_index][i];
+                        RestrictTraceToActor(trace, actor)[..actor_index-1][i];
+                            { lemma_RestrictTraceToActorSeqSliceTake(trace, actor, indices[actor_index-1], actor_index-1); }
+                        RestrictTraceToActor(trace[..indices[actor_index-1]], actor)[i];
+                        (RestrictTraceToActor(trace[..indices[actor_index-1]], actor) +[])[i];
+                        (RestrictTraceToActor(trace[..indices[actor_index-1]], actor) 
+                        +RestrictTraceToActor(trace[indices[actor_index-1]..trace_index], actor))[i];
+                            { lemma_SplitRestrictTraceToActor(trace[..indices[actor_index-1]], 
+                                                              trace[indices[actor_index-1]..trace_index], 
+                                                              actor); 
+                              assert trace[..indices[actor_index-1]] + trace[indices[actor_index-1]..trace_index] == trace[..trace_index];
+                            }
+                        RestrictTraceToActor(trace[..trace_index], actor)[i];
+                    }
+                } else {
+                    assert i == actor_index - 1;
+                    calc {
+                        RestrictTraceToActor(trace, actor)[..actor_index][i];
+                        RestrictTraceToActor(trace, actor)[actor_index-1];
+                        RestrictTraceToActor(trace, actor)[i];
+                            { lemma_SplitRestrictTraceToActor(trace[..trace_index], 
+                                                              trace[trace_index..], 
+                                                              actor); 
+                              assert trace[..trace_index] + trace[trace_index..] == trace;
+                            }
+
+                        (RestrictTraceToActor(trace[..trace_index], actor) 
+                        +RestrictTraceToActor(trace[trace_index..], actor))[i];
+//
+////                        trace[indices[i]];
+////
+//////                            { lemma_RestrictTraceToActorSeqSliceTake(trace, actor, indices[i], i); }
+//////                        RestrictTraceToActor(trace[..indices[i]], actor)[i];
+//////                        (RestrictTraceToActor(trace[..indices[i]], actor) +[])[i];
+//////                        (RestrictTraceToActor(trace[..indices[i]], actor) 
+//////                        +RestrictTraceToActor(trace[indices[i]..trace_index], actor))[i];
+//////                            { lemma_SplitRestrictTraceToActor(trace[..indices[i]], 
+//////                                                              trace[indices[i]..trace_index], 
+//////                                                              actor); 
+//////                              assert trace[..indices[actor_index-1]] + trace[indices[i]..trace_index] == trace[..trace_index];
+//////                            }
+////
+//                        RestrictTraceToActor(trace, actor)[..i][i];
+//                            { lemma_RestrictTraceToActorSeqSliceTake(trace, actor, indices[i], i); }
+//                        RestrictTraceToActor(trace[..indices[i]], actor)[i];
+//                        (RestrictTraceToActor(trace[..indices[i]], actor) + [trace[indices[i]]])[i];
+//                        (RestrictTraceToActor(trace[..indices[i]], actor) 
+//                        +RestrictTraceToActor(trace[indices[i]..trace_index], actor))[i];
+//                            { lemma_SplitRestrictTraceToActor(trace[..indices[i]], 
+//                                                              trace[indices[i]..trace_index], 
+//                                                              actor); 
+//                              assert trace[..indices[actor_index-1]] + trace[indices[i]..trace_index] == trace[..trace_index];
+//                            }
+                        RestrictTraceToActor(trace[..trace_index], actor)[i];
+                    }
+                    assert RestrictTraceToActor(trace, actor)[..actor_index][i] == RestrictTraceToActor(trace[..trace_index], actor)[i];
+
+                }
+            }
+            assert RestrictTraceToActor(trace, actor)[..actor_index] == RestrictTraceToActor(trace[..trace_index], actor);
+
+        }
+/*
+        if trace == [] {
+        } else {
+
+            if GetEntryActor(trace[0]) == actor {
+                lemma_RestrictTraceToActorSeqSliceTake(trace[1..], actor, indices[actor_index+1], actor_index+1);
+            } else {
+                lemma_RestrictTraceToActorSeqSliceTake(trace[1..], actor, trace_index-1, actor_index);
+            }
+        }
+*/
+//        calc {
+//            |sub_a_trace|; 
+//            |a_trace[..actor_index]|;
+//            actor_index;
+//
+//            lemma_SplitRestrictTraceToActor(sub_trace, trace[trace_index..], actor);
+//RestrictTraceToActor(sub_trace, actor) + RestrictTraceToActor(trace[trace_index..], actor) == RestrictTraceToActor(trace, actor);
+//|RestrictTraceToActor(sub_trace, actor)| == |RestrictTraceToActor(trace, actor)| - |RestrictTraceToActor(trace[trace_index..], actor)|;
+//
+//            |GetTraceIndicesForActor(sub_trace, actor)|;
+//                { lemma_TraceIndicesForActor_length(sub_trace, actor); }
+//            |a_trace'|;
+//        }
+//        forall i | 0 <= i < |sub_a_trace|
+//            ensures sub_a_trace[i] == a_trace'[i];
+//        {
+//        }
+    }
 
     lemma lemma_RestrictTraceToActorSeqSliceDrop(trace:Trace, actor:Actor, trace_index:int, actor_index:int)
-        requires var indices := GetTraceIndicesForActor(trace, actor); 0 <= actor_index < |indices| && indices[actor_index] == trace_index;
+        requires var indices := GetTraceIndicesForActor(trace, actor); 
+                 0 <= actor_index < |indices| && indices[actor_index] == trace_index;
         ensures |RestrictTraceToActor(trace, actor)| == |GetTraceIndicesForActor(trace, actor)|;
         ensures RestrictTraceToActor(trace, actor)[actor_index+1..] == RestrictTraceToActor(trace[trace_index+1..], actor);
+//    {
+//        lemma_CorrespondenceBetweenGetTraceIndicesAndRestrictTraces(trace, actor);
+//    }
 
     lemma lemma_RestrictTraceToActorPreservation(
         trace:Trace,
