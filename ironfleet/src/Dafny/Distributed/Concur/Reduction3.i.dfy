@@ -195,7 +195,7 @@ module Reduction3Module
         }
     }
 
-    lemma {:timeLimitMultiplier 5} lemma_PerformReductionOfSpecificIndices(
+    lemma lemma_PerformReductionOfSpecificIndices(
         trace:Trace,
         db:seq<DistributedSystemState>,
         min_level:int,
@@ -222,7 +222,8 @@ module Reduction3Module
         requires GetEntryLevel(group[0]) == min_level;
         requires pivot_index == last(group).pivot_index;
         requires forall i :: 0 <= i < |group| ==> GetEntryActor(group[i]) == GetEntryActor(group[0]);   // All for the same actor
-        requires forall group_index, trace_index :: 0 <= group_index < |indices| - 1 
+        requires forall group_index, trace_index {:trigger indices[group_index] < trace_index, trace_index < indices[group_index+1]} ::
+                                                    0 <= group_index < |indices| - 1 
                                                  && indices[group_index] < trace_index < indices[group_index+1] 
                                                  ==> GetEntryActor(trace[trace_index]) != GetEntryActor(group[0]);
         requires 0 <= in_position_left <= pivot_index <= in_position_right < |group|;
@@ -288,7 +289,8 @@ module Reduction3Module
         requires EntryGroupValidForLevels(group, min_level, mid_level);
         requires GetEntryLevel(group[0]) == min_level;
         requires forall i :: 0 <= i < |group| ==> GetEntryActor(group[i]) == GetEntryActor(group[0]);   // All for the same actor
-        requires forall group_index, trace_index :: 0 <= group_index < |indices| - 1 
+        requires forall group_index, trace_index {:trigger indices[group_index] < trace_index, trace_index < indices[group_index+1]} ::
+                                                    0 <= group_index < |indices| - 1 
                                                  && indices[group_index] < trace_index < indices[group_index+1] 
                                                  ==> GetEntryActor(trace[trace_index]) != GetEntryActor(group[0]);
 

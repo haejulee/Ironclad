@@ -203,7 +203,7 @@ module Reduction2Module
     {
     }
 
-    lemma {:timeLimitMultiplier 3} lemma_ActorTraceStartsWithBegin(
+    lemma lemma_ActorTraceStartsWithBegin(
             trace:Trace,
             min_level:int,
             max_level:int,
@@ -214,11 +214,11 @@ module Reduction2Module
         requires ActorTraceValid(trace, min_level, max_level);
         requires min_level < max_level;
         requires 0 <= position < |trace|;
-        requires forall i :: 0 <= i < position ==> GetEntryLevel(trace[i]) > min_level;
+        requires forall i {:trigger GetEntryLevel(trace[i])} :: 0 <= i < position ==> GetEntryLevel(trace[i]) > min_level;
         requires GetEntryLevel(trace[position]) == min_level;
         ensures  trace[position].EntryBeginGroup?;
         ensures  position + |group| <= |trace|;
-        ensures  forall i :: 0 <= i < |group| ==> group[i] == trace[position+i];
+        ensures  forall i {:trigger group[i]}{:trigger trace[position+i]} :: 0 <= i < |group| ==> group[i] == trace[position+i];
         ensures  EntryGroupValidForLevels(group, min_level, mid_level);
         ensures  min_level < mid_level <= max_level;
         decreases |trace|;
@@ -252,10 +252,11 @@ module Reduction2Module
             mid_level := max_level;
             assert EntryGroupValidForLevels(group, min_level, mid_level);
         }
-        else if position == group_len - 1 {
-            assert false;
-        }
         else if position < group_len {
+            assert GetEntryLevel(trace[0]) > min_level;
+            if position == group_len - 1 {
+                assert false;
+            }
             var subgroup := trace[..group_len];
             var subtrace := trace[1..group_len-1];
             lemma_TakeThenGetMiddle(trace, subgroup, subtrace, group_len);
@@ -299,7 +300,7 @@ module Reduction2Module
         }
     }
 
-    lemma {:timeLimitMultiplier 5} lemma_FindEntryGroupValid(
+    lemma lemma_FindEntryGroupValid(
             trace:Trace,
             min_level:int,
             max_level:int,
@@ -311,7 +312,7 @@ module Reduction2Module
         requires TraceValid(trace, min_level, max_level);
         requires min_level < max_level;
         requires 0 <= position < |trace|;
-        requires forall i :: 0 <= i < position ==> GetEntryLevel(trace[i]) > min_level;
+        requires forall i {:trigger GetEntryLevel(trace[i])} :: 0 <= i < position ==> GetEntryLevel(trace[i]) > min_level;
         requires GetEntryLevel(trace[position]) == min_level;
         ensures  trace[position].EntryBeginGroup?;
         ensures  |indices| == |group| > 0;
@@ -321,14 +322,17 @@ module Reduction2Module
         ensures  EntryGroupValidForLevels(group, min_level, mid_level);
         ensures  min_level < mid_level <= max_level;
         ensures  forall i :: 0 <= i < |group| ==> GetEntryActor(group[i]) == GetEntryActor(group[0]);   // All for the same actor
-        ensures  forall group_index, trace_index :: 0 <= group_index < |indices| - 1 
+        ensures  forall group_index, trace_index {:trigger indices[group_index] < trace_index, trace_index < indices[group_index+1]} ::
+                                                    0 <= group_index < |indices| - 1 
                                                  && indices[group_index] < trace_index < indices[group_index+1] 
                                                  ==> GetEntryActor(trace[trace_index]) != GetEntryActor(group[0]);
     {
         var actor, actor_trace, actor_indices, actor_indices_index := GetCorrespondingActorTraceAndIndexForEntry(trace, position);
         group, mid_level := lemma_ActorTraceStartsWithBegin(actor_trace, min_level, max_level, actor_indices_index);
         indices := actor_indices[actor_indices_index .. actor_indices_index + |group|];
-        forall group_index, trace_index | 0 <= group_index < |indices| - 1 && indices[group_index] < trace_index < indices[group_index+1]
+        forall group_index, trace_index {:trigger indices[group_index] < trace_index, trace_index < indices[group_index+1]} |
+                                            0 <= group_index < |indices| - 1
+                                         && indices[group_index] < trace_index < indices[group_index+1]
             ensures GetEntryActor(trace[trace_index]) != GetEntryActor(group[0]);
         {
             var shifted_group_index := group_index + actor_indices_index;
@@ -349,7 +353,7 @@ module Reduction2Module
             }
             lemma_InterveningTraceIndicesFromDifferentActor(trace, actor, actor_indices, group_index + actor_indices_index, trace_index);
         }
-        forall i, j | 0 <= i < j < |indices|
+        forall i, j {:trigger indices[i], indices[j]} | 0 <= i < j < |indices|
             ensures indices[i] < indices[j];
         {
             var i' := i + actor_indices_index;
@@ -498,7 +502,8 @@ module Reduction2Module
         )
         requires forall i :: 0 <= i < |indices| ==> 0 <= indices[i] < |trace|;
         requires forall i, j {:trigger indices[i], indices[j]} :: 0 <= i < j < |indices| ==> indices[i] < indices[j];
-        requires forall group_index, trace_index :: 0 <= group_index < |indices| - 1
+        requires forall group_index, trace_index {:trigger indices[group_index] < trace_index, trace_index < indices[group_index+1]} ::
+                                                    0 <= group_index < |indices| - 1
                                                  && indices[group_index] < trace_index < indices[group_index+1] 
                                                  ==> GetEntryActor(trace[trace_index]) != actor;
         requires 0 <= index_to_update < |indices| - 1;
@@ -509,10 +514,19 @@ module Reduction2Module
         requires indices' == indices[index_to_update := swap_pos + 1];
         requires GetEntryActor(trace[swap_pos]) == actor;
         requires GetEntryActor(trace[swap_pos+1]) != actor;
-        ensures  forall group_index, trace_index ::    0 <= group_index < |indices'| - 1
+        ensures  forall group_index, trace_index {:trigger indices'[group_index] < trace_index, trace_index < indices'[group_index+1]} ::
+                                                  0 <= group_index < |indices'| - 1
                                                && indices'[group_index] < trace_index < indices'[group_index+1] 
                                                ==> GetEntryActor(trace'[trace_index]) != actor;
     {
+        forall group_index, trace_index {:trigger indices'[group_index] < trace_index, trace_index < indices'[group_index+1]} |
+                                             0 <= group_index < |indices'| - 1
+                                          && indices'[group_index] < trace_index < indices'[group_index+1]
+            ensures GetEntryActor(trace'[trace_index]) != actor;
+        {
+            assert indices[group_index] < trace_index;
+            assert trace_index < indices[group_index+1] || true;
+        }
     }
 
     lemma lemma_SwappingAdjacentEntriesWhereRightMatchesActorPreservesVariousProperties(
@@ -591,7 +605,8 @@ module Reduction2Module
         )
         requires forall i :: 0 <= i < |indices| ==> 0 <= indices[i] < |trace|;
         requires forall i, j {:trigger indices[i], indices[j]} :: 0 <= i < j < |indices| ==> indices[i] < indices[j];
-        requires forall group_index, trace_index :: 0 <= group_index < |indices| - 1
+        requires forall group_index, trace_index {:trigger indices[group_index] < trace_index, trace_index < indices[group_index+1]} ::
+                                                    0 <= group_index < |indices| - 1
                                                  && indices[group_index] < trace_index < indices[group_index+1] 
                                                  ==> GetEntryActor(trace[trace_index]) != actor;
         requires 0 <= swap_pos < |trace| - 1;
@@ -602,10 +617,19 @@ module Reduction2Module
         requires indices' == indices[index_to_update := swap_pos];
         requires GetEntryActor(trace[swap_pos]) != actor;
         requires GetEntryActor(trace[swap_pos+1]) == actor;
-        ensures  forall group_index, trace_index ::    0 <= group_index < |indices'| - 1
+        ensures  forall group_index, trace_index {:trigger indices'[group_index] < trace_index, trace_index < indices'[group_index+1]} ::
+                                                  0 <= group_index < |indices'| - 1
                                                && indices'[group_index] < trace_index < indices'[group_index+1] 
                                                ==> GetEntryActor(trace'[trace_index]) != actor;
     {
+        forall group_index, trace_index {:trigger indices'[group_index] < trace_index, trace_index < indices'[group_index+1]} |
+                                             0 <= group_index < |indices'| - 1
+                                          && indices'[group_index] < trace_index < indices'[group_index+1]
+            ensures GetEntryActor(trace'[trace_index]) != actor;
+        {
+            assert indices[group_index] < trace_index || true;
+            assert trace_index < indices[group_index+1];
+        }
     }
 
     predicate DistributedSystemBehaviorRefinesSpecBehaviorWithNonPivotsAsStutters(
@@ -619,7 +643,7 @@ module Reduction2Module
         && forall i :: 0 <= i < |indices| && i != pivot_index ==> 0 <= indices[i] && indices[i] < |sb|-1 && sb[indices[i]] == sb[indices[i]+1]
     }
 
-    lemma {:timeLimitMultiplier 2} lemma_MoveRightMoverIntoPlaceHelper(
+    lemma lemma_MoveRightMoverIntoPlaceHelper(
         trace:Trace,
         db:seq<DistributedSystemState>,
         indices:seq<int>,
@@ -705,7 +729,7 @@ module Reduction2Module
         assert DistributedSystemBehaviorRefinesSpecBehaviorWithNonPivotsAsStutters(db, sb, indices, pivot_index);
     }
 
-    lemma {:timeLimitMultiplier 4} lemma_MoveRightMoverIntoPlace(
+    lemma lemma_MoveRightMoverIntoPlace(
         trace:Trace,
         db:seq<DistributedSystemState>,
         min_level:int,
@@ -733,7 +757,8 @@ module Reduction2Module
         requires GetEntryLevel(group[0]) == min_level;
         requires pivot_index == last(group).pivot_index;
         requires forall i :: 0 <= i < |group| ==> GetEntryActor(group[i]) == GetEntryActor(group[0]);   // All for the same actor
-        requires forall group_index, trace_index :: 0 <= group_index < |indices| - 1
+        requires forall group_index, trace_index {:trigger indices[group_index] < trace_index, trace_index < indices[group_index+1]} ::
+                                                    0 <= group_index < |indices| - 1
                                                  && indices[group_index] < trace_index < indices[group_index+1] 
                                                  ==> GetEntryActor(trace[trace_index]) != GetEntryActor(group[0]);
         requires 0 < in_position_left <= pivot_index <= in_position_right < |group|;
@@ -745,7 +770,8 @@ module Reduction2Module
         ensures  0 <= entry_pos <= indices'[0];
         ensures  forall i, j {:trigger indices'[i], indices'[j]} :: 0 <= i < j < |indices'| ==> indices'[i] < indices'[j];
         ensures  forall i :: 0 <= i < |indices'| ==> 0 <= indices'[i] < |trace'| && trace'[indices'[i]] == group[i];
-        ensures  forall group_index, trace_index :: 0 <= group_index < |indices'| - 1
+        ensures  forall group_index, trace_index {:trigger GetEntryActor(trace'[trace_index]), indices'[group_index]} ::
+                                                    0 <= group_index < |indices'| - 1
                                                  && indices'[group_index] < trace_index < indices'[group_index+1] 
                                                  ==> GetEntryActor(trace'[trace_index]) != GetEntryActor(group[0]);
         ensures  forall k :: in_position_left - 1 <= k <= in_position_right ==> k - pivot_index == indices'[k] - indices'[pivot_index];
@@ -816,7 +842,7 @@ module Reduction2Module
         }
     }
 
-    lemma {:timeLimitMultiplier 2} lemma_MoveLeftMoverIntoPlaceHelper(
+    lemma lemma_MoveLeftMoverIntoPlaceHelper(
         trace:Trace,
         db:seq<DistributedSystemState>,
         indices:seq<int>,
@@ -910,7 +936,7 @@ module Reduction2Module
         assert DistributedSystemBehaviorRefinesSpecBehaviorWithNonPivotsAsStutters(db, sb, indices, pivot_index);
     }
 
-    lemma {:timeLimitMultiplier 4} lemma_MoveLeftMoverIntoPlace(
+    lemma lemma_MoveLeftMoverIntoPlace(
         trace:Trace,
         db:seq<DistributedSystemState>,
         min_level:int,
@@ -938,7 +964,8 @@ module Reduction2Module
         requires GetEntryLevel(group[0]) == min_level;
         requires pivot_index == last(group).pivot_index;
         requires forall i :: 0 <= i < |group| ==> GetEntryActor(group[i]) == GetEntryActor(group[0]);   // All for the same actor
-        requires forall group_index, trace_index :: 0 <= group_index < |indices| - 1
+        requires forall group_index, trace_index {:trigger indices[group_index] < trace_index, trace_index < indices[group_index+1]} ::
+                                                    0 <= group_index < |indices| - 1
                                                  && indices[group_index] < trace_index < indices[group_index+1] 
                                                  ==> GetEntryActor(trace[trace_index]) != GetEntryActor(group[0]);
         requires 0 <= in_position_left <= pivot_index <= in_position_right < |group| - 1;
@@ -950,7 +977,8 @@ module Reduction2Module
         ensures  0 <= entry_pos <= indices'[0];
         ensures  forall i, j {:trigger indices'[i], indices'[j]} :: 0 <= i < j < |indices'| ==> indices'[i] < indices'[j];
         ensures  forall i :: 0 <= i < |indices'| ==> 0 <= indices'[i] < |trace'| && trace'[indices'[i]] == group[i];
-        ensures  forall group_index, trace_index :: 0 <= group_index < |indices'| - 1
+        ensures  forall group_index, trace_index {:trigger indices'[group_index] < trace_index, trace_index < indices'[group_index+1]} ::
+                                                    0 <= group_index < |indices'| - 1
                                                  && indices'[group_index] < trace_index < indices'[group_index+1] 
                                                  ==> GetEntryActor(trace'[trace_index]) != GetEntryActor(group[0]);
         ensures  forall k :: in_position_left <= k <= in_position_right + 1 ==> k - pivot_index == indices'[k] - indices'[pivot_index];

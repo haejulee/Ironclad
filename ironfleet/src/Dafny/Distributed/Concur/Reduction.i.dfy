@@ -23,10 +23,11 @@ module ReductionModule
 
     predicate EntriesReducibleToEntry(entries:seq<Entry>, entry:Entry)
     {
-        forall db:seq<DistributedSystemState> ::
+        forall db:seq<DistributedSystemState> {:trigger DistributedSystemNextEntryAction(db[0], db[|entries|], entry)} ::
                 |db| == |entries|+1
-             && (forall i :: 0 <= i < |entries| ==> DistributedSystemNextEntryAction(db[i], db[i+1], entries[i]))
-             ==> DistributedSystemNextEntryAction(db[0], db[|entries|], entry)
+             && (forall i {:trigger DistributedSystemNextEntryAction(db[i], db[i+1], entries[i])} ::
+                 0 <= i < |entries| ==> DistributedSystemNextEntryAction(db[i], db[i+1], entries[i]))
+                 ==> DistributedSystemNextEntryAction(db[0], db[|entries|], entry)
     }
 
     predicate EntriesReducibleUsingPivot(entries:seq<Entry>)
@@ -324,7 +325,7 @@ module ReductionModule
         if n == 0 then [] else [s] + RepeatSpecState(s, n-1)
     }
 
-    lemma {:timeLimitMultiplier 3} lemma_AddStuttersForReductionStepHelper1(
+    lemma lemma_AddStuttersForReductionStepHelper1(
         trace:Trace,
         db:seq<DistributedSystemState>,
         begin_entry_pos:int,
@@ -426,7 +427,7 @@ module ReductionModule
 
         lemma_AddStuttersForReductionStepHelper2(trace, db, begin_entry_pos, end_entry_pos, pivot_index, trace', db', sb', sb, i+1);
 
-        if begin_entry_pos + pivot_index < i < end_entry_pos {
+        if begin_entry_pos + pivot_index < i < end_entry_pos + 1 {
             var group := trace[begin_entry_pos .. end_entry_pos+1];
             lemma_ElementFromSequenceSlice(trace, group, begin_entry_pos, end_entry_pos+1, i);
             assert trace[i] == group[i - begin_entry_pos];
@@ -439,7 +440,7 @@ module ReductionModule
         assert sb[i+1] == ss';
     }
 
-    lemma {:timeLimitMultiplier 3} lemma_AddStuttersForReductionStepHelper3(
+    lemma lemma_AddStuttersForReductionStepHelper3(
         begin_entry_pos:int,
         end_entry_pos:int,
         pivot_index:int,
@@ -593,9 +594,10 @@ module ReductionModule
         trace' := trace[..begin_entry_pos] + [reduced_entry] + trace[end_entry_pos+1 ..];
         db' := db[..begin_entry_pos+1] + db[end_entry_pos+1 ..];
 
-        var reducible_entries := entries[1..|entries|-1];
+        var reducible_entries := trace[begin_entry_pos+1 .. end_entry_pos];
         var tiny_db := db[begin_entry_pos+1 .. end_entry_pos+1];
         assert |tiny_db| == |entries| - 1;
+        assert |tiny_db| == |reducible_entries| + 1;
         forall i | 0 <= i < |tiny_db|-1
             ensures DistributedSystemNextEntryAction(tiny_db[i], tiny_db[i+1], reducible_entries[i]);
         {
@@ -608,7 +610,7 @@ module ReductionModule
             lemma_ElementFromSequenceSlice(db, tiny_db, begin_entry_pos+1, end_entry_pos+1, j+1);
             assert db[j+1] == tiny_db[j+1 - (begin_entry_pos+1)] == tiny_db[i+1];
         }
-        assert DistributedSystemNextEntryAction(tiny_db[0], last(tiny_db), reduced_entry);
+        assert DistributedSystemNextEntryAction(tiny_db[0], tiny_db[|reducible_entries|], reduced_entry);
 
         assert db[begin_entry_pos] == db[begin_entry_pos+1];
         assert db[end_entry_pos] == db[end_entry_pos+1];

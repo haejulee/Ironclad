@@ -61,7 +61,7 @@ module TraceModule {
 
     function RestrictTraceToActor(t:Trace, a:Actor) : Trace
         ensures var t' := RestrictTraceToActor(t, a);
-                forall e :: e in t' <==> e in t && GetEntryActor(e) == a;
+                forall e {:trigger e in t'} {:trigger e in t, GetEntryActor(e)} :: e in t' <==> e in t && GetEntryActor(e) == a;
     {
         if |t| == 0 then
             []
