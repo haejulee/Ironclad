@@ -62,6 +62,32 @@ module ActorTraces
         }
     }
 
+    lemma lemma_PrecedingTraceIndicesFromDifferentActor(
+        trace:Trace,
+        actor:Actor,
+        indices:seq<int>,
+        trace_index:int
+        )
+        requires indices == GetTraceIndicesForActor(trace, actor);
+        requires |indices| > 0;
+        requires 0 <= trace_index < indices[0];
+        ensures  GetEntryActor(trace[trace_index]) != actor;
+    {
+    }
+
+    lemma lemma_TrailingTraceIndicesFromDifferentActor(
+        trace:Trace,
+        actor:Actor,
+        indices:seq<int>,
+        trace_index:int
+        )
+        requires indices == GetTraceIndicesForActor(trace, actor);
+        requires |indices| > 0;
+        requires last(indices) < trace_index < |trace|;
+        ensures  GetEntryActor(trace[trace_index]) != actor;
+    {
+    }
+
     ghost method GetCorrespondingActorTraceAndIndexForEntry(
         trace:Trace,
         trace_index:int
@@ -548,6 +574,18 @@ module ActorTraces
 
                     RestrictTraceToActor(trace[next_trace_index..], actor); 
                 }
+
+                calc {
+                    |RestrictTraceToActor(trace[trace_index+1..], actor)|;
+                    |RestrictTraceToActor(trace[next_trace_index..], actor)|;
+                        { lemma_SplitRestrictTraceToActor([trace[next_trace_index]],
+                                                          trace[next_trace_index+1..],
+                                                          actor); 
+                          assert trace[next_trace_index..] == [trace[next_trace_index]] + trace[next_trace_index+1..];
+                        }
+                    |RestrictTraceToActor([trace[next_trace_index]], actor)| + |RestrictTraceToActor(trace[next_trace_index+1..], actor)|;
+                    |RestrictTraceToActor([trace[next_trace_index]], actor)| + |RestrictTraceToActor(trace, actor)[next_actor_index+1..]|;
+                }
             }
         } else {
             // The current actor_index is the last index for this actor, 
@@ -555,6 +593,14 @@ module ActorTraces
             assert next_actor_index == |indices| == |RestrictTraceToActor(trace, actor)|;
             assert |RestrictTraceToActor(trace, actor)[next_actor_index..]| ==  0;
 
+            forall t | trace_index < t < |trace| 
+                ensures GetEntryActor(trace[t]) != actor;
+            {
+                lemma_TrailingTraceIndicesFromDifferentActor(trace, actor, indices, t);
+            }
+
+            lemma_RestrictTraceToActorEmpty(trace[t1..], actor);
+//|RestrictTraceToActor(trace[trace_index+1..], actor)|;
         }
 
 /*
