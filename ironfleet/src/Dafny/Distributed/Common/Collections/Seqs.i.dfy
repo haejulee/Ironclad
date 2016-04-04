@@ -139,5 +139,10 @@ lemma lemma_ElementFromSequenceSuffix<T>(s:seq<T>, s':seq<T>, a:int, pos:int)
 {
 }
 
+lemma lemma_all_but_last_plus_last<T>(s:seq<T>)
+    requires |s| > 0;
+    ensures  all_but_last(s) + [last(s)] == s;
+{}
+
 
 }
