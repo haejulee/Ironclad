@@ -103,7 +103,46 @@ module ReductionModule
         requires forall i :: 0 <= i < |trace| ==> GetEntryActor(trace[i]) == GetEntryActor(trace[0]);
         requires trace' == trace[..position] + [trace[position+group_len-1].reduced_entry] + trace[position + group_len..];
         ensures  ActorTraceValid(trace', min_level, max_level);
-    {}
+    {
+        if position == 0 {
+            assert ActorTraceValid(trace', min_level, max_level);
+        } else {
+            if trace[0].EntryAction? && GetEntryLevel(trace[0]) == max_level && ActorTraceValid(trace[1..], min_level, max_level) {
+                assert trace[1..][position-1..position-1+group_len] == trace[position..position+group_len];
+                lemma_ReductionPreservesActorTraceValid(trace[1..], min_level, mid_level, max_level, position-1, group_len, trace'[1..]);
+                assert ActorTraceValid(trace', min_level, max_level);
+            } else {
+                assert exists g_len ::    0 < g_len <= |trace|
+                          && EntryGroupValidForLevels(trace[..g_len], min_level, max_level)
+                          && ActorTraceValid(trace[g_len..], min_level, max_level);
+                var g_len :|    0 < g_len <= |trace|
+                          && EntryGroupValidForLevels(trace[..g_len], min_level, max_level)
+                          && ActorTraceValid(trace[g_len..], min_level, max_level);
+
+                if position < g_len {
+                    assert ActorTraceValid(trace', min_level, max_level);
+                } else {
+                    assert trace[g_len..][position-g_len..position-g_len+group_len] == trace[position..position+group_len];
+                    calc {
+                        trace'[g_len..];
+                        (trace[..position] + [trace[position+group_len-1].reduced_entry] + trace[position + group_len..])[g_len..]; 
+                            { assert |trace[..position]| >= g_len; }
+                        trace[..position][g_len..] + [trace[position+group_len-1].reduced_entry] + trace[position + group_len..]; 
+                        trace[g_len..position] + [trace[position+group_len-1].reduced_entry] + trace[position + group_len..]; 
+                            { assert trace[g_len..position] == trace[g_len..][..position-g_len]; }
+                        trace[g_len..][..position-g_len] + [trace[position+group_len-1].reduced_entry] + trace[position + group_len..]; 
+                            { assert trace[position+group_len-1] == trace[g_len..][position-g_len+group_len-1]; }
+                        trace[g_len..][..position-g_len] + [trace[g_len..][position-g_len+group_len-1].reduced_entry] + trace[position + group_len..]; 
+                            { assert trace[position + group_len..] == trace[g_len..][position-g_len + group_len..]; }
+                        trace[g_len..][..position-g_len] + [trace[g_len..][position-g_len+group_len-1].reduced_entry] + trace[g_len..][position-g_len + group_len..]; 
+                    }
+                    lemma_ReductionPreservesActorTraceValid(trace[g_len..], min_level, mid_level, max_level, position-g_len, group_len, trace'[g_len..]);
+                    assert ActorTraceValid(trace', min_level, max_level);
+                }
+            }
+        }
+    }
+
 
 
     lemma lemma_ReductionPreservesTraceValid(
