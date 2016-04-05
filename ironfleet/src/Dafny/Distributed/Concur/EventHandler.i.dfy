@@ -164,9 +164,10 @@ module EventHandlerModule {
         lemma_RestrictEntriesToLevelIsIdentityIfAllEntriesAtLevel(entries', const_IOLevel());
         assert entries' == RestrictEntriesToLevel(entries', entries[0].begin_group_level);
 
-        forall db':seq<DistributedSystemState> |
+        forall db':seq<DistributedSystemState> {:trigger DistributedSystemNextEntryAction(db'[0], db'[|entries'|], entry)} |
                 |db'| == |entries'|+1
-                && (forall i :: 0 <= i < |entries'| ==> DistributedSystemNextEntryAction(db'[i], db'[i+1], entries'[i]))
+                && (forall i {:trigger DistributedSystemNextEntryAction(db'[i], db'[i+1], entries'[i])} ::
+                         0 <= i < |entries'| ==> DistributedSystemNextEntryAction(db'[i], db'[i+1], entries'[i]))
             ensures DistributedSystemNextEntryAction(db'[0], db'[|entries'|], entry);
         {
             assert |db'| == |entries|-1;
@@ -186,10 +187,8 @@ module EventHandlerModule {
                 }
                 else {
                     var j := i-1;
-                    assert db[i] == db'[j];
-                    assert db[i+1] == db'[j+1];
-                    assert entries[i] == entries'[j];
                     assert DistributedSystemNextEntryAction(db'[j], db'[j+1], entries'[j]);
+                    assert DistributedSystemNextEntryAction(db[i], db[i+1], entries[i]);
                 }
             }
             lemma_GroupValidIfReducedEntryCombinesIOLevelEntries(actor, entries, db);
