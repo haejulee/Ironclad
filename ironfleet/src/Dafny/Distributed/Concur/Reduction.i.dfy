@@ -87,6 +87,15 @@ module ReductionModule
         forall actor :: ActorTraceValid(RestrictTraceToActor(trace, actor), min_level, max_level)
     }
 
+    lemma lemma_SeqOffsetSlice<T>(s:seq<T>, offset:int, b1:int, e1:int, b2:int, e2:int)
+        requires 0 <= offset < |s|;
+        requires b2 == b1 - offset;
+        requires e2 == e1 - offset;
+        requires 0 <= b1 < e1 <= |s|;
+        requires 0 <= b2 < e2 <= |s| - offset;
+        ensures  s[b1..e1] == s[offset..][b2..e2];
+    { }
+
     lemma lemma_ReductionPreservesActorTraceValid(
             trace:Trace,
             min_level:int,
@@ -122,6 +131,8 @@ module ReductionModule
                 if position < g_len {
                     assert ActorTraceValid(trace', min_level, max_level);
                 } else {
+                    lemma_SeqOffsetSlice(trace, g_len, position, position+group_len,
+                                         position-g_len, position-g_len+group_len);
                     assert trace[g_len..][position-g_len..position-g_len+group_len] == trace[position..position+group_len];
                     calc {
                         trace'[g_len..];
@@ -137,12 +148,19 @@ module ReductionModule
                         trace[g_len..][..position-g_len] + [trace[g_len..][position-g_len+group_len-1].reduced_entry] + trace[g_len..][position-g_len + group_len..]; 
                     }
                     lemma_ReductionPreservesActorTraceValid(trace[g_len..], min_level, mid_level, max_level, position-g_len, group_len, trace'[g_len..]);
+                    assert ActorTraceValid(trace[g_len..], min_level, max_level);
+                    assert ActorTraceValid(trace'[g_len..], min_level, max_level);
+                    assert trace'[..g_len] == trace[..g_len];
+                    assert    0 < g_len <= |trace'|
+                              && EntryGroupValidForLevels(trace'[..g_len], min_level, max_level)
+                              && ActorTraceValid(trace'[g_len..], min_level, max_level);
                     assert ActorTraceValid(trace', min_level, max_level);
                 }
             }
         }
     }
 
+    /*
 
 
     lemma lemma_ReductionPreservesTraceValid(
@@ -670,5 +688,5 @@ module ReductionModule
         }
 
     }
-
+    */
 }
