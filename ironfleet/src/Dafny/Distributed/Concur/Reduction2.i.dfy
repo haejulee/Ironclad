@@ -186,15 +186,6 @@ module Reduction2Module
         }
     }
 
-    lemma lemma_IfActorTraceValidWithMinLevelEqualMaxLevelThenAllAreActions(
-        trace:Trace,
-        level:int
-        )
-        requires ActorTraceValid(trace, level, level);
-        ensures  forall entry :: entry in trace ==> entry.EntryAction?;
-    {
-    }
-
     lemma lemma_TakeThenGetMiddle<T>(s:seq<T>, s':seq<T>, s'':seq<T>, len:int)
         requires |s| >= len > 1;
         requires s' == s[..len];

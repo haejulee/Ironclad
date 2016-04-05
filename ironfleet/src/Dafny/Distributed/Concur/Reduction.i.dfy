@@ -87,6 +87,15 @@ module ReductionModule
         forall actor :: ActorTraceValid(RestrictTraceToActor(trace, actor), min_level, max_level)
     }
 
+    lemma lemma_IfActorTraceValidWithMinLevelEqualMaxLevelThenAllAreActions(
+        trace:Trace,
+        level:int
+        )
+        requires ActorTraceValid(trace, level, level);
+        ensures  forall entry :: entry in trace ==> entry.EntryAction?;
+    {
+    }
+
     lemma lemma_SeqOffsetSlice<T>(s:seq<T>, offset:int, b1:int, e1:int, b2:int, e2:int)
         requires 0 <= offset < |s|;
         requires b2 == b1 - offset;
@@ -129,6 +138,21 @@ module ReductionModule
                           && ActorTraceValid(trace[g_len..], min_level, max_level);
 
                 if position < g_len {
+                    if !(position + group_len < g_len) {
+                        var end := last(trace[..g_len]);
+                        assert end.EntryEndGroup?;
+
+                        var entry_group := trace[position..position + group_len];
+                        var inner_group := entry_group[1..|entry_group|-1];
+                        if end in inner_group {
+                            lemma_IfActorTraceValidWithMinLevelEqualMaxLevelThenAllAreActions(inner_group, min_level);
+                            assert end.EntryAction?;
+                            assert false;
+                        } else {
+                            assert false;
+                        }
+                    }
+                    assume false;   // TODO
                     assert ActorTraceValid(trace', min_level, max_level);
                 } else {
                     lemma_SeqOffsetSlice(trace, g_len, position, position+group_len,
