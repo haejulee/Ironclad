@@ -105,7 +105,29 @@ module ReductionModule
         ensures  s[b1..e1] == s[offset..][b2..e2];
     { }
 
-    lemma lemma_ReductionPreservesActorTraceValid(
+//    lemma lemma_SeqContainment<T>(s:seq<T>, b1:int, e1:int, b2:int, e2:int)
+//        requires 0 <= b1 < e1 <= |s|;
+//        requires 0 <= b2 < e2 <= |s|;
+//        requires e1 < e2;
+//        ensures  last(s[b1..e1]) 
+
+
+
+    lemma lemma_EntryGroupEndsUnique(
+            trace:Trace,
+            min_level:int,
+            max_level:int,
+            start:int,
+            start':int,
+            end:int)
+        requires ActorTraceValid(trace, min_level, max_level);
+        requires 0 <= start < start' < end <= |trace|;
+        requires EntryGroupValid(trace[start ..end]); 
+        requires EntryGroupValid(trace[start'..end]);
+        requires forall i :: 0 <= i < |trace| ==> GetEntryActor(trace[i]) == GetEntryActor(trace[0]);
+        ensures  false;
+
+    lemma {:timeLimitMultiplier 5} lemma_ReductionPreservesActorTraceValid(
             trace:Trace,
             min_level:int,
             mid_level:int,
@@ -123,9 +145,23 @@ module ReductionModule
         ensures  ActorTraceValid(trace', min_level, max_level);
     {
         if position == 0 {
+            assert exists g_len ::    0 < g_len <= |trace|
+                          && EntryGroupValidForLevels(trace[..g_len], min_level, max_level)
+                          && ActorTraceValid(trace[g_len..], min_level, max_level);
+            var g_len :|    0 < g_len <= |trace|
+                      && EntryGroupValidForLevels(trace[..g_len], min_level, max_level)
+                      && ActorTraceValid(trace[g_len..], min_level, max_level);
+            assert g_len == group_len;
+            assume ActorTraceValid(trace[group_len..], min_level, max_level);
+            assert trace' == [trace[group_len-1].reduced_entry] + trace[group_len..];
+            assert trace[group_len..] == trace'[1..];
+            assert trace'[0].EntryAction? && GetEntryLevel(trace'[0]) == max_level // Hmm, this is true for mid_level, not max
+                && ActorTraceValid(trace'[1..], min_level, max_level);
+
             assert ActorTraceValid(trace', min_level, max_level);
         } else {
             if trace[0].EntryAction? && GetEntryLevel(trace[0]) == max_level && ActorTraceValid(trace[1..], min_level, max_level) {
+                lemma_SeqOffsetSlice(trace, 1, position, position+group_len, position-1, position+group_len-1);
                 assert trace[1..][position-1..position-1+group_len] == trace[position..position+group_len];
                 lemma_ReductionPreservesActorTraceValid(trace[1..], min_level, mid_level, max_level, position-1, group_len, trace'[1..]);
                 assert ActorTraceValid(trace', min_level, max_level);
@@ -143,13 +179,40 @@ module ReductionModule
                         assert end.EntryEndGroup?;
 
                         var entry_group := trace[position..position + group_len];
+
+                        if position + group_len == g_len {
+                            assert end == last(entry_group);
+                            lemma_EntryGroupEndsUnique(trace, min_level, max_level, 0, position, position+group_len);
+                            assert false;
+                        }
+
+
                         var inner_group := entry_group[1..|entry_group|-1];
                         if end in inner_group {
                             lemma_IfActorTraceValidWithMinLevelEqualMaxLevelThenAllAreActions(inner_group, min_level);
                             assert end.EntryAction?;
                             assert false;
                         } else {
-                            assert false;
+                            assert end in entry_group;
+                            var end_index :| 0 <= end_index < |entry_group| && entry_group[end_index] == end;
+                            if 0 < end_index < |entry_group| - 1 {
+                                assert end in inner_group;
+                                assert false;
+                            } else if end_index == 0 {
+                                assert end != entry_group[0];
+                                assert false;
+                            } else {
+                                calc {
+                                    end_index;
+                                    |entry_group| - 1;
+                                    group_len - 1;
+                                }
+                                assert entry_group[group_len-1] == trace[position + group_len - 1];
+                                assert position + group_len - 1 != g_len - 1;
+                                assert trace[position+group_len-1] == trace[g_len-1];
+                                //lemma_EntryGroupEndsUnique(trace, min_level, max_level, 0, position, position+group_len-1);
+                                assert false;
+                            }
                         }
                     }
                     assume false;   // TODO
