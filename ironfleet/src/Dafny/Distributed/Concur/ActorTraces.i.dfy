@@ -196,6 +196,20 @@ module ActorTraces
         }
     }
 
+    lemma lemma_Split3RestrictTraceToActor(t1:Trace, t2:Trace, t3:Trace, actor:Actor)
+        ensures RestrictTraceToActor(t1, actor) + RestrictTraceToActor(t2, actor) + RestrictTraceToActor(t3, actor) == RestrictTraceToActor(t1 + t2 + t3, actor);
+    {
+        lemma_SplitRestrictTraceToActor(t1, t2, actor);
+        lemma_SplitRestrictTraceToActor(t1 + t2, t3, actor);
+    }
+
+    lemma lemma_Split4RestrictTraceToActor(t1:Trace, t2:Trace, t3:Trace, t4:Trace, actor:Actor)
+        ensures RestrictTraceToActor(t1, actor) + RestrictTraceToActor(t2, actor) + RestrictTraceToActor(t3, actor) + RestrictTraceToActor(t4, actor) == RestrictTraceToActor(t1 + t2 + t3 + t4, actor);
+    {
+        lemma_Split3RestrictTraceToActor(t1, t2, t3, actor);
+        lemma_SplitRestrictTraceToActor(t1 + t2 + t3, t4, actor);
+    }
+
     lemma lemma_RestrictTraceToActorEmpty(trace:Trace, actor:Actor)
         requires forall i :: 0 <= i < |trace| ==> GetEntryActor(trace[i]) != actor;
         ensures RestrictTraceToActor(trace, actor) == [];

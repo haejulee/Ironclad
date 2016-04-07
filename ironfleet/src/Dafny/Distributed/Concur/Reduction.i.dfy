@@ -295,9 +295,6 @@ module ReductionModule
         }
     }
 
-    /*
-
-
     lemma lemma_ReductionPreservesTraceValid(
             trace:Trace,
             min_level:int,
@@ -823,5 +820,4 @@ module ReductionModule
         }
 
     }
-    */
 }
