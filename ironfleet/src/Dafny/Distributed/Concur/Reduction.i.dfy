@@ -160,6 +160,9 @@ module ReductionModule
     {
         var sub_trace := trace[..g_len];
         var mid_sub_trace := sub_trace[1..g_len-1];
+        assert ActorTraceValid(mid_sub_trace, min_level, sub_trace[0].begin_group_level);
+        assert mid_sub_trace != [];
+        //assert !(mid_sub_trace[0].EntryAction? && GetEntryLevel(mid_sub_trace[0]) == max_level && ActorTraceValid(mid_sub_trace[1..], min_level, max_level));
         var new_trace' := mid_sub_trace[..position-1] + [mid_sub_trace[position+group_len-2].reduced_entry] + mid_sub_trace[position-1 + group_len..];
         lemma_ReductionPreservesActorTraceValid(mid_sub_trace, min_level, mid_level, trace[0].begin_group_level, position-1, group_len, new_trace');
     }
@@ -265,7 +268,6 @@ module ReductionModule
                     }
                     assert ActorTraceValid(trace', min_level, max_level);
                 } else {
-                    assume false;   // TODO
                     lemma_SeqOffsetSlice(trace, g_len, position, position+group_len,
                                          position-g_len, position-g_len+group_len);
                     assert trace[g_len..][position-g_len..position-g_len+group_len] == trace[position..position+group_len];
