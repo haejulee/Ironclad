@@ -105,6 +105,16 @@ module ReductionModule
         ensures  s[b1..e1] == s[offset..][b2..e2];
     { }
 
+    lemma lemma_SeqOffsetSliceFull<T>(s:seq<T>, b1:int, e1:int, b2:int, e2:int, b3:int, e3:int)
+        requires 0 <= b1 < e1 <= |s|;
+        requires 0 <= b2 < e2 <= |s|;
+        requires 0 <= b3 < e3 <= |s|;
+        requires e3 <= e2 - b2;
+        requires b1 == b3 + b2;
+        requires e1 == b2 + e3;
+        ensures  s[b1..e1] == s[b2..e2][b3..e3];
+    { }
+
     lemma lemma_SeqIndexSliceSlice<T>(s:seq<T>, b1:int, e1:int, b2:int, e2:int, index:int)
         requires 0 <= b1 <= e1 <= |s|;
         requires 0 <= b2 <= e2 <= e1 - b1;
@@ -112,14 +122,6 @@ module ReductionModule
         ensures  s[index] in s[b1..e1][b2..e2];
     {
     }
-
-//    lemma lemma_SeqContainment<T>(s:seq<T>, b1:int, e1:int, b2:int, e2:int)
-//        requires 0 <= b1 < e1 <= |s|;
-//        requires 0 <= b2 < e2 <= |s|;
-//        requires e1 < e2;
-//        ensures  last(s[b1..e1]) 
-
-
 
     lemma lemma_EntryGroupEndsUnique(
             trace:Trace,
@@ -173,8 +175,14 @@ module ReductionModule
         var sub_trace := trace[..g_len];
         var mid_sub_trace := sub_trace[1..g_len-1];
         assert ActorTraceValid(mid_sub_trace, min_level, sub_trace[0].begin_group_level);
-        assert mid_sub_trace != [];
-        //assert !(mid_sub_trace[0].EntryAction? && GetEntryLevel(mid_sub_trace[0]) == max_level && ActorTraceValid(mid_sub_trace[1..], min_level, max_level));
+
+        calc {
+            mid_sub_trace[position-1..position-1+group_len];
+                { lemma_SeqOffsetSliceFull(sub_trace, position, position+group_len, 1, g_len-1, position-1, position-1+group_len); }
+            sub_trace[position..position+group_len];
+            trace[position..position+group_len];
+        }
+
         var new_trace' := mid_sub_trace[..position-1] + [mid_sub_trace[position+group_len-2].reduced_entry] + mid_sub_trace[position-1 + group_len..];
         lemma_ReductionPreservesActorTraceValid(mid_sub_trace, min_level, mid_level, trace[0].begin_group_level, position-1, group_len, new_trace');
     }
