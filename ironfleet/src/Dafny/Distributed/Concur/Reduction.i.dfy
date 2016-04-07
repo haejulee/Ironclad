@@ -130,10 +130,22 @@ module ReductionModule
             end:int)
         requires ActorTraceValid(trace, min_level, max_level);
         requires 0 <= start < start' < end <= |trace|;
-        requires EntryGroupValid(trace[start ..end]); 
-        requires EntryGroupValid(trace[start'..end]);
+        requires exists level :: EntryGroupValidForLevels(trace[start ..end], min_level, level); 
+        requires exists level :: EntryGroupValidForLevels(trace[start'..end], min_level, level);
         requires forall i :: 0 <= i < |trace| ==> GetEntryActor(trace[i]) == GetEntryActor(trace[0]);
+        requires trace[start'].EntryBeginGroup? && trace[start'].begin_group_level == min_level;
         ensures  false;
+    {
+        calc ==> {
+            trace[start'].begin_group_level == min_level;
+            last(trace[start'..end]).end_group_level == min_level;
+            trace[start].begin_group_level == min_level;
+        }
+        var inner_group := trace[start..end][1..end-start-1];
+        assert trace[start'] in inner_group;
+
+        lemma_IfActorTraceValidWithMinLevelEqualMaxLevelThenAllAreActions(inner_group, min_level);
+    }
 
     lemma lemma_ReductionPreservesActorTraceValidSpecialAnnoyingCase(
             trace:Trace,
@@ -227,6 +239,7 @@ module ReductionModule
 
                         if position + group_len == g_len {
                             assert end == last(entry_group);
+                            assert EntryGroupValidForLevels(trace[0..position+group_len], min_level, max_level);
                             lemma_EntryGroupEndsUnique(trace, min_level, max_level, 0, position, position+group_len);
                             assert false;
                         }
