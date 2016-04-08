@@ -697,7 +697,7 @@ module Reduction3Module
         lemma_PerformReductionOfSpecificIndicesHelper6(trace, min_level, mid_level, max_level, group, actor, begin_entry_pos, end_entry_pos);
         lemma_PerformReductionOfSpecificIndicesHelper7(trace, min_level, mid_level, max_level, group, actor, begin_entry_pos, end_entry_pos);
         assert trace[begin_entry_pos..begin_entry_pos+|group|] == group;
-        trace', db' := lemma_PerformOneReductionStep(trace, db, actor, min_level, begin_entry_pos, end_entry_pos, pivot_index);
+        trace', db' := lemma_PerformOneReductionStep(trace, db, actor, min_level, begin_entry_pos, end_entry_pos, group, pivot_index);
         var trace'' := lemma_ReductionPreservesTraceValid(trace, min_level, mid_level, max_level, begin_entry_pos, |group|);
         assert trace' == trace'';
         if DistributedSystemBehaviorRefinesSpec(db') {

@@ -116,7 +116,7 @@ module DistributedSystemModule {
         match entry
             case EntryAction(actor, action) => DistributedSystemNextAction(ds, ds', actor, action)
             case EntryBeginGroup(actor, level) => DistributedSystemNextStutter(ds, ds')
-            case EntryEndGroup(actor, level, reduced_entry, pivot_index) => DistributedSystemNextStutter(ds, ds')
+            case EntryEndGroup(actor, level, reduced_entry, group_len, pivot_index) => DistributedSystemNextStutter(ds, ds')
     }
 
     predicate DistributedSystemNext(ds:DistributedSystemState, ds':DistributedSystemState)

@@ -13,5 +13,13 @@ function all_but_last<T>(s:seq<T>):seq<T>
 {
     s[..|s|-1]
 }
+
+function middle<T>(s:seq<T>):seq<T>
+    requires |s| >= 2;
+    ensures  |middle(s)| == |s| - 2;
+    ensures  forall i {:trigger middle(s)[i]} :: 0 <= i < |s| - 2 ==> middle(s)[i] == s[i+1];
+{
+    s[1..|s|-1]
+}
     
 }

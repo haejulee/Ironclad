@@ -199,7 +199,7 @@ module Reduction2Module
     {
     }
 
-    lemma lemma_ActorTraceStartsWithBegin(
+    lemma {:timeLimitMultiplier 2} lemma_ActorTraceStartsWithBegin(
             trace:Trace,
             min_level:int,
             max_level:int,
@@ -270,6 +270,7 @@ module Reduction2Module
                     trace[position+i];
                         { lemma_ElementFromSequenceSlice(trace, subtrace, 1, group_len-1, position+i); }
                     subtrace[position+i-1];
+                        { assert position+i-1 == subtrace_pos+i; }
                     subtrace[subtrace_pos+i];
                     group[i];
                 }
@@ -326,6 +327,32 @@ module Reduction2Module
         var actor, actor_trace, actor_indices, actor_indices_index := GetCorrespondingActorTraceAndIndexForEntry(trace, position);
         group, mid_level := lemma_ActorTraceStartsWithBegin(actor_trace, min_level, max_level, actor_indices_index);
         indices := actor_indices[actor_indices_index .. actor_indices_index + |group|];
+
+        forall i, j {:trigger indices[i], indices[j]} | 0 <= i < j < |indices|
+            ensures indices[i] < indices[j];
+        {
+        }
+
+        forall i | 0 <= i < |indices|
+            ensures 0 <= indices[i] < |trace|;
+            ensures trace[indices[i]] == group[i];
+        {
+        }
+
+        assert actor == GetEntryActor(group[0]);
+        forall i, trace_index {:trigger indices[i], trace[trace_index], indices[i+1]} |
+                                 0 <= i < |indices| - 1
+                              && indices[i] < trace_index < indices[i+1]
+            ensures GetEntryActor(trace[trace_index]) != actor;
+        {
+            if GetEntryActor(trace[trace_index]) == actor {
+                assert trace_index in GetTraceIndicesForActor(trace, actor);
+                var j :| 0 <= j < |indices| && indices[j] == trace_index;
+                assert indices[i] < indices[j] < indices[i+1];
+                assert i < j < i + 1;
+                assert false;
+            }
+        }
     }
 
     lemma lemma_RestrictEntriesToLevelIsIdentityIfAllEntriesAtLevel(

@@ -370,7 +370,7 @@ module ActorTraces
         }
     }
 
-    lemma lemma_RestrictTraceToActorSeqSliceDrop(trace:Trace, actor:Actor, trace_index:int, actor_index:int)
+    lemma {:timeLimitMultiplier 2} lemma_RestrictTraceToActorSeqSliceDrop(trace:Trace, actor:Actor, trace_index:int, actor_index:int)
         requires var indices := GetTraceIndicesForActor(trace, actor); 
                  0 <= actor_index < |indices| && indices[actor_index] == trace_index;
         decreases |GetTraceIndicesForActor(trace, actor)| - actor_index;

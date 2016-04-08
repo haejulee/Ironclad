@@ -144,5 +144,39 @@ lemma lemma_all_but_last_plus_last<T>(s:seq<T>)
     ensures  all_but_last(s) + [last(s)] == s;
 {}
 
+lemma lemma_ConcatenationOf2Sequences<T>(s1:seq<T>, s2:seq<T>)
+    ensures  forall i :: 0 <= i < |s1 + s2| ==> (s1 + s2)[i] == if i < |s1| then s1[i] else s2[i - |s1|];
+{
+}
+
+lemma lemma_ConcatenationOf3Sequences<T>(s1:seq<T>, s2:seq<T>, s3:seq<T>)
+    ensures  forall i :: 0 <= i < |s1 + s2 + s3| ==>
+                   (s1 + s2 + s3)[i] ==
+                    if i < |s1| then s1[i]
+                    else if i < |s1| + |s2| then s2[i - |s1|]
+                    else s3[i - |s1| - |s2|];
+{
+}
+
+lemma lemma_ConcatenationOf4Sequences<T>(s1:seq<T>, s2:seq<T>, s3:seq<T>, s4:seq<T>)
+    ensures  forall i :: 0 <= i < |s1 + s2 + s3 + s4| ==>
+                   (s1 + s2 + s3 + s4)[i] ==
+                    if i < |s1| then s1[i]
+                    else if i < |s1| + |s2| then s2[i - |s1|]
+                    else if i < |s1| + |s2| + |s3| then s3[i - |s1| - |s2|]
+                    else s4[i - |s1| - |s2| - |s3|];
+{
+}
+
+lemma lemma_ConcatenationOf5Sequences<T>(s1:seq<T>, s2:seq<T>, s3:seq<T>, s4:seq<T>, s5:seq<T>)
+    ensures  forall i :: 0 <= i < |s1 + s2 + s3 + s4 + s5| ==>
+                   (s1 + s2 + s3 + s4 + s5)[i] ==
+                    if i < |s1| then s1[i]
+                    else if i < |s1| + |s2| then s2[i - |s1|]
+                    else if i < |s1| + |s2| + |s3| then s3[i - |s1| - |s2|]
+                    else if i < |s1| + |s2| + |s3| + |s4| then s4[i - |s1| - |s2| - |s3|]
+                    else s5[i - |s1| - |s2| - |s3| - |s4|];
+{
+}
 
 }
