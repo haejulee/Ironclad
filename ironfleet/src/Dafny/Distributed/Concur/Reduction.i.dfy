@@ -88,6 +88,64 @@ module ReductionModule
                 && entries[i].reduced_entry == entry))
     }
 
+    lemma lemma_IfActorTraceValidThenEntryLevelWithinRange(
+        trace:Trace,
+        min_level:int,
+        max_level:int,
+        i:int
+        )
+        requires ActorTraceValid(trace, min_level, max_level);
+        requires 0 <= i < |trace|;
+        requires min_level <= max_level;
+        ensures  min_level <= GetEntryLevel(trace[i]) <= max_level;
+    {
+        assert |trace| != 0;
+
+        if trace[0].EntryAction? && GetEntryLevel(trace[0]) == max_level && ActorTraceValid(trace[1..], min_level, max_level) {
+            if i != 0 {
+                var trace' := trace[1..];
+                lemma_IfActorTraceValidThenEntryLevelWithinRange(trace', min_level, max_level, i-1);
+                lemma_ElementFromSequenceSuffix(trace, trace', 1, i);
+            }
+            return;
+        }
+
+        var group_len :|    0 < group_len <= |trace|
+                         && EntryGroupValidForLevels(trace[..group_len], min_level, max_level)
+                         && ActorTraceValid(trace[group_len..], min_level, max_level);
+        if i >= group_len {
+            var trace' := trace[group_len..];
+            lemma_IfActorTraceValidThenEntryLevelWithinRange(trace', min_level, max_level, i-group_len);
+            lemma_ElementFromSequenceSuffix(trace, trace', group_len, i);
+        }
+        else if i == 0 {
+        }
+        else if i == group_len - 1 {
+        }
+        else {
+            var trace' := trace[1..group_len-1];
+            var trace'_alt := trace[..group_len][1..group_len-1];
+            assert |trace'| == |trace'_alt|;
+            forall j | 0 <= j < |trace'|
+                ensures trace'[j] == trace'_alt[j];
+            {
+                calc {
+                    trace'[j];
+                    { lemma_ElementFromSequenceSlice(trace, trace', 1, group_len-1, j+1); }
+                    trace[j+1];
+                    { lemma_ElementFromSequencePrefix(trace, trace[..group_len], group_len, j+1); }
+                    trace[..group_len][j+1];
+                    { lemma_ElementFromSequenceSlice(trace[..group_len], trace'_alt, 1, group_len-1, j+1); }
+                    trace'_alt[j+1-1];
+                    trace'_alt[j];
+                }
+            }
+            assert trace' == trace[..group_len][1..group_len-1];
+            lemma_IfActorTraceValidThenEntryLevelWithinRange(trace', min_level, trace[0].begin_group_level, i-1);
+            lemma_ElementFromSequenceSlice(trace, trace', 1, group_len - 1, i);
+        }
+    }
+
     lemma lemma_RestrictEntriesToLevelProperties(entries:seq<Entry>, level:int)
         ensures var entries' := RestrictEntriesToLevel(entries, level);
                 forall entry {:trigger entry in RestrictEntriesToLevel(entries, level)} ::
