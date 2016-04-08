@@ -362,6 +362,7 @@ module Reduction2Module
         requires forall entry :: entry in entries ==> GetEntryLevel(entry) == level;
         ensures  RestrictEntriesToLevel(entries, level) == entries;
     {
+        reveal_RestrictEntriesToLevel();
     }
 
     lemma lemma_SwappingAdjacentEntriesFromDifferentActorsPreservesTraceValid(

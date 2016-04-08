@@ -272,6 +272,8 @@ module Reduction3Module
         requires forall i :: 0 <= i < |indices| ==> 0 <= indices[i] < |trace| && trace[indices[i]] == group[i];
         requires min_level < mid_level <= max_level;
         requires EntryGroupValidForLevels(group, min_level, mid_level);
+        requires group == RestrictEntriesToLevel(group, min_level);
+        requires EntriesReducibleUsingPivot(group);
         requires pivot_index == last(group).pivot_index;
         requires forall k :: 0 <= k <= |group|-1 ==> k - pivot_index == indices[k] - indices[pivot_index];
         requires begin_entry_pos == indices[pivot_index] - pivot_index;
@@ -391,6 +393,8 @@ module Reduction3Module
         requires 0 <= begin_entry_pos <= end_entry_pos < |trace|;
         requires group == trace[begin_entry_pos..end_entry_pos+1];
         requires EntryGroupValidForLevels(group, min_level, mid_level);
+        requires group == RestrictEntriesToLevel(group, min_level);
+        requires EntriesReducibleUsingPivot(group);
         requires GetEntryLevel(group[0]) == min_level;
         requires forall entry :: entry in group ==> GetEntryActor(entry) == actor;
         requires forall i :: begin_entry_pos <= i <= end_entry_pos ==> GetEntryActor(trace[i]) == actor;
@@ -466,6 +470,8 @@ module Reduction3Module
         requires forall i :: 0 <= i < |indices| ==> 0 <= indices[i] < |trace| && trace[indices[i]] == group[i];
         requires min_level < mid_level <= max_level;
         requires EntryGroupValidForLevels(group, min_level, mid_level);
+        requires group == RestrictEntriesToLevel(group, min_level);
+        requires EntriesReducibleUsingPivot(group);
         requires GetEntryLevel(group[0]) == min_level;
         requires pivot_index == last(group).pivot_index;
         requires forall i :: 0 <= i < |group| ==> GetEntryActor(group[i]) == GetEntryActor(group[0]);   // All for the same actor
@@ -568,6 +574,8 @@ module Reduction3Module
         requires forall i :: 0 <= i < |indices| ==> 0 <= indices[i] < |trace| && trace[indices[i]] == group[i];
         requires min_level < mid_level <= max_level;
         requires EntryGroupValidForLevels(group, min_level, mid_level);
+        requires group == RestrictEntriesToLevel(group, min_level);
+        requires EntriesReducibleUsingPivot(group);
         requires GetEntryLevel(group[0]) == min_level;
         requires pivot_index == last(group).pivot_index;
         requires forall i :: 0 <= i < |group| ==> GetEntryActor(group[i]) == GetEntryActor(group[0]);   // All for the same actor
@@ -670,6 +678,8 @@ module Reduction3Module
         requires forall i :: 0 <= i < |indices| ==> 0 <= indices[i] < |trace| && trace[indices[i]] == group[i];
         requires min_level < mid_level <= max_level;
         requires EntryGroupValidForLevels(group, min_level, mid_level);
+        requires group == RestrictEntriesToLevel(group, min_level);
+        requires EntriesReducibleUsingPivot(group);
         requires GetEntryLevel(group[0]) == min_level;
         requires pivot_index == last(group).pivot_index;
         requires forall i :: 0 <= i < |group| ==> GetEntryActor(group[i]) == GetEntryActor(group[0]);   // All for the same actor
@@ -731,6 +741,8 @@ module Reduction3Module
         requires forall i :: 0 <= i < |indices| ==> 0 <= indices[i] < |trace| && trace[indices[i]] == group[i];
         requires min_level < mid_level <= max_level;
         requires EntryGroupValidForLevels(group, min_level, mid_level);
+        requires group == RestrictEntriesToLevel(group, min_level);
+        requires EntriesReducibleUsingPivot(group);
         requires GetEntryLevel(group[0]) == min_level;
         requires pivot_index == last(group).pivot_index;
         requires forall i :: 0 <= i < |group| ==> GetEntryActor(group[i]) == GetEntryActor(group[0]);   // All for the same actor
@@ -799,6 +811,7 @@ module Reduction3Module
         ensures  trace'[..entry_pos] == trace[..entry_pos];
     {
         var pivot_index := last(group).pivot_index;
+        lemma_RestrictEntriesToLevelIsIdentityIfAllEntriesAtLevel(group, min_level);
         trace', db' := lemma_PerformReductionOfSpecificIndices(trace, db, min_level, mid_level, max_level, entry_pos, indices, group,
                                                                pivot_index, pivot_index, pivot_index);
     }

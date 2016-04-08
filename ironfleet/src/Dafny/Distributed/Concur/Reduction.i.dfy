@@ -427,7 +427,6 @@ module ReductionModule
         }
     }
 */
-/*
     lemma lemma_ReductionPreservesTraceValid(
             trace:Trace,
             min_level:int,
@@ -527,7 +526,6 @@ module ReductionModule
             }
         }
     } 
-*/
 
     lemma lemma_IfEntriesReducibleAndOneIsntRightMoverThenRestAreLeftMovers(entries:seq<Entry>, pivot_index:int, i:int, j:int)
         requires 0 <= i < j < |entries|;
