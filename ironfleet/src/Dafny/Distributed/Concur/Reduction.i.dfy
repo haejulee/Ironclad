@@ -200,6 +200,54 @@ module ReductionModule
 
         var new_trace' := mid_sub_trace[..position-1] + [mid_sub_trace[position+group_len-2].reduced_entry] + mid_sub_trace[position-1 + group_len..];
         lemma_ReductionPreservesActorTraceValid(mid_sub_trace, min_level, mid_level, trace[0].begin_group_level, position-1, group_len, new_trace');
+
+        calc {
+            |trace'|;
+            position + 1 + |trace| - (position + group_len);
+            1 + |trace| - group_len;
+            1 + g_len - 1 - group_len + 1 + |trace| - g_len;
+            calc {
+                g_len - 1 - group_len;
+                position - 1 + 1 + (g_len-1-1) - (position-1+group_len);
+                position - 1 + 1 + |mid_sub_trace| - (position-1+group_len);
+                |mid_sub_trace[..position-1] + [mid_sub_trace[position+group_len-2].reduced_entry] + mid_sub_trace[position-1 + group_len..]|;
+                |new_trace'|;
+            }
+            1 + |new_trace'| + 1 + |trace| - g_len;
+            1 + |new_trace'| + 1 + |trace| - g_len;
+            |[trace[0]] + new_trace' + [trace[g_len-1]] + trace[g_len..]|;
+        }
+        calc {
+            trace';
+
+            [trace[0]] + new_trace' + [trace[g_len-1]] + trace[g_len..];
+        //   Begin    ActorTraceValid    End             ActorTraceValid
+        }
+        /*
+        var sub_trace' := trace[..position] + [trace[position+group_len-1].reduced_entry] + [trace[position + group_len]];
+        forall i | 0 <= i < |sub_trace'|
+            ensures trace'[..g_len - group_len + 1][i] == sub_trace'[i];
+        {
+            if i < position {
+                assert trace'[..g_len - group_len + 1][i] == sub_trace'[i];
+            } else if i == position {
+                assert trace'[..g_len - group_len + 1][i] == sub_trace'[i];
+            } else {
+                assert trace'[..g_len - group_len + 1][i] == sub_trace'[i];
+            }
+        }
+        calc {
+            |trace'[..g_len - group_len + 1]|;
+            g_len - group_len + 1;
+            position + 2;
+            |trace[..position]| + 2;
+            |sub_trace'|;
+        }
+        assert trace'[..g_len - group_len + 1] == sub_trace';
+        */
+
+        assert EntryGroupValidForLevels(trace'[..g_len - group_len + 1], min_level, max_level);
+
     }
 
     lemma lemma_ReductionPreservesActorTraceValid(
@@ -219,6 +267,7 @@ module ReductionModule
         requires trace' == trace[..position] + [trace[position+group_len-1].reduced_entry] + trace[position + group_len..];
         decreases |trace|, 1;
         ensures  ActorTraceValid(trace', min_level, max_level);
+/*
     {
         if position == 0 {
             var g_len :|    0 < g_len <= |trace|
@@ -858,4 +907,5 @@ module ReductionModule
         }
 
     }
+*/
 }
