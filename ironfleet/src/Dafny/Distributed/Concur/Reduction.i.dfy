@@ -113,7 +113,22 @@ module ReductionModule
         requires b1 == b3 + b2;
         requires e1 == b2 + e3;
         ensures  s[b1..e1] == s[b2..e2][b3..e3];
-    { }
+    { 
+        var s1 := s[b1..e1];
+        var s2 := s[b2..e2];
+        var s3 := s2[b3..e3];
+        forall i | 0 <= i < |s1| 
+            ensures s1[i] == s3[i];
+        {
+            calc {
+                s1[i];
+                s[b1 + i];
+                s[i+b3+b2];
+                s2[i+b3];
+                s3[i];
+            }
+        }
+    }
 
     lemma lemma_SeqIndexSliceSlice<T>(s:seq<T>, b1:int, e1:int, b2:int, e2:int, index:int)
         requires 0 <= b1 <= e1 <= |s|;
