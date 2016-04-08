@@ -811,6 +811,16 @@ module Reduction3Module
         ensures  trace'[..entry_pos] == trace[..entry_pos];
     {
         var pivot_index := last(group).pivot_index;
+        forall entry | entry in group
+            ensures GetEntryLevel(entry) == min_level;
+        {
+            var i :| 0 <= i < |group| && group[i] == entry;
+            if 0 < i < |group| - 1 {
+                var entries := group[1..|group|-1];
+                assert group[i] == entries[i-1];
+                lemma_IfActorTraceValidThenEntryLevelWithinRange(entries, min_level, min_level, i-1);
+            }
+        }
         lemma_RestrictEntriesToLevelIsIdentityIfAllEntriesAtLevel(group, min_level);
         trace', db' := lemma_PerformReductionOfSpecificIndices(trace, db, min_level, mid_level, max_level, entry_pos, indices, group,
                                                                pivot_index, pivot_index, pivot_index);
