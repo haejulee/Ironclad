@@ -38,17 +38,8 @@ module ReductionModule
        && (forall i :: pivot_index < i < |entries| ==> EntryIsLeftMover(entries[i]))
     }
 
-    function RestrictEntriesToLevel(entries:seq<Entry>, level:int) : Trace
+    function {:opaque} RestrictEntriesToLevel(entries:seq<Entry>, level:int) : Trace
         ensures forall entry' :: entry' in RestrictEntriesToLevel(entries, level) ==> GetEntryLevel(entry') == level;
-        ensures var entries' := RestrictEntriesToLevel(entries, level);
-                forall i' :: 0 <= i' < |entries'| ==> GetEntryLevel(entries'[i']) == level;
-        ensures var entries' := RestrictEntriesToLevel(entries, level);
-                forall i' :: 0 <= i' < |entries'| ==> (exists i ::    0 <= i < |entries|
-                                                        && (   (   entries'[i'] == entries[i]
-                                                                && GetEntryLevel(entries[i]) == level)
-                                                            || (   entries[i].EntryEndGroup?
-                                                                && GetEntryLevel(entries[i].reduced_entry) == level
-                                                                && entries'[i'] == entries[i].reduced_entry)));
     {
         if entries == [] then []
         else if GetEntryLevel(entries[0]) == level then
@@ -85,6 +76,60 @@ module ReductionModule
     predicate TraceValid(trace:Trace, min_level:int, max_level:int)
     {
         forall actor :: ActorTraceValid(RestrictTraceToActor(trace, actor), min_level, max_level)
+    }
+
+    predicate EntryCorrespondsToEntryWhenRestrictedToLevel(entry:Entry, entries:seq<Entry>, i:int, level:int)
+    {
+            0 <= i < |entries|
+        && (   (   entries[i] == entry
+                && GetEntryLevel(entries[i]) == level)
+            || (   entries[i].EntryEndGroup?
+                && GetEntryLevel(entries[i].reduced_entry) == level
+                && entries[i].reduced_entry == entry))
+    }
+
+    lemma lemma_RestrictEntriesToLevelProperties(entries:seq<Entry>, level:int)
+        ensures var entries' := RestrictEntriesToLevel(entries, level);
+                forall entry {:trigger entry in RestrictEntriesToLevel(entries, level)} ::
+                         entry in entries' ==> exists i :: EntryCorrespondsToEntryWhenRestrictedToLevel(entry, entries, i, level);
+    {
+        reveal_RestrictEntriesToLevel();
+
+        var entries' := RestrictEntriesToLevel(entries, level);
+
+        forall entry {:trigger entry in entries'}{:trigger GetEntryLevel(entry)} | entry in entries'
+            ensures exists i :: EntryCorrespondsToEntryWhenRestrictedToLevel(entry, entries, i, level);
+        {
+            assert entries != [];
+            if GetEntryLevel(entries[0]) == level {
+                if entry == entries[0] {
+                    assert EntryCorrespondsToEntryWhenRestrictedToLevel(entry, entries, 0, level);
+                }
+                else {
+                    assert entry in RestrictEntriesToLevel(entries[1..], level);
+                }
+            }
+            else if entries[0].EntryEndGroup? && GetEntryLevel(entries[0].reduced_entry) == level {
+                if entry == entries[0].reduced_entry {
+                    assert EntryCorrespondsToEntryWhenRestrictedToLevel(entry, entries, 0, level);
+                }
+                else {
+                    assert entry in RestrictEntriesToLevel(entries[1..], level);
+                }
+            }
+            else {
+                assert entry in RestrictEntriesToLevel(entries[1..], level);
+            }
+
+            assert EntryCorrespondsToEntryWhenRestrictedToLevel(entry, entries, 0, level) ||
+                   entry in RestrictEntriesToLevel(entries[1..], level);
+
+            if entry in RestrictEntriesToLevel(entries[1..], level) {
+                lemma_RestrictEntriesToLevelProperties(entries[1..], level);
+                var j :| EntryCorrespondsToEntryWhenRestrictedToLevel(entry, entries[1..], j, level);
+                assert EntryCorrespondsToEntryWhenRestrictedToLevel(entry, entries, j+1, level);
+            }
+        }
     }
 
     lemma lemma_IfActorTraceValidWithMinLevelEqualMaxLevelThenAllAreActions(
@@ -381,7 +426,8 @@ module ReductionModule
             }
         }
     }
-
+*/
+/*
     lemma lemma_ReductionPreservesTraceValid(
             trace:Trace,
             min_level:int,
@@ -481,6 +527,7 @@ module ReductionModule
             }
         }
     } 
+*/
 
     lemma lemma_IfEntriesReducibleAndOneIsntRightMoverThenRestAreLeftMovers(entries:seq<Entry>, pivot_index:int, i:int, j:int)
         requires 0 <= i < j < |entries|;
@@ -664,7 +711,7 @@ module ReductionModule
         assert SpecCorrespondence(db[i], sb[i]);
     }
 
-    lemma {:timeLimitMultiplier 2} lemma_AddStuttersForReductionStepHelper2(
+    lemma lemma_AddStuttersForReductionStepHelper2(
         trace:Trace,
         db:seq<DistributedSystemState>,
         begin_entry_pos:int,
@@ -738,7 +785,7 @@ module ReductionModule
         assert sb[i+1] == ss';
     }
 
-    lemma lemma_AddStuttersForReductionStepHelper3(
+    lemma {:timeLimitMultiplier 2} lemma_AddStuttersForReductionStepHelper3(
         begin_entry_pos:int,
         end_entry_pos:int,
         pivot_index:int,
@@ -823,7 +870,7 @@ module ReductionModule
         }
     }
 
-    lemma {:timeLimitMultiplier 2} lemma_AddStuttersForReductionStep(
+    lemma lemma_AddStuttersForReductionStep(
         trace:Trace,
         db:seq<DistributedSystemState>,
         begin_entry_pos:int,
@@ -914,7 +961,7 @@ module ReductionModule
         && forall i :: begin_entry_pos <= i <= end_entry_pos && i != begin_entry_pos + pivot_index ==> sb[i] == sb[i+1]
     }
 
-    lemma {:timeLimitMultiplier 3} lemma_PerformOneReductionStep(
+    lemma lemma_PerformOneReductionStep(
         trace:Trace,
         db:seq<DistributedSystemState>,
         actor:Actor,
@@ -965,6 +1012,9 @@ module ReductionModule
         assert DistributedSystemNextEntryAction(tiny_db[0], tiny_db[|group|], reduced_entry);
         assert DistributedSystemNextEntryAction(db'[begin_entry_pos], db'[begin_entry_pos+1], reduced_entry);
 
+        lemma_ConcatenationOf2Sequences(db[..begin_entry_pos+1], db[end_entry_pos+1..]);
+        lemma_ConcatenationOf3Sequences(trace[..begin_entry_pos], [last(group).reduced_entry], trace[end_entry_pos+1..]);
+        
         forall i | 0 <= i < |trace'|
             ensures DistributedSystemNextEntryAction(db'[i], db'[i+1], trace'[i]);
         {
@@ -983,5 +1033,4 @@ module ReductionModule
             assert DistributedSystemBehaviorRefinesSpecBehaviorWithConsecutiveNonPivotsAsStutters(db, sb, begin_entry_pos, end_entry_pos, pivot_index);
         }
     }
-*/
 }
