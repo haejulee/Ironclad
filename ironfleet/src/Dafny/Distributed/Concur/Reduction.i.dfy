@@ -146,10 +146,26 @@ module ReductionModule
         }
     }
 
+    lemma lemma_IfEntryGroupValidForLevelsThenEntryLevelWithinRange(
+        trace:Trace,
+        min_level:int,
+        max_level:int,
+        i:int
+        )
+        requires EntryGroupValidForLevels(trace, min_level, max_level);
+        requires 0 <= i < |trace|;
+        requires min_level <= max_level;
+        ensures  min_level <= GetEntryLevel(trace[i]) < max_level;
+        ensures  forall j :: 0 <= j < |trace| - 1 && trace[j].EntryEndGroup? ==> GetEntryLevel(trace[j].reduced_entry) < max_level;
+
+    predicate IndexOfEntryCorrespondsToEntryWhenRestrictedToLevel(entry:Entry, entries:seq<Entry>, level:int)
+    {
+        exists i :: EntryCorrespondsToEntryWhenRestrictedToLevel(entry, entries, i, level)
+    }
+
     lemma lemma_RestrictEntriesToLevelProperties(entries:seq<Entry>, level:int)
-        ensures var entries' := RestrictEntriesToLevel(entries, level);
-                forall entry {:trigger entry in RestrictEntriesToLevel(entries, level)} ::
-                         entry in entries' ==> exists i :: EntryCorrespondsToEntryWhenRestrictedToLevel(entry, entries, i, level);
+        ensures forall entry :: entry in RestrictEntriesToLevel(entries, level) 
+                             ==> IndexOfEntryCorrespondsToEntryWhenRestrictedToLevel(entry, entries, level);
     {
         reveal_RestrictEntriesToLevel();
 
@@ -366,6 +382,40 @@ module ReductionModule
 ////            RestrictEntriesToLevel(trace[1..], level)
 //    }
 
+    lemma lemma_RestrictEntriesToLevelReduction(
+            trace:Trace,
+            min_level:int,
+            mid_level:int,
+            max_level:int,
+            level:int
+            )
+        requires min_level < mid_level <= level <= max_level;
+        requires EntryGroupValidForLevels(trace, min_level, mid_level);
+        requires trace[0].EntryBeginGroup? && trace[0].begin_group_level == min_level;
+        requires forall i :: 0 <= i < |trace| ==> GetEntryActor(trace[i]) == GetEntryActor(trace[0]);
+        ensures  RestrictEntriesToLevel(trace, level) == RestrictEntriesToLevel([last(trace)], level);
+    {
+        var r := RestrictEntriesToLevel(trace, level);
+
+        calc {
+            r;
+                { lemma_RestrictEntriesToLevelAdds(all_but_last(trace), [last(trace)], level); 
+                  lemma_all_but_last_plus_last(trace); }
+            RestrictEntriesToLevel(all_but_last(trace), level) + RestrictEntriesToLevel([last(trace)], level);
+        }
+
+        var r' := RestrictEntriesToLevel(all_but_last(trace), level);
+        if r' != [] {
+            assert r'[0] in r';
+            var e :| e in r';
+            lemma_RestrictEntriesToLevelProperties(all_but_last(trace), level);
+            assert e in RestrictEntriesToLevel(all_but_last(trace), level);
+            var i :| EntryCorrespondsToEntryWhenRestrictedToLevel(e, all_but_last(trace), i, level);
+            lemma_IfEntryGroupValidForLevelsThenEntryLevelWithinRange(trace, min_level, mid_level, i);
+            assert false;
+        }
+    }
+
     lemma lemma_ReductionPreservesEntryGroupValidForLevels(
             trace:Trace,
             trace':Trace,
@@ -402,8 +452,11 @@ module ReductionModule
                   assert trace[position..] == trace[position..position+group_len] + trace[position+group_len..]; } 
             RestrictEntriesToLevel(trace[..position], level) + RestrictEntriesToLevel(trace[position..position+group_len], level) + RestrictEntriesToLevel(trace[position+group_len..], level);
 
+                { lemma_RestrictEntriesToLevelReduction(trace[position..position+group_len], min_level, mid_level, max_level, level); }
+
             RestrictEntriesToLevel(trace[..position], level) + RestrictEntriesToLevel([trace[position+group_len-1].reduced_entry], level) + RestrictEntriesToLevel(trace[position+group_len..], level);
-                { lemma_RestrictEntriesToLevelAdds([trace[position+group_len-1].reduced_entry], trace[position+group_len..], level); } 
+                { lemma_RestrictEntriesToLevelAdds([trace[position+group_len-1].reduced_entry], trace[position+group_len..], level); 
+                  assert [trace[position+group_len-1].reduced_entry] + trace[position+group_len..] == trace'[position..]; } 
             RestrictEntriesToLevel(trace[..position], level) + RestrictEntriesToLevel(trace'[position..], level);
                 { assert trace'[..position] == trace[..position]; }
             RestrictEntriesToLevel(trace'[..position], level) + RestrictEntriesToLevel(trace'[position..], level);
