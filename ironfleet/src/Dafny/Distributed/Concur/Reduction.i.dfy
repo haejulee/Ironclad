@@ -227,25 +227,7 @@ module ReductionModule
             return;
         }
         var trace' := middle(trace);
-//        var trace'_alt := trace[..group_len][1..group_len-1];
-//        assert |trace'| == |trace'_alt|;
-//        forall j | 0 <= j < |trace'|
-//            ensures trace'[j] == trace'_alt[j];
-//        {
-//            calc {
-//                trace'[j];
-//                { lemma_ElementFromSequenceSlice(trace, trace', 1, group_len-1, j+1); }
-//                trace[j+1];
-//                { lemma_ElementFromSequencePrefix(trace, trace[..group_len], group_len, j+1); }
-//                trace[..group_len][j+1];
-//                { lemma_ElementFromSequenceSlice(trace[..group_len], trace'_alt, 1, group_len-1, j+1); }
-//                trace'_alt[j+1-1];
-//                trace'_alt[j];
-//            }
-//        }
-//        assert trace' == trace[..group_len][1..group_len-1];
         lemma_IfActorTraceValidThenEntryLevelWithinRange(trace', min_level, trace[0].begin_group_level, i-1);
-//        lemma_ElementFromSequenceSlice(trace, trace', 1, group_len - 1, i);
     }
 
     predicate IndexOfEntryCorrespondsToEntryWhenRestrictedToLevel(entry:Entry, entries:seq<Entry>, level:int)
@@ -318,6 +300,7 @@ module ReductionModule
             calc {
                 f(s1) + f(s2);
                 g(s1[0]) + f(s1[1..]) + f(s2);
+                g(s1[0]) + (f(s1[1..]) + f(s2));
                     { lemma_FunctionAdds(s1[1..], s2, f, g); }
                 g(s1[0]) + f(s1[1..] + s2);
                     { assert [s1[0]] + s1[1..] + s2 == s1 + s2;  
@@ -333,24 +316,6 @@ module ReductionModule
     {
         reveal_RestrictEntriesToLevel();
         lemma_FunctionAdds(e1, e2, x => RestrictEntriesToLevel(x, level), y => RestrictEntriesToLevelFirstStep(y, level));
-        /*
-        if e1 == [] {
-            reveal_RestrictEntriesToLevel();
-        } else {
-            calc {
-                RestrictEntriesToLevel(e1, level) + RestrictEntriesToLevel(e2, level);
-                    { reveal_RestrictEntriesToLevel(); }
-                RestrictEntriesToLevelFirstStep(e1[0], level) + RestrictEntriesToLevel(e1[1..], level) + RestrictEntriesToLevel(e2, level);
-                    { lemma_RestrictEntriesToLevelAdds(e1[1..], e2, level); }
-                RestrictEntriesToLevelFirstStep(e1[0], level) + RestrictEntriesToLevel(e1[1..]+e2, level);
-                    { reveal_RestrictEntriesToLevel(); 
-                      assert [e1[0]] + e1[1..] + e2 == e1 + e2;  
-                      assert (e1+e2)[0] == e1[0]; 
-                      assert (e1+e2)[1..] == e1[1..] + e2; }
-                RestrictEntriesToLevel(e1+e2, level);
-            }
-        }
-        */
     }
 
 
@@ -430,47 +395,6 @@ module ReductionModule
 
         lemma_IfActorTraceValidWithMinLevelEqualMaxLevelThenAllAreActions(inner_group, min_level);
     }
-
-//    lemma lemma_ReductionPreservesEntryGroupValidForLevelsHelper(
-//            trace:Trace,
-//            trace':Trace,
-//            level:int,
-//            min_level:int,
-//            mid_level:int,
-//            max_level:int,
-//            position:int,
-//            group_len:int,
-//            i:int
-//            )
-//        requires 0 < position < position + group_len < |trace|;
-//        requires min_level < mid_level <= max_level;
-//        requires EntryGroupValidForLevels(trace, min_level, max_level);
-//        requires EntryGroupValidForLevels(trace[position..position+group_len], min_level, mid_level);
-//        requires level == trace[0].begin_group_level;
-//        requires mid_level <= trace[0].begin_group_level;
-//        requires trace[position].EntryBeginGroup? && trace[position].begin_group_level == min_level;
-//        requires forall j :: 0 <= j < |trace| ==> GetEntryActor(trace[j]) == GetEntryActor(trace[0]);
-//        requires trace' == trace[..position] + [trace[position+group_len-1].reduced_entry] + trace[position + group_len..];
-//        requires ActorTraceValid(middle(trace'), min_level, trace'[0].begin_group_level);
-//        requires 0 <= i < |RestrictEntriesToLevel(trace, level)|;
-//        ensures  i <= |RestrictEntriesToLevel(trace', level)|;
-//        ensures  |RestrictEntriesToLevel(trace, level)[i..]| == |RestrictEntriesToLevel(trace', level)[i..]|;
-//        ensures  forall j :: i <= j < |RestrictEntriesToLevel(trace, level)| ==>
-//                 RestrictEntriesToLevel(trace, level)[j] == RestrictEntriesToLevel(trace', level)[j];
-//    {
-//        var restricted_trace  := RestrictEntriesToLevel(trace,  level);
-//        var restricted_trace' := RestrictEntriesToLevel(trace', level);
-//
-////        if 
-////
-////        if trace == [] then []
-////        else if GetEntryLevel(trace[0]) == level then
-////            [trace[0]] + RestrictEntriesToLevel(trace[1..], level)
-////        else if trace[0].EntryEndGroup? && GetEntryLevel(trace[0].reduced_entry) == level then
-////            [trace[0].reduced_entry] + RestrictEntriesToLevel(trace[1..], level)
-////        else 
-////            RestrictEntriesToLevel(trace[1..], level)
-//    }
 
     lemma lemma_RestrictEntriesToLevelReduction(
             trace:Trace,
@@ -554,20 +478,6 @@ module ReductionModule
                   assert trace' == trace'[..position] + trace'[position..]; }
             RestrictEntriesToLevel(trace', level);
         }
-
-//        lemma_ReductionPreservesEntryGroupValidForLevelsHelper(trace, trace', level, min_level, mid_level, max_level, position, group_len, 0);
-//        assert restricted_trace == restricted_trace';
-//
-////        forall i :: 0 <= i < |restricted_trace|
-////            ensures restricted_trace[i] == restricted_trace'[i];
-////        {
-////            assert restricted_trace[i] in restricted_trace;
-////            lemma_RestrictEntriesToLevelProperties(trace, level);
-////            var j :| EntryCorrespondsToEntryWhenRestrictedToLevel(restricted_trace[i], trace, j, level);
-////            if j < position
-////        }
-////
-////        assert |restricted_trace| == |restricted_trace'|;
     }
 
     lemma {:timeLimitMultiplier 4} lemma_ReductionPreservesActorTraceValidProperSubset(
@@ -653,7 +563,6 @@ module ReductionModule
         requires trace' == trace[..position] + [trace[position+group_len-1].reduced_entry] + trace[position + group_len..];
         decreases |trace|, 1;
         ensures  ActorTraceValid(trace', min_level, max_level);
-/*
     {
         if position == 0 {
             var g_len :|    0 < g_len <= |trace|
@@ -767,7 +676,7 @@ module ReductionModule
             }
         }
     }
-*/
+    
     lemma lemma_ReductionPreservesTraceValid(
             trace:Trace,
             min_level:int,
