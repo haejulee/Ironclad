@@ -1,10 +1,12 @@
 include "System.i.dfy"
 include "Movers.i.dfy"
+include "../Common/Collections/Seqs.i.dfy"
 
 module RefinementModule {
 
     import opened SystemModule
     import opened MoversModule
+    import opened Collections__Seqs_i
 
     type SpecState
     type SpecBehavior = seq<SpecState>
@@ -76,5 +78,15 @@ module RefinementModule {
         exists sm :: SystemBehaviorRefinesSpecMultibehavior(db, sm)
     }
 
+    predicate SpecMultibehaviorStuttersForMoversInTrace(trace:Trace, sm:SpecMultibehavior)
+    {
+           |sm| == |trace| + 1
+        && (forall i {:trigger EntryIsRightMover(trace[i])}{:trigger EntryIsLeftMover(trace[i])} ::
+                     0 <= i < |trace|
+                  && (EntryIsRightMover(trace[i]) || EntryIsLeftMover(trace[i]))
+                  ==>    |sm[i]| > 0
+                      && |sm[i+1]| > 0
+                      && last(sm[i]) == sm[i+1][0])
+    }
 }
 

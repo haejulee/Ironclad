@@ -6,20 +6,32 @@ module ActorTraces
     import opened RefinementModule
     import opened Collections__Seqs_i
 
+    function RestrictTraceToActor(t:Trace, a:Actor) : Trace
+        ensures var t' := RestrictTraceToActor(t, a);
+                forall e {:trigger e in t'} {:trigger e in t, e.actor} :: e in t' <==> e in t && e.actor == a;
+    {
+        if |t| == 0 then
+            []
+        else if t[0].actor == a then
+            [t[0]] + RestrictTraceToActor(t[1..], a)
+        else
+            RestrictTraceToActor(t[1..], a)
+    }
+
     function GetTraceIndicesForActor(trace:Trace, actor:Actor) : seq<int>
         ensures var indices := GetTraceIndicesForActor(trace, actor);
-                forall index {:trigger GetEntryActor(trace[index])} {:trigger index in indices } :: 
-                    index in indices <==> 0 <= index < |trace| && GetEntryActor(trace[index]) == actor;
+                forall index {:trigger trace[index].actor} {:trigger index in indices } :: 
+                    index in indices <==> 0 <= index < |trace| && trace[index].actor == actor;
         ensures var indices := GetTraceIndicesForActor(trace, actor);
                 forall i {:trigger indices[i]} :: 0 <= i < |indices| ==> 0 <= indices[i] < |trace|; 
         ensures var indices := GetTraceIndicesForActor(trace, actor);
-                forall i {:trigger GetEntryActor(trace[indices[i]])} :: 0 <= i < |indices| ==> GetEntryActor(trace[indices[i]]) == actor;
+                forall i {:trigger trace[indices[i]].actor} :: 0 <= i < |indices| ==> trace[indices[i]].actor == actor;
         ensures var indices := GetTraceIndicesForActor(trace, actor);
                 forall i, j {:trigger indices[i], indices[j] } :: 0 <= i < j < |indices| ==> indices[i] < indices[j];
     {
         if |trace| == 0 then
             []
-        else if GetEntryActor(last(trace)) == actor then
+        else if last(trace).actor == actor then
             GetTraceIndicesForActor(all_but_last(trace), actor) + [|trace|-1]
         else
             GetTraceIndicesForActor(all_but_last(trace), actor)
@@ -40,9 +52,9 @@ module ActorTraces
         requires indices == GetTraceIndicesForActor(trace, actor);
         requires 0 <= i < |indices| - 1;
         requires indices[i] < trace_index < indices[i+1];
-        ensures  GetEntryActor(trace[trace_index]) != actor;
+        ensures  trace[trace_index].actor != actor;
     {
-        if GetEntryActor(trace[trace_index]) == actor {
+        if trace[trace_index].actor == actor {
             assert 0 <= trace_index < |trace|;
             assert trace_index in indices;
             var j :| 0 <= j < |indices| && indices[j] == trace_index;
@@ -71,7 +83,7 @@ module ActorTraces
         requires indices == GetTraceIndicesForActor(trace, actor);
         requires |indices| > 0;
         requires 0 <= trace_index < indices[0];
-        ensures  GetEntryActor(trace[trace_index]) != actor;
+        ensures  trace[trace_index].actor != actor;
     {
     }
 
@@ -84,7 +96,7 @@ module ActorTraces
         requires indices == GetTraceIndicesForActor(trace, actor);
         requires |indices| > 0;
         requires last(indices) < trace_index < |trace|;
-        ensures  GetEntryActor(trace[trace_index]) != actor;
+        ensures  trace[trace_index].actor != actor;
     {
     }
 
@@ -98,7 +110,7 @@ module ActorTraces
         actor_indices_index:int
         )
         requires 0 <= trace_index < |trace|;
-        ensures  actor == GetEntryActor(trace[trace_index]);
+        ensures  actor == trace[trace_index].actor;
         ensures  actor_trace == RestrictTraceToActor(trace, actor);
         ensures  actor_indices == GetTraceIndicesForActor(trace, actor);
         ensures  |actor_indices| == |actor_trace|;
@@ -107,7 +119,7 @@ module ActorTraces
         ensures  actor_trace[actor_indices_index] == trace[trace_index];
         ensures  forall i {:trigger trace[actor_indices[i]]} {:trigger actor_trace[i] } :: 0 <= i < |actor_indices| ==> trace[actor_indices[i]] == actor_trace[i];
     {
-        actor := GetEntryActor(trace[trace_index]);
+        actor := trace[trace_index].actor;
         actor_trace := RestrictTraceToActor(trace, actor);
         actor_indices := GetTraceIndicesForActor(trace, actor);
         actor_indices_index :| 0 <= actor_indices_index < |actor_indices| && actor_indices[actor_indices_index] == trace_index;
@@ -115,7 +127,7 @@ module ActorTraces
         assert actor_indices[actor_indices_index] == trace_index;
         forall actor_index, intermediate_index |    0 <= actor_index < |actor_indices| - 1
                                                  && actor_indices[actor_index] < intermediate_index < actor_indices[actor_index+1]
-            ensures GetEntryActor(trace[intermediate_index]) != actor;
+            ensures trace[intermediate_index].actor != actor;
         {
             lemma_InterveningTraceIndicesFromDifferentActor(trace, actor, actor_indices, actor_index, intermediate_index);
         }
@@ -129,21 +141,21 @@ module ActorTraces
             i:int)
         requires |trace| > 0;
         requires 0 <= position <= position + group_len <= |trace|;
-        requires forall j :: position <= j < position + group_len ==> GetEntryActor(trace[j]) == GetEntryActor(trace[position]);
+        requires forall j :: position <= j < position + group_len ==> trace[j].actor == trace[position].actor;
         requires 0 <= i < group_len;
-        requires 0 <= actor_indices_index < |GetTraceIndicesForActor(trace, GetEntryActor(trace[position]))| 
-              && GetTraceIndicesForActor(trace, GetEntryActor(trace[position]))[actor_indices_index] == position;
-        ensures  var indices := GetTraceIndicesForActor(trace, GetEntryActor(trace[position]));
+        requires 0 <= actor_indices_index < |GetTraceIndicesForActor(trace, trace[position].actor)| 
+              && GetTraceIndicesForActor(trace, trace[position].actor)[actor_indices_index] == position;
+        ensures  var indices := GetTraceIndicesForActor(trace, trace[position].actor);
                  0 <= actor_indices_index + i < |indices| && indices[actor_indices_index+i] == position+i;
     {
         if i == 0 {
         } else {
             lemma_ConsecutiveActorEntries(trace, position, group_len, actor_indices_index, i - 1);
-            var indices := GetTraceIndicesForActor(trace, GetEntryActor(trace[position]));
+            var indices := GetTraceIndicesForActor(trace, trace[position].actor);
             var prev_trace_index := position+i-1;
             var curr_trace_index := position+i;
             assert indices[actor_indices_index+i-1] == prev_trace_index;
-            assert GetEntryActor(trace[curr_trace_index]) == GetEntryActor(trace[position]);
+            assert trace[curr_trace_index].actor == trace[position].actor;
             assert curr_trace_index in indices;
             var curr_trace_index_index :| 0 <= curr_trace_index_index < |indices| && indices[curr_trace_index_index] == curr_trace_index;
             var prev_a_index := actor_indices_index + i - 1;
@@ -180,7 +192,7 @@ module ActorTraces
 
         assert t[1..] == t1[1..] + t2;
 
-        if GetEntryActor(t[0]) != actor {
+        if t[0].actor != actor {
             calc {
                 RestrictTraceToActor(t, actor);
                 RestrictTraceToActor(t1[1..], actor) + RestrictTraceToActor(t2, actor);
@@ -211,7 +223,7 @@ module ActorTraces
     }
 
     lemma lemma_RestrictTraceToActorEmpty(trace:Trace, actor:Actor)
-        requires forall i :: 0 <= i < |trace| ==> GetEntryActor(trace[i]) != actor;
+        requires forall i :: 0 <= i < |trace| ==> trace[i].actor != actor;
         ensures RestrictTraceToActor(trace, actor) == [];
     {
     }
@@ -254,7 +266,7 @@ module ActorTraces
             assert indices[i] < trace_index;
 
             forall t | indices[actor_index-1] < t < indices[actor_index] 
-                ensures GetEntryActor(trace[t]) != actor;
+                ensures trace[t].actor != actor;
             {
                 lemma_InterveningTraceIndicesFromDifferentActor(trace, actor, indices, actor_index-1, t);
             }
@@ -297,7 +309,7 @@ module ActorTraces
 
         if actor_index == 0 {
             assert RestrictTraceToActor(trace, actor)[..actor_index] == [];
-            if x :| 0 <= x < trace_index && GetEntryActor(trace[x]) == actor {
+            if x :| 0 <= x < trace_index && trace[x].actor == actor {
                 assert x in indices;
                 var x_index :| 0 <= x_index < |indices| && indices[x_index] == x;
                 if x_index < actor_index {
@@ -323,7 +335,7 @@ module ActorTraces
                 ensures RestrictTraceToActor(trace, actor)[..actor_index][i] == RestrictTraceToActor(trace[..trace_index], actor)[i];
             {
                 forall t | indices[actor_index-1] < t < indices[actor_index] 
-                    ensures GetEntryActor(trace[t]) != actor;
+                    ensures trace[t].actor != actor;
                 {
                     lemma_InterveningTraceIndicesFromDifferentActor(trace, actor, indices, actor_index-1, t);
                 }
@@ -396,7 +408,7 @@ module ActorTraces
 
             if next_trace_index != t1 {
                 forall t | trace_index < t < next_trace_index 
-                    ensures GetEntryActor(trace[t]) != actor;
+                    ensures trace[t].actor != actor;
                 {
                     lemma_InterveningTraceIndicesFromDifferentActor(trace, actor, indices, actor_index, t);
                 }
@@ -410,7 +422,7 @@ module ActorTraces
             if |RestrictTraceToActor(trace, actor)[actor_index+1..]| == 0 {
                 if |RestrictTraceToActor(trace[t1..], actor)| != 0 {
                     var entry :| entry in RestrictTraceToActor(trace[t1..], actor);
-                    assert entry in trace[t1..] && GetEntryActor(entry) == actor;
+                    assert entry in trace[t1..] && entry.actor == actor;
                     var entry_index :| t1 <= entry_index < |trace[t1..]| && trace[t1..][entry_index] == entry;
                     var entry_index_abs := t1 + entry_index;
                     assert trace[entry_index_abs] == entry;
@@ -452,7 +464,7 @@ module ActorTraces
             assert |RestrictTraceToActor(trace, actor)[next_actor_index..]| ==  0;
 
             forall t | trace_index < t < |trace| 
-                ensures GetEntryActor(trace[t]) != actor;
+                ensures trace[t].actor != actor;
             {
                 lemma_TrailingTraceIndicesFromDifferentActor(trace, actor, indices, t);
             }
@@ -469,8 +481,8 @@ module ActorTraces
         reduced_entry:Entry,
         trace':Trace)
         requires 0 <= begin_entry_pos < end_entry_pos < |trace|;
-        requires forall i :: begin_entry_pos <= i <= end_entry_pos ==> GetEntryActor(trace[i]) == actor;
-        requires GetEntryActor(reduced_entry) == actor;
+        requires forall i :: begin_entry_pos <= i <= end_entry_pos ==> trace[i].actor == actor;
+        requires reduced_entry.actor == actor;
         requires trace' == trace[..begin_entry_pos] + [reduced_entry] + trace[end_entry_pos+1 ..];
         ensures  forall other_actor :: other_actor != actor ==> RestrictTraceToActor(trace', other_actor) == RestrictTraceToActor(trace, other_actor);
         ensures  forall other_actor :: other_actor != actor ==> RestrictTraceToActor(trace'[begin_entry_pos..], other_actor) 
@@ -536,7 +548,7 @@ module ActorTraces
         ensures |GetTraceIndicesForActor(trace, actor)| == |RestrictTraceToActor(trace, actor)|;
     {
         if |trace| == 0 {
-        } else if GetEntryActor(last(trace)) == actor {
+        } else if last(trace).actor == actor {
             calc {
                 |GetTraceIndicesForActor(trace, actor)|;
                 |GetTraceIndicesForActor(all_but_last(trace), actor)| + 1;
@@ -574,7 +586,7 @@ module ActorTraces
     {
         lemma_TraceIndicesForActor_length(trace, actor);
         if |trace| == 0 {
-        } else if GetEntryActor(last(trace)) == actor {
+        } else if last(trace).actor == actor {
             var sub_trace := RestrictTraceToActor(trace, actor);
             var indices := GetTraceIndicesForActor(trace, actor);
 

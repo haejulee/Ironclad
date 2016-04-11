@@ -1,6 +1,4 @@
-src/Dafny/Distributed/Concur/EventHandler.i.dfy
-src/Dafny/Distributed/Concur/Reduction.i.dfy
-src/Dafny/Distributed/Concur/Reduction2.i.dfy
+src/Dafny/Distributed/Concur/ReductionBasic.i.dfy
 
 
 
