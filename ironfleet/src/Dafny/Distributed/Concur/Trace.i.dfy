@@ -13,62 +13,49 @@ module TraceModule {
     datatype Packet = Packet(dst:EndPoint, src:EndPoint, msg:seq<byte>)
     datatype Actor = NoActor() | HostActor(ep:EndPoint) | ThreadActor(tep:EndPoint, tid:int)
 
-    datatype IOAction =   IOActionReceive(r:Packet)
-                        | IOActionSend(s:Packet)
-                        | IOActionReadClock(t:int)
-                        | IOActionUpdateLocalState()
-                        | IOActionStutter()
+    datatype Action =   Receive(r:Packet)
+                      | Send(s:Packet)
+                      | ReadClock(t:int)
+                      | UpdateLocalState()
+                      | Stutter()
+                      | DeliverPacket(p:Packet)
+                      | AdvanceTime(new_time:int)
+                      | PerformIos(raw_ios:seq<Action>)
+                      | HostNext(host_ios:seq<Action>)    // Like PerformIos, but also changes the host's state
 
-    datatype DSAction =   DSActionHostEventHandler(ios:seq<IOAction>)
-                        | DSActionDeliverPacket(p:Packet)
-                        | DSActionAdvanceTime(t:int)
-                        | DSActionStutter()
+    predicate IsRealAction(a:Action)
+    {
+        a.Receive? || a.Send? || a.ReadClock? || a.UpdateLocalState? || a.DeliverPacket? || a.AdvanceTime?
+    }
 
-    datatype Action = ActionIO(io:IOAction) | ActionDS(ds:DSAction)
+    predicate IsCapturedAction(a:Action)
+    {
+        a.Receive? || a.Send? || a.ReadClock?
+    }
 
     /////////////////////////////////////////////////
     // Traces and the entries they're composed of
     /////////////////////////////////////////////////
 
-    datatype Entry =   EntryAction(actor:Actor, action:Action)
-                     | EntryBeginGroup(begin_group_actor:Actor, begin_group_level:int)
-                     | EntryEndGroup(end_group_actor:Actor, end_group_level:int, reduced_entry:Entry, group_len:int, pivot_index:int /* Begin == 0 */)
+    datatype Entry = Entry(actor:Actor, action:Action)
 
     type Trace = seq<Entry>
 
-    function GetEntryActor(e:Entry) : Actor
-    {
-        match e
-            case EntryAction(actor, action) => actor
-            case EntryBeginGroup(actor, level) => actor
-            case EntryEndGroup(actor, level, entry, group_len, pivot_index) => actor
-    }
-
-    function const_IOLevel() : int { 1 }
-    function const_DSLevel() : int { 2 }
-
-    function GetEntryLevel(e:Entry) : int
-    {
-        match e
-            case EntryAction(actor, action) =>
-                (match action
-                     case ActionIO(io) => const_IOLevel()
-                     case ActionDS(ds) => const_DSLevel()
-                )
-            case EntryBeginGroup(actor, level) => level
-            case EntryEndGroup(actor, level, entry, group_len, pivot_index) => level
-    }
-
     function RestrictTraceToActor(t:Trace, a:Actor) : Trace
         ensures var t' := RestrictTraceToActor(t, a);
-                forall e {:trigger e in t'} {:trigger e in t, GetEntryActor(e)} :: e in t' <==> e in t && GetEntryActor(e) == a;
+                forall e {:trigger e in t'} {:trigger e in t, e.actor} :: e in t' <==> e in t && e.actor == a;
     {
         if |t| == 0 then
             []
-        else if GetEntryActor(t[0]) == a then
+        else if t[0].actor == a then
             [t[0]] + RestrictTraceToActor(t[1..], a)
         else
             RestrictTraceToActor(t[1..], a)
     }
 
+    /////////////////////////////////////////////////
+    // Reduction trees
+    /////////////////////////////////////////////////
+
+    datatype Tree = Inner(reduced_action:Action, children:seq<Tree>) | Leaf(action:Action)
 }
