@@ -12,43 +12,49 @@ predicate SpecInit()
     true
 }
 
-function GetProtocolVersion() : string
+function method GetProtocolVersion() : string
 {
     "HTTP/1.1"
 }
 
-function GetHTTPCode(responseCase:string) : string
+function method GetHTTPCode(responseCase:string) : string
 {
     if responseCase == "OK" then "200"
     else if responseCase == "Not Found" then "400"
     else "404"
 }
 
-function LineBreaks() : string
+function method LineBreaks() : string
 {
     "\n\r\n\r"
+}
+
+predicate IsValidFilePathInHTTPReq(req:HTTPRequest, filePath:seq<char>)
+{
+    |filePath| > 1 && (req == "GET /" + filePath + " " + GetProtocolVersion())
 }
 
 // supports only a very primitive request format at the moment
 predicate IsValidHTTPReq(req:HTTPRequest)
 {
-    exists filePath :: |filePath| > 1 && (req == "GET " + filePath + " " + GetProtocolVersion())
+    exists filePath :: IsValidFilePathInHTTPReq(req, filePath)
 }
 
-function BytesToString(b:seq<byte>) : seq<char>
+function method BytesToString(b:seq<byte>) : seq<char>
 
-function StringToBytes(arr:seq<char>) : seq<byte>
+function method StringToBytes(arr:seq<char>) : seq<byte>
 
 // TODO: need to set other headers
 predicate Get(fs:FileSystemState, req:HTTPRequest, res:HTTPResponse)
     requires fs != null;
 {
-       fs != null
-    && if IsValidHTTPReq(req) then
-        (exists filePath :: |filePath| > 1 
-                         && (req == "GET " + filePath + " " + GetProtocolVersion()) 
-                         && (res == if fs.file_exists(filePath[1..]) then (GetProtocolVersion() + " " + GetHTTPCode("OK") + LineBreaks() + BytesToString(fs.contents(filePath[1..]))) else GetProtocolVersion() + " " + GetHTTPCode("Not Found")))
-       else
+    if (IsValidHTTPReq(req)) then
+        var filePath :| IsValidFilePathInHTTPReq(req, filePath);
+        res == if fs.file_exists(filePath) then 
+                    GetProtocolVersion() + " " + GetHTTPCode("OK") + LineBreaks() + BytesToString(fs.contents(filePath)) 
+               else 
+                    GetProtocolVersion() + " " + GetHTTPCode("Not Found")
+    else
         res == GetProtocolVersion() + " " + GetHTTPCode("Invalid")
 }
 }
