@@ -59,7 +59,7 @@ module ReductionModule
     predicate TreeValid(tree:Tree)
     {
            TreeRootValid(tree)
-        && tree.Inner? ==> forall child {:trigger child in tree.children} :: child in tree.children ==> TreeRootValid(child)
+        && (tree.Inner? ==> forall child {:trigger child in tree.children} :: child in tree.children ==> TreeValid(child))
     }
 
     predicate ValidTreeDesignator(designator:seq<int>, tree:Tree) 
@@ -88,8 +88,10 @@ module ReductionModule
     }
 
     ghost method FindReducibleSubtree(tree:Tree) returns (success:bool, sub_tree:Tree, designator:seq<int>)
+        requires TreeValid(tree);
         ensures success ==> ValidTreeDesignator(designator, tree)
                          && LookupTreeDesignator(designator, tree) == sub_tree
+                         && TreeValid(sub_tree)
                          && sub_tree.Inner?
                          && (forall c :: c in sub_tree.children ==> c.Leaf?);
         ensures !success ==> tree.Leaf?;
@@ -102,6 +104,7 @@ module ReductionModule
                     invariant 0 <= i <= |children|;
                     invariant forall j :: 0 <= j < i ==> children[j].Leaf?;
                 {
+                    assert children[i] in tree.children;
                     success, sub_tree, designator := FindReducibleSubtree(children[i]);
                     if success {
                         designator := [i] + designator;
