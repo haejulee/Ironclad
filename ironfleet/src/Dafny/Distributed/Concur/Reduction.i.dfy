@@ -61,4 +61,57 @@ module ReductionModule
            TreeRootValid(tree)
         && tree.Inner? ==> forall child {:trigger child in tree.children} :: child in tree.children ==> TreeRootValid(child)
     }
+
+    predicate ValidTreeDesignator(designator:seq<int>, tree:Tree) 
+    {
+        |designator| > 0 ==>
+        var child_index := designator[0];
+            tree.Inner? && 0 <= child_index < |tree.children| 
+         && ValidTreeDesignator(designator[1..], tree.children[child_index])
+    }
+
+    function LookupTreeDesignator(designator:seq<int>, tree:Tree) : Tree
+        requires ValidTreeDesignator(designator, tree);
+    {
+        if |designator| == 0 then tree
+        else LookupTreeDesignator(designator[1..], tree.children[designator[0]])
+    }
+
+    function GetEntries(trees:seq<Tree>) : seq<Entry>
+    {
+        if |trees| == 0 then []
+        else var head := (match trees[0]
+                            case Leaf(e) => [e]
+                            case Inner(reduced_entry, children, pivot_index) => GetEntries(children)
+                         );
+             head + GetEntries(trees[1..])
+    }
+
+    ghost method FindReducibleSubtree(tree:Tree) returns (success:bool, sub_tree:Tree, designator:seq<int>)
+        ensures success ==> ValidTreeDesignator(designator, tree)
+                         && LookupTreeDesignator(designator, tree) == sub_tree
+                         && sub_tree.Inner?
+                         && (forall c :: c in sub_tree.children ==> c.Leaf?);
+        ensures !success ==> tree.Leaf?;
+    {
+        match tree {
+            case Leaf(_) => success := false;
+            case Inner(reduced_entry, children, pivot_index) =>
+                var i := 0;
+                while i < |children| 
+                    invariant 0 <= i <= |children|;
+                    invariant forall j :: 0 <= j < i ==> children[j].Leaf?;
+                {
+                    success, sub_tree, designator := FindReducibleSubtree(children[i]);
+                    if success {
+                        designator := [i] + designator;
+                        return;
+                    }
+                    i := i + 1;
+                }
+                success := true;
+                sub_tree := tree;
+                designator := [];
+        }
+    }
 }
