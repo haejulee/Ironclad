@@ -4,8 +4,8 @@ module WS__WS_s {
 
 import opened Native__Io_s
 
-type HTTPRequest = seq<char>
-type HTTPResponse = seq<char>
+type HTTPRequest = string
+type HTTPResponse = string
 
 predicate SpecInit()
 {
@@ -45,17 +45,21 @@ function method BytesToString(b:seq<byte>) : seq<char>
 function method StringToBytes(arr:seq<char>) : seq<byte>
 
 // TODO: need to set other headers
-predicate Get(fs:FileSystemState, req:HTTPRequest, res:HTTPResponse)
+predicate GetSeq(fs:FileSystemState, req:HTTPRequest, res:HTTPResponse)
     requires fs != null;
     reads fs;
 {
     if (IsValidHTTPReq(req)) then
         var filePath :| IsValidFilePathInHTTPReq(req, filePath);
         res == if filePath in fs.state() then 
-                    GetProtocolVersion() + " " + GetHTTPCode("OK") + LineBreaks() + BytesToString(fs.state()[filePath]) 
+                    var header := GetProtocolVersion() + " " + GetHTTPCode("OK") + LineBreaks();
+                    var content := BytesToString(fs.state()[filePath]);
+                    header + content
                else 
-                    GetProtocolVersion() + " " + GetHTTPCode("Not Found")
+                    var header := GetProtocolVersion() + " " + GetHTTPCode("Not Found");
+                    header
     else
-        res == GetProtocolVersion() + " " + GetHTTPCode("Invalid")
+        var header := GetProtocolVersion() + " " + GetHTTPCode("Invalid");
+        res == header
 }
 }

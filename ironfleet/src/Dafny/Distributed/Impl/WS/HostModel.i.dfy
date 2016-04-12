@@ -1,7 +1,7 @@
 include "HostState.i.dfy"
 include "PacketParsing.i.dfy"
 
-module SHT__HostModel_i {
+module WS__HostModel_i {
 import opened WS__HostState_i
 import opened WS__PacketParsing_i
 
