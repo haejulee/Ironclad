@@ -5,10 +5,11 @@ module SystemModule {
     import opened TraceModule
 
     type ActorState
+    datatype Config = Config(tracked_actors:set<Actor>)
     predicate ActorStateInit(s:ActorState)
     predicate HostNext(s:ActorState, s':ActorState, ios:seq<Action>)
 
-    datatype SystemState = SystemState(states:map<Actor, ActorState>, time:int, sentPackets:set<Packet>)
+    datatype SystemState = SystemState(config:Config, states:map<Actor, ActorState>, time:int, sentPackets:set<Packet>)
     type SystemBehavior = seq<SystemState>
 
     predicate SystemInit(s:SystemState)
@@ -48,6 +49,7 @@ module SystemModule {
                             other_actor in s'.states && s'.states[other_actor] == s.states[other_actor])
         && s'.sentPackets == s.sentPackets
         && s'.time == s.time
+        && s'.config == s.config
     }
 
     predicate SystemNextStutter(s:SystemState, s':SystemState)
@@ -77,6 +79,7 @@ module SystemModule {
            actor.HostActor?
         && s'.states == s.states
         && s'.time == s.time
+        && s'.config == s.config
         && (forall p :: p in s.sentPackets ==> p in s'.sentPackets)
         && (forall p :: p in s'.sentPackets ==> p in s.sentPackets || Send(p) in ios)
         && (forall io :: io in ios && io.Receive? ==> io.r in s.sentPackets && io.r.dst == actor.ep)
@@ -96,6 +99,7 @@ module SystemModule {
         && s'.states == s.states[actor := s'.states[actor]]
         && HostNext(s.states[actor], s'.states[actor], ios)
         && s'.time == s.time
+        && s'.config == s.config
         && (forall p :: p in s.sentPackets ==> p in s'.sentPackets)
         && (forall p :: p in s'.sentPackets ==> p in s.sentPackets || Send(p) in ios)
         && (forall io :: io in ios && io.Receive? ==> io.r in s.sentPackets && io.r.dst == actor.ep)
@@ -126,4 +130,17 @@ module SystemModule {
         exists entry :: SystemNextEntry(s, s', entry)
     }
 
+    predicate IsValidSystemBehavior(db:SystemBehavior)
+    {
+           |db| > 0
+        && SystemInit(db[0])
+        && (forall i {:trigger SystemNext(db[i], db[i+1])} :: 0 <= i < |db| - 1 ==> SystemNext(db[i], db[i+1]))
+    }
+
+    predicate IsValidSystemTraceAndBehavior(trace:Trace, db:SystemBehavior)
+    {
+           |db| == |trace| + 1
+        && SystemInit(db[0])
+        && (forall i {:trigger SystemNextEntry(db[i], db[i+1], trace[i])} :: 0 <= i < |trace| ==> SystemNextEntry(db[i], db[i+1], trace[i]))
+    }
 }

@@ -27,6 +27,10 @@ module RefinementModule {
         requires SpecCorrespondence(ds', ss);
         ensures  SpecCorrespondence(ds, ss);
 
+    ///////////////////////
+    // Spec behaviors
+    ///////////////////////
+
     predicate SpecNextOrStutter(ss:SpecState, ss':SpecState)
     {
            SpecNext(ss, ss')
@@ -41,6 +45,22 @@ module RefinementModule {
                  0 <= i < |sb| - 1 ==> SpecNextOrStutter(sb[i], sb[i+1]))
     }
 
+    predicate SystemBehaviorRefinesSpecBehavior(db:SystemBehavior, sb:SpecBehavior)
+    {
+           |db| == |sb|
+        && IsValidSpecBehavior(sb)
+        && (forall i {:trigger SpecCorrespondence(db[i], sb[i])} :: 0 <= i < |db| ==> SpecCorrespondence(db[i], sb[i]))
+    }
+
+    predicate SystemBehaviorRefinesSomeSpecBehavior(db:SystemBehavior)
+    {
+        exists sb :: SystemBehaviorRefinesSpecBehavior(db, sb)
+    }
+
+    ///////////////////////////////////////////
+    // Spec multi-behaviors
+    ///////////////////////////////////////////
+
     function ConcatenationOfSpecMultibehavior(sm:SpecMultibehavior) : SpecBehavior
     {
         if |sm| == 0 then [] else sm[0] + ConcatenationOfSpecMultibehavior(sm[1..])
@@ -52,20 +72,6 @@ module RefinementModule {
         && (forall b :: b in sm ==> |b| > 0)
     }
 
-    predicate IsValidSystemBehavior(db:SystemBehavior)
-    {
-           |db| > 0
-        && SystemInit(db[0])
-        && (forall i {:trigger SystemNext(db[i], db[i+1])} :: 0 <= i < |db| - 1 ==> SystemNext(db[i], db[i+1]))
-    }
-
-    predicate IsValidSystemTraceAndBehavior(trace:Trace, db:SystemBehavior)
-    {
-           |db| == |trace| + 1
-        && SystemInit(db[0])
-        && (forall i {:trigger SystemNextEntry(db[i], db[i+1], trace[i])} :: 0 <= i < |trace| ==> SystemNextEntry(db[i], db[i+1], trace[i]))
-    }
-
     predicate SystemBehaviorRefinesSpecMultibehavior(db:SystemBehavior, sm:SpecMultibehavior)
     {
            |db| == |sm|
@@ -73,20 +79,9 @@ module RefinementModule {
         && (forall i, ss {:trigger SpecCorrespondence(db[i], ss)} :: 0 <= i < |db| && ss in sm[i] ==> SpecCorrespondence(db[i], ss))
     }
 
-    predicate SystemBehaviorRefinesSpec(db:SystemBehavior)
+    predicate SystemBehaviorRefinesSomeSpecMultibehavior(db:SystemBehavior)
     {
         exists sm :: SystemBehaviorRefinesSpecMultibehavior(db, sm)
-    }
-
-    predicate SpecMultibehaviorStuttersForMoversInTrace(trace:Trace, sm:SpecMultibehavior)
-    {
-           |sm| == |trace| + 1
-        && (forall i {:trigger EntryIsRightMover(trace[i])}{:trigger EntryIsLeftMover(trace[i])} ::
-                     0 <= i < |trace|
-                  && (EntryIsRightMover(trace[i]) || EntryIsLeftMover(trace[i]))
-                  ==>    |sm[i]| > 0
-                      && |sm[i+1]| > 0
-                      && last(sm[i]) == sm[i+1][0])
     }
 }
 
