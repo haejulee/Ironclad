@@ -351,44 +351,47 @@ class Arrays
 // File System
 //////////////////////////////////////////////////////////////////////////////
 
-type FileSystem
-
-datatype FileOp =
-  FileRead(fileReadOffset:int, fileReadBytes:seq<byte>)
-| FileWrite(fileWriteOffset:int, fileWriteBytes:seq<byte>)
-| FileFlush
-
 class FileSystemState
 {
     constructor{:axiom} () requires false;
-    function{:axiom} state():FileSystem reads this;
-    //ghost var g_files:map<seq<char>,seq<byte>>;
-    function{:axiom} file_exists(name:seq<char>) : bool
-    function{:axiom} contents(name:seq<char>): seq<byte>
+    function{:axiom} state() : map<seq<char>,seq<byte>>   // File system maps file names (sequences of characters) to their contents
+        reads this;
 }
-
-function{:axiom} FileOpRequires(fs:FileSystem, fileName:string, op:FileOp):bool
-function{:axiom} FileOpEnsures(fsOld:FileSystem, fsNew:FileSystem, fileName:string, op:FileOp):bool
 
 class FileStream
 {
     ghost var env:HostEnvironment;
-    function{:axiom} Name():string reads this;
+    function{:axiom} Name():seq<char> reads this;
     function{:axiom} IsOpen():bool reads this;
     constructor{:axiom} () requires false;
 
-    static method{:axiom} Open(name:array<char>, ghost env:HostEnvironment)
-        returns(ok:bool, f:FileStream)
+    static method FileExists(name:array<char>, ghost env:HostEnvironment) returns(result:bool)
+        requires env != null && env.Valid();
+        requires env.ok.ok();
+        requires name != null;       
+        ensures  result <==> old(name[..]) in env.files.state();        
+
+    static method FileLength(name:array<char>, ghost env:HostEnvironment) returns(success:bool, len:int32)
+        requires env != null && env.Valid();
+        requires env.ok.ok();
+        requires name != null;       
+        requires name[..] in env.files.state();
+        modifies env.ok;
+        ensures  env.ok.ok() == success;
+        ensures  success ==> int(len) == |env.files.state()[name[..]]|;
+
+    static method Open(name:array<char>, ghost env:HostEnvironment) returns(ok:bool, f:FileStream)
         requires env != null && env.Valid();
         requires env.ok.ok();
         requires name != null;
         modifies env.ok;
-        ensures  env.ok.ok() == ok;
-        ensures  ok ==> f != null && fresh(f) && f.env == env && f.IsOpen() && f.Name() == name[..];
-        //ensures  ok ==> f != null && fresh(f) && f.env == env && f.IsOpen() && f.Name() == name[..] && f.Name() in env.files.g_files;
-        ensures  ok ==> f != null && fresh(f) && f.env == env && f.IsOpen() && f.Name() == name[..] && env.files.file_exists(f.Name());
-
-    method{:axiom} Close() returns(ok:bool)
+        modifies env.files;
+        ensures  env.ok.ok() == ok;        
+        ensures  ok ==> f != null && fresh(f) && f.env == env && f.IsOpen() && f.Name() == name[..] &&          // FileStream object is initialized
+                        env.files.state() == if name[..] in old(env.files.state()) then old(env.files.state())  // If the file exists, then the file contents are unchanged
+                                             else old(env.files.state())[name[..] := []]                        // Otherwise, the file now exists with no content
+        
+    method Close() returns(ok:bool)
         requires env != null && env.Valid();
         requires env.ok.ok();
         requires IsOpen();
@@ -396,58 +399,50 @@ class FileStream
         modifies env.ok;
         ensures  env == old(env);
         ensures  env.ok.ok() == ok;
+        ensures  !IsOpen();
 
-    method{:axiom} Read(fileOffset:nat32, buffer:array<byte>, start:int32, end:int32) returns(ok:bool)
+    method Read(file_offset:nat32, buffer:array<byte>, start:int32, num_bytes:int32) returns(ok:bool)      
         requires env != null && env.Valid();
         requires env.ok.ok();
         requires IsOpen();
         requires buffer != null;
-        requires 0 <= int(start) <= int(end) <= buffer.Length;
-        requires FileOpRequires(env.files.state(), Name(), FileRead(int(fileOffset), buffer[start..end]));
+        requires Name() in env.files.state();
+        requires int(file_offset) + int(num_bytes) <= |env.files.state()[Name()]|;    // Don't read beyond the end of the file
+        requires 0 <= int(start) <= int(start) + int(num_bytes) <= buffer.Length;     // Don't write outside the buffer        
         modifies this;
         modifies env.ok;
         modifies env.files;
         modifies buffer;
         ensures  env == old(env);
         ensures  env.ok.ok() == ok;
+        ensures  ok ==> env.files.state() == old(env.files.state());
         ensures  Name() == old(Name());
-        ensures  forall i:int :: 0 <= i < buffer.Length && !(int(start) <= i < int(end)) ==> buffer[i] == old(buffer[i]);
-        ensures  ok ==> IsOpen();
-        ensures  ok ==> FileOpEnsures(old(env.files.state()), env.files.state(), Name(), FileRead(int(fileOffset), buffer[start..end]));
-        ensures  ok ==>    env.files.file_exists(Name())
-                        && (int(end) <= |env.files.contents(Name())|)
-                        && (forall i :: 0 <= i < buffer.Length && (int(start) <= i < int(end)) ==> buffer[i] == env.files.contents(Name())[i-int(start)]);
-    
-   method{:axiom} Write(fileOffset:nat32, buffer:array<byte>, start:int32, end:int32) returns(ok:bool)
+        ensures  ok ==> IsOpen();        
+        ensures  ok ==> buffer[..] == buffer[..start] + env.files.state()[Name()][file_offset..int(file_offset)+int(num_bytes)] + buffer[int(start)+int(num_bytes)..];
+            
+   method Write(file_offset:nat32, buffer:array<byte>, start:int32, num_bytes:int32) returns(ok:bool)        
         requires env != null && env.Valid();
         requires env.ok.ok();
         requires IsOpen();
         requires buffer != null;
-        requires 0 <= int(start) <= int(end) <= buffer.Length;
-        requires FileOpRequires(env.files.state(), Name(), FileWrite(int(fileOffset), buffer[start..end]));
+        requires Name() in env.files.state();
+        requires int(file_offset) <= |env.files.state()[Name()]|;  // Writes must start within existing content (no support for zero-extending the file)
+        requires 0 <= int(start) <= int(start) + int(num_bytes) <= buffer.Length;  // Don't read outside the buffer
         modifies this;
         modifies env.ok;
         modifies env.files;
         ensures  env == old(env);
         ensures  env.ok.ok() == ok;
         ensures  Name() == old(Name());
-        ensures  ok ==> IsOpen();
-        ensures  ok ==> FileOpEnsures(old(env.files.state()), env.files.state(), Name(), FileWrite(int(fileOffset), buffer[start..end]));
-
-    method{:axiom} Flush() returns(ok:bool)
-        requires env != null && env.Valid();
-        requires env.ok.ok();
-        requires IsOpen();
-        requires FileOpRequires(env.files.state(), Name(), FileFlush);
-        modifies this;
-        modifies env.ok;
-        modifies env.files;
-        ensures  env == old(env);
-        ensures  env.ok.ok() == ok;
-        ensures  Name() == old(Name());
-        ensures  ok ==> IsOpen();
-        ensures  ok ==> FileOpEnsures(old(env.files.state()), env.files.state(), Name(), FileFlush);
+        ensures  ok ==> IsOpen();                 
+        ensures  ok ==> 
+                  var old_file := old(env.files.state()[Name()]);
+                  env.files.state() == old(env.files.state())[Name() := old_file[..file_offset] 
+                                                                      + buffer[start..int(start)+int(num_bytes)] 
+                                                                      + if int(file_offset)+int(num_bytes) > |old_file| then [] 
+                                                                        else old_file[int(file_offset)+int(num_bytes)..]];
 }
+
 
 /*newtype{:nativeType "sbyte"} sbyte = i:int | -0x80 <= i < 0x80
 newtype{:nativeType "byte"} byte = i:int | 0 <= i < 0x100

@@ -47,11 +47,12 @@ function method StringToBytes(arr:seq<char>) : seq<byte>
 // TODO: need to set other headers
 predicate Get(fs:FileSystemState, req:HTTPRequest, res:HTTPResponse)
     requires fs != null;
+    reads fs;
 {
     if (IsValidHTTPReq(req)) then
         var filePath :| IsValidFilePathInHTTPReq(req, filePath);
-        res == if fs.file_exists(filePath) then 
-                    GetProtocolVersion() + " " + GetHTTPCode("OK") + LineBreaks() + BytesToString(fs.contents(filePath)) 
+        res == if filePath in fs.state() then 
+                    GetProtocolVersion() + " " + GetHTTPCode("OK") + LineBreaks() + BytesToString(fs.state()[filePath]) 
                else 
                     GetProtocolVersion() + " " + GetHTTPCode("Not Found")
     else
