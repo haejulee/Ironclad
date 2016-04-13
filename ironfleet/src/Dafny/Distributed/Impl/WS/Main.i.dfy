@@ -44,14 +44,40 @@ module Main_i {
         }
     }
 
+    method SeqToArray(s:seq<char>)  returns (a:array<char>)
+        ensures a != null;
+    {
+        a := new char[|s|];
+        var i := 0;
+        while (i < |s|)
+        {
+            a[i] := s[i];
+            i := i + 1;
+        }
+        
+    }
+
     method ExtractFileName(req:array<char>) returns (fileName:array<char>)
+        requires req != null;
+        requires req.Length > 14;
         ensures fileName != null;
 
+    {
+        fileName := SeqToArray(req[5..req.Length-9]);
+    }
+
     method FormulateResponse(header:seq<char>, contents:array<char>) returns (response:HTTPResponse)
-        //requires contents != null;
-        //requires 1 < |header| + contents.Length < 65536
+        requires contents != null;
+        requires 1 < |header| + contents.Length < 65536
         ensures 1 < |response| < 65536;
     {
+        response := header;
+        var i:= 0;
+        while (i < contents.Length)
+        {
+            response := response + [contents[i]];
+            i := i + 1;
+        }
         assume false;
     }
 
@@ -91,28 +117,37 @@ module Main_i {
                 if (len >= 5 && req[..int32(5)] == "GET /") {
                     var fileName := ExtractFileName(req);
                     
-                    var f;
-                    ok, f := FileStream.Open(fileName, env);
-                    if (!ok) {
-                        return;
-                    }
+                    var b := FileStream.FileExists(fileName, env);
+
+                    if b {
+                        var fileLength;
+                        ok, fileLength := FileStream.FileLength(fileName, env);
+
+                        if (!ok) {
+                            return;
+                        }
                     
-                    var fileLength;
-                    ok, fileLength := FileStream.FileLength(fileName, env);
+                        var f;
+                        ok, f := FileStream.Open(fileName, env);
+                        if (!ok) {
+                            return;
+                        }
+                    
+                    
 
-                    if (!ok) {
-                        return;
+                        if (fileLength > length) {
+                            fileLength := length;
+                        }
+
+                        ok := f.Read(0, fileContents, 0, fileLength);
+                        var header := GetProtocolVersion() + " " + GetHTTPCode("OK") + LineBreaks();
+                        var responsePartial := BytesArrayToCharArray(fileContents);
+
+                        res :=  FormulateResponse(header, responsePartial);
+                    } else {
+                        var header := GetProtocolVersion() + " " + GetHTTPCode("Not Found") + LineBreaks();
+                        res := FormulateResponse(header, null);
                     }
-
-                    if (fileLength > length) {
-                        fileLength := length;
-                    }
-
-                    ok := f.Read(0, fileContents, 0, fileLength);
-                    var header := GetProtocolVersion() + " " + GetHTTPCode("OK") + LineBreaks();
-                    var responsePartial := BytesArrayToCharArray(fileContents);
-
-                    res :=  FormulateResponse(header, responsePartial);
                 } else {
                     var header := GetProtocolVersion() + " " + GetHTTPCode("Invalid") + LineBreaks();
                     res := FormulateResponse(header, null);
