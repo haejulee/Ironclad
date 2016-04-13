@@ -47,7 +47,7 @@ module ReductionModule
             && (forall i {:trigger EntryIsRightMover(GetRootEntry(tree.children[i]))} ::
                      0 <= i < tree.pivot_index ==> EntryIsRightMover(GetRootEntry(tree.children[i]))) 
             && (forall i {:trigger EntryIsLeftMover(GetRootEntry(tree.children[i]))} ::
-                     tree.pivot_index < i < |tree.children| ==> EntryIsRightMover(GetRootEntry(tree.children[i])))
+                     tree.pivot_index < i < |tree.children| ==> EntryIsLeftMover(GetRootEntry(tree.children[i])))
     }
 
     predicate TreeRootValid(tree:Tree)
@@ -115,6 +115,86 @@ module ReductionModule
                 success := true;
                 sub_tree := tree;
                 designator := [];
+        }
+    }
+
+    function ReduceTree(tree:Tree, designator:seq<int>) : Tree
+        requires ValidTreeDesignator(designator, tree);
+        requires var sub_tree := LookupTreeDesignator(designator, tree);
+                 sub_tree.Inner? && (forall c :: c in sub_tree.children ==> c.Leaf?);
+    {
+        if |designator| == 0 then Leaf(tree.reduced_entry)
+        else var child_index := designator[0];
+             var child := tree.children[child_index];
+             var sub_tree := ReduceTree(child, designator[1..]);
+             Inner(tree.reduced_entry, tree.children[child_index := sub_tree], tree.pivot_index)
+    }
+
+    lemma lemma_ReduceTreePreservesValidity(tree:Tree, designator:seq<int>)
+        requires TreeValid(tree) && ReduceTree.requires(tree, designator)
+        decreases |designator|;
+        ensures  TreeValid(ReduceTree(tree, designator));
+    {
+        var reduced_tree := ReduceTree(tree, designator);
+        if |designator| == 0 {
+            assert TreeValid(reduced_tree);
+        } else {
+            var child_index := designator[0];
+            var child := tree.children[child_index];
+            var sub_tree := ReduceTree(child, designator[1..]);
+            assert reduced_tree 
+                == Inner(tree.reduced_entry, tree.children[child_index := sub_tree], tree.pivot_index);
+
+            // OBSERVE: Various triggers for TreeRootPivotValid
+            forall i | 0 <= i < reduced_tree.pivot_index
+                ensures EntryIsRightMover(GetRootEntry(reduced_tree.children[i]));
+            {
+                if i != child_index {
+                    assert reduced_tree.children[i] == tree.children[i];
+                    assert EntryIsRightMover(GetRootEntry(reduced_tree.children[i]));
+                } else {
+                    assert GetRootEntry(reduced_tree.children[i]) 
+                        == GetRootEntry(tree.children[i]);
+                }
+            }
+            forall i | reduced_tree.pivot_index < i < |reduced_tree.children|
+                ensures EntryIsLeftMover(GetRootEntry(reduced_tree.children[i]));
+            {
+                if i != child_index {
+                    assert reduced_tree.children[i] == tree.children[i];
+                    assert EntryIsLeftMover(GetRootEntry(reduced_tree.children[i]));
+                } else {
+                    assert GetRootEntry(reduced_tree.children[i]) 
+                        == GetRootEntry(tree.children[i]);
+                }
+            }
+
+            // OBSERVE: Re-establish EntriesReducibleToEntry
+            var entry := reduced_tree.reduced_entry;
+            var entries := GetRootEntries(reduced_tree.children);
+            assert entries == GetRootEntries(tree.children);
+            forall db:seq<SystemState> {:trigger SystemNextEntry(db[0], db[|entries|], entry)} |
+                    |db| == |entries|+1
+                 && (forall i {:trigger SystemNextEntry(db[i], db[i+1], entries[i])} ::
+                     0 <= i < |entries| ==> SystemNextEntry(db[i], db[i+1], entries[i]))
+                ensures SystemNextEntry(db[0], db[|entries|], entry);
+            {
+            }
+
+            // OBSERVE: Re-establish children valid
+            forall c | c in reduced_tree.children
+                ensures TreeValid(c);
+            {
+                var i :| 0 <= i < |reduced_tree.children| && reduced_tree.children[i] == c;
+                if i != child_index {
+                    assert c in tree.children;  // OBSERVE
+                } else {
+                    assert c == sub_tree;
+                    assert child in tree.children; // OBSERVE
+                    lemma_ReduceTreePreservesValidity(child, designator[1..]);
+                }
+            }
+            assert TreeValid(reduced_tree);
         }
     }
 }
