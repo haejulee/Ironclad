@@ -291,6 +291,35 @@ public partial class FileStream
     internal FStream fstream;
     internal FileStream(FStream fstream) { this.fstream = fstream; }
 
+    public static void FileExists(char[] name, out bool result)
+    {
+        result = System.IO.File.Exists(new string(name));
+    }
+
+    public static void FileLength(char[] name, out bool success, out int len)
+    {
+        len = 42;
+        try
+        {
+            System.IO.FileInfo fi = new System.IO.FileInfo(new string(name));
+            if (fi.Length < System.Int32.MaxValue)  // We only support small files
+            {
+                len = (int)fi.Length;
+                success = true;
+            }
+            else
+            {
+                success = false;
+            }
+
+        }
+        catch (Exception e)
+        {
+            System.Console.Error.WriteLine(e);
+            success = false;
+        }
+    }
+
     public static void Open(char[] name, out bool ok, out FileStream f)
     {
         try
@@ -320,12 +349,12 @@ public partial class FileStream
         }
     }
 
-    public void Read(int fileOffset, byte[] buffer, int start, int end, out bool ok)
+    public void Read(int file_offset, byte[] buffer, int start, int num_bytes, out bool ok)
     {
         try
         {
-            fstream.Seek(fileOffset, System.IO.SeekOrigin.Begin);
-            fstream.Read(buffer, start, end - start);
+            fstream.Seek(file_offset, System.IO.SeekOrigin.Begin);
+            fstream.Read(buffer, start, num_bytes);
             ok = true;
         }
         catch (Exception e)
@@ -335,26 +364,12 @@ public partial class FileStream
         }
     }
 
-    public void Write(int fileOffset, byte[] buffer, int start, int end, out bool ok)
+    public void Write(int file_offset, byte[] buffer, int start, int num_bytes, out bool ok)
     {
         try
         {
-            fstream.Seek(fileOffset, System.IO.SeekOrigin.Begin);
-            fstream.Write(buffer, start, end - start);
-            ok = true;
-        }
-        catch (Exception e)
-        {
-            System.Console.Error.WriteLine(e);
-            ok = false;
-        }
-    }
-
-    public void Flush(out bool ok)
-    {
-        try
-        {
-            fstream.Flush();
+            fstream.Seek(file_offset, System.IO.SeekOrigin.Begin);
+            fstream.Write(buffer, start, num_bytes);
             ok = true;
         }
         catch (Exception e)
@@ -364,7 +379,6 @@ public partial class FileStream
         }
     }
 }
-
 public partial class Time
 {
     static Stopwatch watch;
