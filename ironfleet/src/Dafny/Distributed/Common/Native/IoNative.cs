@@ -262,12 +262,14 @@ partial class TcpClient
 partial class TcpListener
 {
     internal NTcpListener listener;
+    internal int port;
 
     public TcpListener() { }
 
-    public void New()
+    public void New(int port)
     {
-        listener = new NTcpListener(new IPEndPoint(IPAddress.Any, 0));
+        this.port = port;
+        listener = new NTcpListener(port);
     }
 
     public void Start()
@@ -277,7 +279,7 @@ partial class TcpListener
 
     public void GetPort(out int port)
     {
-        port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        port = this.port;
     }
 
     public void AcceptTcpClient(out TcpClient client)

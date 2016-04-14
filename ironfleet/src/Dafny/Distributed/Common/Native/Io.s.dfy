@@ -232,7 +232,7 @@ class TcpListener
 {
     ghost var started:bool;
 
-    constructor{:axiom} New()
+    constructor{:axiom} New(port:int32)
 
     method{:axiom} Start()
         modifies this`started;

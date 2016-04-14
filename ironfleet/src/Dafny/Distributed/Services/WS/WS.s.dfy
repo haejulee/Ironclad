@@ -62,4 +62,5 @@ predicate GetSeq(fs:FileSystemState, req:HTTPRequest, res:HTTPResponse)
         var header := GetProtocolVersion() + " " + GetHTTPCode("Invalid");
         res == header
 }
+
 }
