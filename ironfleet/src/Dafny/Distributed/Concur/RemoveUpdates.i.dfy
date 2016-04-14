@@ -21,6 +21,7 @@ module RemoveUpdatesModule {
         )
         requires ds' == RemoveActorStateFromSystemState(ds);
         ensures  SystemCorrespondence(ds, ds');
+        ensures  SystemCorrespondence(ds', ds);
         decreases |ds.states|;
     {
         if ds.states == map [] {
@@ -33,6 +34,7 @@ module RemoveUpdatesModule {
         var relation := GetSystemSystemRefinementRelation();
         lemma_SystemCorrespondenceBetweenSystemStateAndItselfWithoutActorStates(ds_mid, ds');
         assert RefinementPair(ds_mid, ds') in relation;
+        assert RefinementPair(ds', ds_mid) in relation;
 
         forall ss | SpecCorrespondence(ds_mid, ss)
             ensures SpecCorrespondence(ds, ss);
@@ -42,10 +44,33 @@ module RemoveUpdatesModule {
             lemma_LeftMoverBackwardPreservation(entry, ds, ds_mid, ss);
         }
         assert SystemCorrespondence(ds, ds_mid);
-
         assert RefinementPair(ds, ds_mid) in relation;
+
+        forall ss | SpecCorrespondence(ds, ss)
+            ensures SpecCorrespondence(ds_mid, ss);
+        {
+            var entry := Entry(actor, UpdateLocalState());
+            assert SystemNextEntry(ds, ds_mid, entry);
+            lemma_RightMoverForwardPreservation(entry, ds, ds_mid, ss);
+        }
+        assert SystemCorrespondence(ds_mid, ds);
+        assert RefinementPair(ds_mid, ds) in relation;
+
         lemma_SystemRefinementRelationConvolvesWithItself();
         assert RefinementPair(ds, ds') in relation;
+    }
+
+    lemma lemma_SystemCorrespondenceBetweenSystemStatesDifferingOnlyInActorStates(
+        ds:SystemState,
+        ds':SystemState
+        )
+        requires ds' == ds.(states := ds'.states);
+        ensures  SystemCorrespondence(ds, ds');
+    {
+        var ds_mid := ds.(states := map[]);
+        lemma_SystemCorrespondenceBetweenSystemStateAndItselfWithoutActorStates(ds, ds_mid);
+        lemma_SystemCorrespondenceBetweenSystemStateAndItselfWithoutActorStates(ds', ds_mid);
+        lemma_SystemRefinementRelationConvolvesWithItself();
     }
 
     lemma lemma_SystemNextEntryPreservedWhenRemovingActorState(
@@ -85,7 +110,7 @@ module RemoveUpdatesModule {
         {
             assert j == i;
             assert db'[j] == RemoveActorStateFromSystemState(db[i]);
-            lemma_SystemCorrespondenceBetweenSystemStateAndItselfWithoutActorStates(db[i], db'[j]);
+            lemma_SystemCorrespondenceBetweenSystemStatesDifferingOnlyInActorStates(db[i], db'[j]);
         }
         assert BehaviorRefinesBehaviorUsingRefinementMap(db, db', relation, lh_map);
 
