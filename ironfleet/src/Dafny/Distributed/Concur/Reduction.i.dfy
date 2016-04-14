@@ -79,15 +79,43 @@ module ReductionModule
         else LookupTreeDesignator(designator[1..], tree.children[designator[0]])
     }
 
-    function GetEntries(trees:seq<Tree>) : seq<Entry>
+    function GetLeafEntries(tree:Tree) : seq<Entry>
+    {
+        match tree
+            case Leaf(e) => [e]
+            case Inner(reduced_entry, children, pivot_index) => GetLeafEntriesForest(children)
+    }
+    
+    function GetLeafEntriesForest(trees:seq<Tree>) : seq<Entry>
     {
         if |trees| == 0 then []
-        else var head := (match trees[0]
-                            case Leaf(e) => [e]
-                            case Inner(reduced_entry, children, pivot_index) => GetEntries(children)
-                         );
-             head + GetEntries(trees[1..])
+        else var head := GetLeafEntries(trees[0]);
+             head + GetLeafEntriesForest(trees[1..])
     }
+    
+    function GetLeafEntriesPrefix(tree:Tree, designator:seq<int>) : seq<Entry>
+        requires ValidTreeDesignator(designator, tree);
+    {
+        if |designator| == 0 then []
+        else 
+            match tree
+                case Leaf(e) => [e]
+                case Inner(reduced_entry, children, pivot_index) => 
+                    GetLeafEntriesForestPrefix(tree.children, designator[0], designator[1..])
+        
+    }
+
+    function GetLeafEntriesForestPrefix(trees:seq<Tree>, tree_index:int, designator:seq<int>) : seq<Entry>
+        requires 0 <= tree_index < |trees|;
+        requires ValidTreeDesignator(designator, trees[tree_index]);
+    {
+        if |trees| == 0 then 
+            []
+        else 
+            GetLeafEntriesForest(trees[..tree_index]) + GetLeafEntriesPrefix(trees[tree_index], designator)
+    }
+
+
 
     ghost method FindReducibleSubtree(tree:Tree) returns (success:bool, sub_tree:Tree, designator:seq<int>)
         requires TreeValid(tree);
@@ -199,4 +227,17 @@ module ReductionModule
             assert TreeValid(reduced_tree);
         }
     }
+
+    lemma lemma_ReduceTreeLeaves(tree:Tree, designator:seq<int>) returns (prefix:seq<Entry>, suffix:seq<Entry>)
+        requires TreeValid(tree) && ReduceTree.requires(tree, designator)
+        decreases |designator|;
+        ensures var old_leaves := GetLeafEntries(tree); 
+                var reduced_tree := ReduceTree(tree, designator);
+                var new_leaves := GetLeafEntries(reduced_tree); 
+                var sub_tree := LookupTreeDesignator(designator, tree);
+                var reduced_leaves := GetLeafEntries(sub_tree);
+                old_leaves == prefix + reduced_leaves + suffix
+             && new_leaves == prefix + [sub_tree.reduced_entry] + suffix;
+//    {
+//    }
 }
