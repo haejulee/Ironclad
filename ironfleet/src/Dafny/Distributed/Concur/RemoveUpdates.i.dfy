@@ -89,14 +89,15 @@ module RemoveUpdatesModule {
     }
 
     lemma lemma_RefineToBehaviorWithoutStates(
+        config:Config,
         trace:Trace,
         lb:seq<SystemState>
         ) returns (
         hb:seq<SystemState>
         )
-        requires IsValidSystemTraceAndBehavior(trace, lb);
+        requires IsValidSystemTraceAndBehavior(config, trace, lb);
         requires forall entry :: entry in trace ==> IsRealAction(entry.action);
-        ensures  IsValidSystemTraceAndBehavior(trace, hb);
+        ensures  IsValidSystemTraceAndBehavior(config, trace, hb);
         ensures  SystemBehaviorRefinesSystemBehavior(lb, hb);
         ensures  forall ls :: ls in hb ==> ls.states == map [];
     {

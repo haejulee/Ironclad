@@ -12,11 +12,12 @@ module SystemModule {
     datatype SystemState = SystemState(config:Config, states:map<Actor, ActorState>, time:int, sentPackets:set<Packet>)
     type SystemBehavior = seq<SystemState>
 
-    predicate SystemInit(ls:SystemState)
+    predicate SystemInit(config:Config, ls:SystemState)
     {
            (forall actor :: actor in ls.states ==> ActorStateInit(ls.states[actor]))
-        && |ls.sentPackets| == 0
+        && ls.config == config
         && ls.time >= 0
+        && |ls.sentPackets| == 0
     }
 
     predicate SystemNextReceive(ls:SystemState, ls':SystemState, actor:Actor, p:Packet)
@@ -130,17 +131,17 @@ module SystemModule {
         exists entry :: SystemNextEntry(ls, ls', entry)
     }
 
-    predicate IsValidSystemBehavior(lb:SystemBehavior)
+    predicate IsValidSystemBehavior(config:Config, lb:SystemBehavior)
     {
            |lb| > 0
-        && SystemInit(lb[0])
+        && SystemInit(config, lb[0])
         && (forall i {:trigger SystemNext(lb[i], lb[i+1])} :: 0 <= i < |lb| - 1 ==> SystemNext(lb[i], lb[i+1]))
     }
 
-    predicate IsValidSystemTraceAndBehavior(trace:Trace, lb:SystemBehavior)
+    predicate IsValidSystemTraceAndBehavior(config:Config, trace:Trace, lb:SystemBehavior)
     {
            |lb| == |trace| + 1
-        && SystemInit(lb[0])
+        && SystemInit(config, lb[0])
         && (forall i {:trigger SystemNextEntry(lb[i], lb[i+1], trace[i])} :: 0 <= i < |trace| ==> SystemNextEntry(lb[i], lb[i+1], trace[i]))
     }
 }

@@ -27,7 +27,7 @@ module TraceModule {
         a.Receive? || a.Send? || a.ReadClock? || a.UpdateLocalState? || a.DeliverPacket? || a.AdvanceTime?
     }
 
-    predicate IsCapturedAction(a:Action)
+    predicate IsTrackedAction(a:Action)
     {
         a.Receive? || a.Send? || a.ReadClock?
     }
