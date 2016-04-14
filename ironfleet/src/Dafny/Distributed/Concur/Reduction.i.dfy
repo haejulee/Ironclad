@@ -1,8 +1,10 @@
 include "ActorTraces.i.dfy"
+include "SpecRefinement.i.dfy"
 
 module ReductionModule
 {
-    import opened ActorTraces 
+    import opened ActorTraces
+    import opened SpecRefinementModule
 
     /////////////////////////////////////////////////
     // Reduction trees

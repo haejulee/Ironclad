@@ -1,9 +1,9 @@
 include "../Common/Collections/Seqs.i.dfy"
-include "Refinement.i.dfy"
+include "Trace.i.dfy"
 
 module ActorTraces 
 {
-    import opened RefinementModule
+    import opened TraceModule
     import opened Collections__Seqs_i
 
     function RestrictTraceToActor(t:Trace, a:Actor) : Trace
