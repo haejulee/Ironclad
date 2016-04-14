@@ -154,4 +154,25 @@ module SystemRefinementModule {
         var hb, mh_map :| SystemBehaviorRefinesValidSpecBehaviorUsingRefinementMap(mb, hb, mh_map);
         lemma_SystemValidSpecRefinementConvolutionPure(lb, mb, hb);
     }
+
+    lemma lemma_SystemStateCorrespondsToItself(ls:SystemState)
+        ensures  SystemCorrespondence(ls, ls);
+    {
+        assert forall ss :: SpecCorrespondence(ls, ss) ==> SpecCorrespondence(ls, ss);
+    }
+
+    lemma lemma_SystemBehaviorRefinesItself(lb:seq<SystemState>)
+        ensures  SystemBehaviorRefinesSystemBehavior(lb, lb);
+    {
+        var relation := GetSystemSystemRefinementRelation();
+        var lh_map := ConvertMapToSeq(|lb|, map i | 0 <= i < |lb| :: RefinementRange(i, i));
+
+        forall i, j {:trigger RefinementPair(lb[i], lb[j])} | 0 <= i < |lb| && lh_map[i].first <= j <= lh_map[i].last
+            ensures RefinementPair(lb[i], lb[j]) in relation;
+        {
+            assert i == j;
+            lemma_SystemStateCorrespondsToItself(lb[i]);
+        }
+        assert BehaviorRefinesBehaviorUsingRefinementMap(lb, lb, relation, lh_map);
+    }
 }
