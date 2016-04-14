@@ -10,17 +10,6 @@ module RemoveUpdatesModule {
     import opened SystemRefinementModule
     import opened Collections__Maps_i
 
-    function {:opaque} MapSeqToSeq<T,U>(s:seq<T>, refine_func:T->U) : seq<U>
-        reads refine_func.reads;
-        requires forall i :: refine_func.reads(i) == {};
-        requires forall i :: 0 <= i < |s| ==> refine_func.requires(s[i]);
-        ensures |MapSeqToSeq(s, refine_func)| == |s|;
-        ensures forall i :: 0 <= i < |s| ==> refine_func(s[i]) == MapSeqToSeq(s,refine_func)[i];
-    {
-        if |s| == 0 then []
-        else [refine_func(s[0])] + MapSeqToSeq(s[1..], refine_func)
-    }
-
     function RemoveActorStateFromSystemState(ds:SystemState) : SystemState
     {
         ds.(states := map[])
@@ -74,20 +63,6 @@ module RemoveUpdatesModule {
     {
     }
 
-    lemma lemma_GetTrivialRefinementMap(n:int) returns (lh_map:RefinementMap)
-        requires n >= 0;
-        ensures  IsValidRefinementMap(n, n, lh_map);
-        ensures  forall i {:trigger lh_map[i]} :: 0 <= i < n ==> lh_map[i] == RefinementRange(i, i);
-    {
-        if n == 0 {
-            lh_map := [];
-            return;
-        }
-
-        var lh_map' := lemma_GetTrivialRefinementMap(n-1);
-        lh_map := lh_map' + [RefinementRange(n-1, n-1)];
-    }
-
     lemma lemma_RefineToBehaviorWithoutStates(
         trace:Trace,
         db:seq<SystemState>
@@ -100,8 +75,8 @@ module RemoveUpdatesModule {
         ensures  SystemBehaviorRefinesSystemBehavior(db, db');
         ensures  forall ds :: ds in db' ==> ds.states == map [];
     {
-        db' := MapSeqToSeq(db, RemoveActorStateFromSystemState);
-        var lh_map := lemma_GetTrivialRefinementMap(|db|);
+        db' := ConvertMapToSeq(|db|, map i {:trigger db[i]} | 0 <= i < |db| :: RemoveActorStateFromSystemState(db[i]));
+        var lh_map := ConvertMapToSeq(|db|, map i {:trigger RefinementRange(i, i)} | 0 <= i < |db| :: RefinementRange(i, i));
         var relation := GetSystemSystemRefinementRelation();
 
         forall i, j {:trigger RefinementPair(db[i], db'[j]) in relation} |

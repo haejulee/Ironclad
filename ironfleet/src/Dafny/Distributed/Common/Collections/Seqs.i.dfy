@@ -179,4 +179,37 @@ lemma lemma_ConcatenationOf5Sequences<T>(s1:seq<T>, s2:seq<T>, s3:seq<T>, s4:seq
 {
 }
 
+function {:opaque} MapSeqToSeq<T,U>(s:seq<T>, refine_func:T->U) : seq<U>
+    reads refine_func.reads;
+    requires forall i :: refine_func.reads(i) == {};
+    requires forall i :: 0 <= i < |s| ==> refine_func.requires(s[i]);
+    ensures |MapSeqToSeq(s, refine_func)| == |s|;
+    ensures forall i :: 0 <= i < |s| ==> refine_func(s[i]) == MapSeqToSeq(s,refine_func)[i];
+{
+    if |s| == 0 then []
+    else [refine_func(s[0])] + MapSeqToSeq(s[1..], refine_func)
+}
+
+function {:opaque} ConvertMapToSeq<T>(n:int, m:map<int, T>) : seq<T>
+    requires n >= 0;
+    requires forall i {:trigger i in m} :: 0 <= i < n ==> i in m;
+    ensures  |ConvertMapToSeq(n, m)| == n;
+    ensures  var s := ConvertMapToSeq(n, m);
+             forall i {:trigger s[i]} :: 0 <= i < n ==> s[i] == m[i];
+{
+    if n == 0 then []
+    else ConvertMapToSeq(n-1, m) + [m[n-1]]
+}
+
+function {:opaque} range(low:int, high:int) : seq<int>
+    requires high >= low;
+    ensures  |range(low, high)| == high - low;
+    ensures  var s := range(low, high);
+             forall i {:trigger s[i]} :: 0 <= i < high - low ==> s[i] == low + i;
+    decreases high - low;
+{
+    if high == low then []
+    else [low] + range(low+1, high)
+}
+
 }
