@@ -179,15 +179,15 @@ lemma lemma_ConcatenationOf5Sequences<T>(s1:seq<T>, s2:seq<T>, s3:seq<T>, s4:seq
 {
 }
 
-function {:opaque} MapSeqToSeq<T,U>(s:seq<T>, refine_func:T->U) : seq<U>
-    reads refine_func.reads;
-    requires forall i :: refine_func.reads(i) == {};
-    requires forall i :: 0 <= i < |s| ==> refine_func.requires(s[i]);
-    ensures |MapSeqToSeq(s, refine_func)| == |s|;
-    ensures forall i :: 0 <= i < |s| ==> refine_func(s[i]) == MapSeqToSeq(s,refine_func)[i];
+function {:opaque} MapSeqToSeq<T,U>(s:seq<T>, func:T->U) : seq<U>
+    reads func.reads;
+    requires forall i :: func.reads(i) == {};
+    requires forall i :: 0 <= i < |s| ==> func.requires(s[i]);
+    ensures |MapSeqToSeq(s, func)| == |s|;
+    ensures forall i :: 0 <= i < |s| ==> func(s[i]) == MapSeqToSeq(s,func)[i];
 {
     if |s| == 0 then []
-    else [refine_func(s[0])] + MapSeqToSeq(s[1..], refine_func)
+    else [func(s[0])] + MapSeqToSeq(s[1..], func)
 }
 
 lemma lemma_FunctionAdds<T,U>(s1:seq<T>, s2:seq<T>, f:seq<T> -> seq<U>, g:T->seq<U>)
