@@ -92,17 +92,14 @@ module RemoveUpdatesModule {
         trace:Trace,
         db:seq<SystemState>
         ) returns (
-        trace':Trace,
         db':seq<SystemState>
         )
         requires IsValidSystemTraceAndBehavior(trace, db);
         requires forall entry :: entry in trace ==> IsRealAction(entry.action);
-        ensures  IsValidSystemTraceAndBehavior(trace', db');
+        ensures  IsValidSystemTraceAndBehavior(trace, db');
         ensures  SystemBehaviorRefinesSystemBehavior(db, db');
-        ensures  forall entry :: entry in trace' ==> IsRealAction(entry.action);
         ensures  forall ds :: ds in db' ==> ds.states == map [];
     {
-        trace' := trace;
         db' := MapSeqToSeq(db, RemoveActorStateFromSystemState);
         var lh_map := lemma_GetTrivialRefinementMap(|db|);
         var relation := GetSystemSystemRefinementRelation();
@@ -117,8 +114,8 @@ module RemoveUpdatesModule {
         }
         assert BehaviorRefinesBehaviorUsingRefinementMap(db, db', relation, lh_map);
 
-        forall i {:trigger SystemNextEntry(db'[i], db'[i+1], trace'[i])} | 0 <= i < |db'|-1
-            ensures SystemNextEntry(db'[i], db'[i+1], trace'[i]);
+        forall i {:trigger SystemNextEntry(db'[i], db'[i+1], trace[i])} | 0 <= i < |db'|-1
+            ensures SystemNextEntry(db'[i], db'[i+1], trace[i]);
         {
             lemma_SystemNextEntryPreservedWhenRemovingActorState(db[i], db[i+1], db'[i], db'[i+1], trace[i]);
         }

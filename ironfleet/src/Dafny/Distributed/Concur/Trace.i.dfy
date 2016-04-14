@@ -17,7 +17,6 @@ module TraceModule {
                       | Send(s:Packet)
                       | ReadClock(t:int)
                       | UpdateLocalState()
-                      | Stutter()
                       | DeliverPacket(p:Packet)
                       | AdvanceTime(new_time:int)
                       | PerformIos(raw_ios:seq<Action>)

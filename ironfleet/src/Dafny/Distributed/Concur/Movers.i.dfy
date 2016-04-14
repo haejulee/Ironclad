@@ -6,12 +6,12 @@ module MoversModule {
 
     predicate ActionIsRightMover(action:Action)
     {
-        action.Receive? || action.UpdateLocalState? || action.Stutter?
+        action.Receive? || action.UpdateLocalState?
     }
 
     predicate ActionIsLeftMover(action:Action)
     {
-        action.Send? || action.UpdateLocalState? || action.Stutter?
+        action.Send? || action.UpdateLocalState?
     }
 
     predicate EntryIsRightMover(entry:Entry)
@@ -51,27 +51,40 @@ module MoversModule {
                     assert ds2'.states == ds1.states;
                 }
             }
+            else if entry1.actor in ds2.states {
+                ds2' := ds3.(states := mapremove(ds3.states, entry1.actor));
+                if !entry2.action.UpdateLocalState? && !entry2.action.PerformIos? && !entry2.action.HostNext? {
+                    assert ds2'.states == ds1.states;
+                }
+            }
             else {
                 assert ds1.states == ds2.states;
                 ds2' := ds3;
             }
         }
-        else if entry1.action.Stutter? {
-            ds2' := ds3;
-        }
-        else if entry2.action.Stutter? {
-            ds2' := ds1;
-        }
         else if entry2.action.UpdateLocalState? {
             if entry2.actor in ds2.states {
-                ds2' := ds1.(states := ds1.states[entry2.actor := ds3.states[entry2.actor]]);
+                if entry2.actor in ds3.states {
+                    ds2' := ds1.(states := ds1.states[entry2.actor := ds3.states[entry2.actor]]);
+                }
+                else {
+                    ds2' := ds1.(states := mapremove(ds1.states, entry2.actor));
+                }
                 if !entry1.action.UpdateLocalState? && !entry1.action.PerformIos? && !entry1.action.HostNext? {
                     assert ds2'.states == ds3.states;
                 }
             }
             else {
-                ds2' := ds1;
-                assert ds2.states == ds3.states;
+                if entry2.actor in ds3.states {
+                    ds2' := ds1.(states := ds1.states[entry2.actor := ds3.states[entry2.actor]]);
+                    if !entry1.action.UpdateLocalState? && !entry1.action.PerformIos? && !entry1.action.HostNext? {
+                        assert ds2'.states == ds3.states;
+                    }
+                }
+                else {
+                    ds2' := ds1;
+                    assert ds2.states == ds3.states;
+                }
             }
         }
         else if entry2.action.Send? {

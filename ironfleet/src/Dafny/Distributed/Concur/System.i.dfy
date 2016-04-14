@@ -37,16 +37,15 @@ module SystemModule {
     predicate SystemNextReadClock(s:SystemState, s':SystemState, actor:Actor, t:int)
     {
            s' == s
-        && actor.HostActor?
+        && !actor.NoActor?
         && t == s.time
     }
 
     predicate SystemNextUpdateLocalState(s:SystemState, s':SystemState, actor:Actor)
     {
-           actor.HostActor?
-        && (forall any_actor :: any_actor in s.states <==> any_actor in s'.states)
-        && (forall other_actor :: other_actor != actor && other_actor in s.states ==>
+           (forall other_actor :: other_actor != actor && other_actor in s.states ==>
                             other_actor in s'.states && s'.states[other_actor] == s.states[other_actor])
+        && (forall other_actor :: other_actor != actor && other_actor !in s.states ==> other_actor !in s'.states)
         && s'.sentPackets == s.sentPackets
         && s'.time == s.time
         && s'.config == s.config
@@ -57,16 +56,18 @@ module SystemModule {
         s' == s
     }
 
-    predicate SystemNextDeliverPacket(s:SystemState, s':SystemState, p:Packet)
+    predicate SystemNextDeliverPacket(s:SystemState, s':SystemState, actor:Actor, p:Packet)
     {
            p in s.sentPackets
         && s' == s
+        && actor.NoActor?
     }
 
-    predicate SystemNextAdvanceTime(s:SystemState, s':SystemState, t:int)
+    predicate SystemNextAdvanceTime(s:SystemState, s':SystemState, actor:Actor, t:int)
     {
            t > s.time
         && s' == s.(time := t)
+        && actor.NoActor?
     }
 
     predicate SystemNextPerformIos(
@@ -113,9 +114,8 @@ module SystemModule {
             case Send(p) => SystemNextSend(s, s', actor, p)
             case ReadClock(t) => SystemNextReadClock(s, s', actor, t)
             case UpdateLocalState => SystemNextUpdateLocalState(s, s', actor)
-            case Stutter => SystemNextStutter(s, s')
-            case DeliverPacket(p) => SystemNextDeliverPacket(s, s', p)
-            case AdvanceTime(t) => SystemNextAdvanceTime(s, s', t)
+            case DeliverPacket(p) => SystemNextDeliverPacket(s, s', actor, p)
+            case AdvanceTime(t) => SystemNextAdvanceTime(s, s', actor, t)
             case PerformIos(ios) => SystemNextPerformIos(s, s', actor, ios)
             case HostNext(ios) => SystemNextHostNext(s, s', actor, ios)
     }
