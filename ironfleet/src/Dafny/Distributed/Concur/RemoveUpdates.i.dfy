@@ -10,7 +10,7 @@ module RemoveUpdatesModule {
     import opened SystemRefinementModule
     import opened Collections__Maps_i
 
-    function RemoveActorStateFromSystemState(ls:SystemState) : SystemState
+    function RemoveActorStatesFromSystemState(ls:SystemState) : SystemState
     {
         ls.(states := map[])
     }
@@ -19,7 +19,7 @@ module RemoveUpdatesModule {
         ls:SystemState,
         hs:SystemState
         )
-        requires hs == RemoveActorStateFromSystemState(ls);
+        requires hs == RemoveActorStatesFromSystemState(ls);
         ensures  SystemCorrespondence(ls, hs);
         ensures  SystemCorrespondence(hs, ls);
         decreases |ls.states|;
@@ -67,7 +67,7 @@ module RemoveUpdatesModule {
         requires hs == ls.(states := hs.states);
         ensures  SystemCorrespondence(ls, hs);
     {
-        var ms := ls.(states := map[]);
+        var ms := RemoveActorStatesFromSystemState(ls);
         lemma_SystemCorrespondenceBetweenSystemStateAndItselfWithoutActorStates(ls, ms);
         lemma_SystemCorrespondenceBetweenSystemStateAndItselfWithoutActorStates(hs, ms);
         lemma_SystemRefinementRelationConvolvesWithItself();
@@ -81,8 +81,8 @@ module RemoveUpdatesModule {
         entry:Entry
         )
         requires SystemNextEntry(ls0, ls1, entry);
-        requires ls0' == RemoveActorStateFromSystemState(ls0);
-        requires ls1' == RemoveActorStateFromSystemState(ls1);
+        requires ls0' == RemoveActorStatesFromSystemState(ls0);
+        requires ls1' == RemoveActorStatesFromSystemState(ls1);
         requires !entry.action.HostNext?;
         ensures  SystemNextEntry(ls0', ls1', entry);
     {
@@ -100,7 +100,7 @@ module RemoveUpdatesModule {
         ensures  SystemBehaviorRefinesSystemBehavior(lb, hb);
         ensures  forall ls :: ls in hb ==> ls.states == map [];
     {
-        hb := ConvertMapToSeq(|lb|, map i {:trigger lb[i]} | 0 <= i < |lb| :: RemoveActorStateFromSystemState(lb[i]));
+        hb := ConvertMapToSeq(|lb|, map i {:trigger lb[i]} | 0 <= i < |lb| :: RemoveActorStatesFromSystemState(lb[i]));
         var lh_map := ConvertMapToSeq(|lb|, map i {:trigger RefinementRange(i, i)} | 0 <= i < |lb| :: RefinementRange(i, i));
         var relation := GetSystemSystemRefinementRelation();
 
@@ -109,7 +109,7 @@ module RemoveUpdatesModule {
             ensures RefinementPair(lb[i], hb[j]) in relation;
         {
             assert j == i;
-            assert hb[j] == RemoveActorStateFromSystemState(lb[i]);
+            assert hb[j] == RemoveActorStatesFromSystemState(lb[i]);
             lemma_SystemCorrespondenceBetweenSystemStatesDifferingOnlyInActorStates(lb[i], hb[j]);
         }
         assert BehaviorRefinesBehaviorUsingRefinementMap(lb, hb, relation, lh_map);

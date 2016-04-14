@@ -4,39 +4,6 @@ module GeneralRefinementLemmasModule {
 
     import opened GeneralRefinementModule
 
-    lemma lemma_FirstOfRefinementPairBounded(low_level_behavior_size:int, high_level_behavior_size:int, lh_map:RefinementMap, i:int)
-        requires IsValidRefinementMap(low_level_behavior_size, high_level_behavior_size, lh_map);
-        requires 0 <= i < low_level_behavior_size;
-        ensures  0 <= lh_map[i].first <= lh_map[i].last;
-    {
-        if i != 0 {
-            var j := i-1;
-            lemma_FirstOfRefinementPairBounded(low_level_behavior_size, high_level_behavior_size, lh_map, j);
-            assert 0 <= lh_map[j].first <= lh_map[j].last <= lh_map[j+1].first <= lh_map[j+1].last;
-        }
-    }
-
-    lemma lemma_LastOfRefinementPairBounded(low_level_behavior_size:int, high_level_behavior_size:int, lh_map:RefinementMap, i:int)
-        requires IsValidRefinementMap(low_level_behavior_size, high_level_behavior_size, lh_map);
-        requires 0 <= i < low_level_behavior_size;
-        ensures  lh_map[i].first <= lh_map[i].last < high_level_behavior_size;
-        decreases low_level_behavior_size - i;
-    {
-        if i != low_level_behavior_size - 1 {
-            lemma_LastOfRefinementPairBounded(low_level_behavior_size, high_level_behavior_size, lh_map, i+1);
-            assert lh_map[i].first <= lh_map[i].last < high_level_behavior_size;
-        }
-    }
-
-    lemma lemma_FirstAndLastOfRefinementPairBounded(low_level_behavior_size:int, high_level_behavior_size:int, lh_map:RefinementMap, i:int)
-        requires IsValidRefinementMap(low_level_behavior_size, high_level_behavior_size, lh_map);
-        requires 0 <= i < low_level_behavior_size;
-        ensures  0 <= lh_map[i].first <= lh_map[i].last < high_level_behavior_size;
-    {
-        lemma_FirstOfRefinementPairBounded(low_level_behavior_size, high_level_behavior_size, lh_map, i);
-        lemma_LastOfRefinementPairBounded(low_level_behavior_size, high_level_behavior_size, lh_map, i);
-    }
-
     lemma lemma_LaterFirstBeyondEarlierLastInRefinementMap(
         low_level_behavior_size:int,
         high_level_behavior_size:int,
@@ -87,17 +54,24 @@ module GeneralRefinementLemmasModule {
             lb' := lb;
             hb' := hb;
             lh_map' := lh_map;
-            lemma_FirstOfRefinementPairBounded(|lb|, |hb|, lh_map, new_low_behavior_size-1);
             return;
         }
 
         var j := new_low_behavior_size - 1;
         assert lh_map[j].last == lh_map[j+1].first || lh_map[j].last == lh_map[j+1].first - 1;
-        lemma_FirstAndLastOfRefinementPairBounded(|lb|, |hb|, lh_map, j);
 
         lb' := lb[..new_low_behavior_size];
         lh_map' := lh_map[..new_low_behavior_size];
         hb' := hb[.. last(lh_map').last+1];
+
+        forall pair | pair in lh_map'
+            ensures 0 <= pair.first <= pair.last < |hb'|;
+        {
+            var i :| 0 <= i < |lh_map'| && pair == lh_map'[i];
+            lemma_LaterFirstBeyondEarlierLastInRefinementMap(|lb|, |hb|, lh_map, i, j);
+        }
+
+        assert BehaviorRefinesBehaviorUsingRefinementMap(lb', hb', lh_relation, lh_map');
     }
 
     lemma lemma_RefinementMapIsReversible(
@@ -121,10 +95,18 @@ module GeneralRefinementLemmasModule {
         var j := |lh_map| - 2;
         assert lh_map[j].last == lh_map[j+1].first || lh_map[j].last == lh_map[j+1].first - 1;
 
-        var new_low_behavior_size := low_level_behavior_size - 1;
-        var lh_map' := lh_map[..new_low_behavior_size];
+        var new_low_level_behavior_size := low_level_behavior_size - 1;
+        var lh_map' := lh_map[..new_low_level_behavior_size];
         var new_high_level_behavior_size := last(lh_map').last + 1;
 
-        lpos := lemma_RefinementMapIsReversible(new_low_behavior_size, new_high_level_behavior_size, lh_map', hpos);
+        forall pair | pair in lh_map'
+            ensures 0 <= pair.first <= pair.last < new_high_level_behavior_size;
+        {
+            var i :| 0 <= i < |lh_map'| && pair == lh_map'[i];
+            lemma_LaterFirstBeyondEarlierLastInRefinementMap(low_level_behavior_size, high_level_behavior_size, lh_map, i, j);
+        }
+
+        assert IsValidRefinementMap(new_low_level_behavior_size, new_high_level_behavior_size, lh_map');
+        lpos := lemma_RefinementMapIsReversible(new_low_level_behavior_size, new_high_level_behavior_size, lh_map', hpos);
     }
 }

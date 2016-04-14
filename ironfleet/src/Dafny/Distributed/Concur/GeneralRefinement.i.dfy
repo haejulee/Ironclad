@@ -12,7 +12,7 @@ module GeneralRefinementModule {
     predicate IsValidRefinementMap(low_level_behavior_size:int, high_level_behavior_size:int, lh_map:RefinementMap)
     {
            |lh_map| == low_level_behavior_size
-        && (forall pair :: pair in lh_map ==> pair.first <= pair.last)
+        && (forall pair :: pair in lh_map ==> 0 <= pair.first <= pair.last < high_level_behavior_size)
         && (forall i {:trigger lh_map[i].last, lh_map[i+1].first} ::
                  0 <= i < |lh_map| - 1 ==> lh_map[i+1].first == lh_map[i].last || lh_map[i+1].first == lh_map[i].last + 1)
         && (if low_level_behavior_size > 0 then
@@ -31,7 +31,7 @@ module GeneralRefinementModule {
     {
            IsValidRefinementMap(|lb|, |hb|, lh_map)
         && (forall i, j {:trigger RefinementPair(lb[i], hb[j]) in relation} ::
-                    0 <= i < |lb| && lh_map[i].first <= j <= lh_map[i].last && 0 <= j < |hb| ==> RefinementPair(lb[i], hb[j]) in relation)
+                    0 <= i < |lb| && lh_map[i].first <= j <= lh_map[i].last ==> RefinementPair(lb[i], hb[j]) in relation)
     }
 
     predicate BehaviorRefinesBehavior<L, H>(

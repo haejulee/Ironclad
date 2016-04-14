@@ -36,7 +36,6 @@ module RefinementConvolutionModule {
         }
 
         if |lb| == 1 {
-            lemma_FirstAndLastOfRefinementPairBounded(|mb|, |hb|, mh_map, 0);
             lh_map := [ RefinementRange(0, |hb|-1) ];
             assert IsValidRefinementMap(|lb|, |hb|, lh_map);
             forall i, j {:trigger RefinementPair(lb[i], hb[j]) in lh_relation} |
@@ -56,7 +55,6 @@ module RefinementConvolutionModule {
         assert mb'' == mb';
 
         var lh_map' := lemma_RefinementConvolution(lb', mb', hb', lm_relation, mh_relation, lh_relation, lm_map', mh_map');
-        lemma_FirstAndLastOfRefinementPairBounded(|lb|, |mb|, lm_map, |lm_map|-1);
 
         var second_from_last := |lm_map|-2;
         assert    lm_map[second_from_last].last == lm_map[second_from_last+1].first
@@ -72,7 +70,6 @@ module RefinementConvolutionModule {
         else {
             assert lm_map[second_from_last].last + 1 == lm_map[second_from_last+1].first;
             var k := lm_map[second_from_last].last;
-            lemma_FirstAndLastOfRefinementPairBounded(|lb|, |mb|, lm_map, second_from_last);
             assert mh_map[k].last == mh_map[k+1].first || mh_map[k].last + 1 == mh_map[k+1].first;
 
             if mh_map[k].last == mh_map[k+1].first {
@@ -81,7 +78,6 @@ module RefinementConvolutionModule {
             }
             else {
                 assert mh_map[k].last + 1 == mh_map[k+1].first;
-                lemma_FirstAndLastOfRefinementPairBounded(|mb|, |hb|, mh_map, k+1);
                 new_first := last(lh_map').last + 1;
                 witness_to_correspondence := lm_map[second_from_last+1].first;
             }
@@ -102,7 +98,6 @@ module RefinementConvolutionModule {
             if i < |lb'| {
                 assert lh_map'[i] == lh_map[i];
                 assert lh_map'[i].first <= j <= lh_map'[i].last;
-                lemma_FirstAndLastOfRefinementPairBounded(|lb'|, |hb'|, lh_map', i);
                 assert RefinementPair(lb'[i], hb'[j]) in lh_relation;
             }
             else {
