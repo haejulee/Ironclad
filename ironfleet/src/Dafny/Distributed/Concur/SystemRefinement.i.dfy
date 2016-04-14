@@ -129,4 +129,29 @@ module SystemRefinementModule {
         lemma_SystemRefinementRelationConvolvesWithSpecRefinementRelation();
         lemma_RefinementConvolutionPure(lb, mb, hb, r1, r2, r2);
     }
+
+    lemma lemma_SystemValidSpecRefinementConvolutionPure(
+        lb:seq<SystemState>,
+        mb:seq<SystemState>,
+        hb:seq<SpecState>
+        )
+        requires SystemBehaviorRefinesSystemBehavior(lb, mb);
+        requires SystemBehaviorRefinesValidSpecBehavior(mb, hb);
+        ensures  SystemBehaviorRefinesValidSpecBehavior(lb, hb);
+    {
+        lemma_SystemSpecRefinementConvolutionPure(lb, mb, hb);
+        var lh_map :| SystemBehaviorRefinesValidSpecBehaviorUsingRefinementMap(lb, hb, lh_map);
+    }
+
+    lemma lemma_SystemSpecRefinementConvolutionExtraPure(
+        lb:seq<SystemState>,
+        mb:seq<SystemState>
+        )
+        requires SystemBehaviorRefinesSystemBehavior(lb, mb);
+        requires SystemBehaviorRefinesSpec(mb);
+        ensures  SystemBehaviorRefinesSpec(lb);
+    {
+        var hb, mh_map :| SystemBehaviorRefinesValidSpecBehaviorUsingRefinementMap(mb, hb, mh_map);
+        lemma_SystemValidSpecRefinementConvolutionPure(lb, mb, hb);
+    }
 }

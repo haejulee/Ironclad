@@ -1,6 +1,7 @@
 include "Reduction.i.dfy"
 include "RefinementConvolution.i.dfy"
 include "SystemRefinement.i.dfy"
+include "ReductionPlan.i.dfy"
 include "../Common/Collections/Maps.i.dfy"
 
 module RemoveUpdatesModule {
@@ -8,6 +9,7 @@ module RemoveUpdatesModule {
     import opened ReductionModule
     import opened RefinementConvolutionModule
     import opened SystemRefinementModule
+    import opened ReductionPlanModule
     import opened Collections__Maps_i
 
     function RemoveActorStatesFromSystemState(ls:SystemState) : SystemState
@@ -121,5 +123,19 @@ module RemoveUpdatesModule {
             lemma_SystemNextEntryPreservedWhenRemovingActorState(lb[i], lb[i+1], hb[i], hb[i+1], trace[i]);
         }
     }
+
+    lemma {:axiom} lemma_ReductionOfBehaviorWithoutStates(
+        config:Config,
+        trace:Trace,
+        lb:SystemBehavior,
+        plan:ReductionPlan
+        )
+        requires IsValidSystemTraceAndBehavior(config, trace, lb);
+        requires IsValidReductionPlan(config, plan);
+        requires forall entry :: entry in trace ==> IsRealAction(entry.action);
+        requires forall actor :: actor in config.tracked_actors ==>
+                     RestrictTraceToTrackedActions(RestrictTraceToActor(trace, actor)) == GetEntries(plan[actor].trees);
+        requires forall ls :: ls in lb ==> ls.states == map [];
+        ensures  SystemBehaviorRefinesSpec(lb);
 
 }

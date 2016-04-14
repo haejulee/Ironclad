@@ -46,20 +46,20 @@ module SpecRefinementModule {
              SpecCorrespondence(pair.low, pair.high)
     }
 
-    predicate SystemBehaviorRefinesValidSpecBehaviorUsingRefinementMap(lb:SystemBehavior, hb:SpecBehavior, rm:RefinementMap)
+    predicate SystemBehaviorRefinesValidSpecBehaviorUsingRefinementMap(lb:SystemBehavior, hb:SpecBehavior, lh_map:RefinementMap)
     {
            IsValidSpecBehavior(hb)
-        && BehaviorRefinesBehaviorUsingRefinementMap(lb, hb, GetSystemSpecRefinementRelation(), rm)
+        && BehaviorRefinesBehaviorUsingRefinementMap(lb, hb, GetSystemSpecRefinementRelation(), lh_map)
     }
 
     predicate SystemBehaviorRefinesValidSpecBehavior(lb:SystemBehavior, hb:SpecBehavior)
     {
-        exists rm :: SystemBehaviorRefinesValidSpecBehaviorUsingRefinementMap(lb, hb, rm)
+        exists lh_map :: SystemBehaviorRefinesValidSpecBehaviorUsingRefinementMap(lb, hb, lh_map)
     }
 
     predicate SystemBehaviorRefinesSpec(lb:SystemBehavior)
     {
-        exists hb, rm :: SystemBehaviorRefinesValidSpecBehaviorUsingRefinementMap(lb, hb, rm)
+        exists hb, lh_map :: SystemBehaviorRefinesValidSpecBehaviorUsingRefinementMap(lb, hb, lh_map)
     }
 }
 
