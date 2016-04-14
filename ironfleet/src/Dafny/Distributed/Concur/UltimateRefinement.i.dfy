@@ -6,12 +6,12 @@ module UltimateRefinementModule {
 
     lemma {:axiom} lemma_UltimateRefinement(
         trace:Trace,
-        db:SystemBehavior
+        lb:SystemBehavior
         )
-        requires IsValidSystemTraceAndBehavior(trace, db);
+        requires IsValidSystemTraceAndBehavior(trace, lb);
         requires forall entry :: entry in trace ==>
-                            if entry.actor in db[0].config.tracked_actors then entry.action.HostNext? else IsRealAction(entry.action);
-        ensures  SystemBehaviorRefinesSpec(db);
+                            if entry.actor in lb[0].config.tracked_actors then entry.action.HostNext? else IsRealAction(entry.action);
+        ensures  SystemBehaviorRefinesSpec(lb);
 
 }
 

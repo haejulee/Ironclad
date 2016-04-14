@@ -30,11 +30,11 @@ module ReductionModule
 
     predicate EntriesReducibleToEntry(entries:seq<Entry>, entry:Entry)
     {
-        forall db:seq<SystemState> {:trigger SystemNextEntry(db[0], db[|entries|], entry)} ::
-                |db| == |entries|+1
-             && (forall i {:trigger SystemNextEntry(db[i], db[i+1], entries[i])} ::
-                 0 <= i < |entries| ==> SystemNextEntry(db[i], db[i+1], entries[i]))
-                 ==> SystemNextEntry(db[0], db[|entries|], entry)
+        forall lb:seq<SystemState> {:trigger SystemNextEntry(lb[0], lb[|entries|], entry)} ::
+                |lb| == |entries|+1
+             && (forall i {:trigger SystemNextEntry(lb[i], lb[i+1], entries[i])} ::
+                 0 <= i < |entries| ==> SystemNextEntry(lb[i], lb[i+1], entries[i]))
+                 ==> SystemNextEntry(lb[0], lb[|entries|], entry)
     }
 
     predicate TreeChildrenReducibleToTreeRoot(tree:Tree)
@@ -175,11 +175,11 @@ module ReductionModule
             var entry := reduced_tree.reduced_entry;
             var entries := GetRootEntries(reduced_tree.children);
             assert entries == GetRootEntries(tree.children);
-            forall db:seq<SystemState> {:trigger SystemNextEntry(db[0], db[|entries|], entry)} |
-                    |db| == |entries|+1
-                 && (forall i {:trigger SystemNextEntry(db[i], db[i+1], entries[i])} ::
-                     0 <= i < |entries| ==> SystemNextEntry(db[i], db[i+1], entries[i]))
-                ensures SystemNextEntry(db[0], db[|entries|], entry);
+            forall lb:seq<SystemState> {:trigger SystemNextEntry(lb[0], lb[|entries|], entry)} |
+                    |lb| == |entries|+1
+                 && (forall i {:trigger SystemNextEntry(lb[i], lb[i+1], entries[i])} ::
+                     0 <= i < |entries| ==> SystemNextEntry(lb[i], lb[i+1], entries[i]))
+                ensures SystemNextEntry(lb[0], lb[|entries|], entry);
             {
             }
 

@@ -12,135 +12,135 @@ module SystemModule {
     datatype SystemState = SystemState(config:Config, states:map<Actor, ActorState>, time:int, sentPackets:set<Packet>)
     type SystemBehavior = seq<SystemState>
 
-    predicate SystemInit(s:SystemState)
+    predicate SystemInit(ls:SystemState)
     {
-           (forall actor :: actor in s.states ==> ActorStateInit(s.states[actor]))
-        && |s.sentPackets| == 0
-        && s.time >= 0
+           (forall actor :: actor in ls.states ==> ActorStateInit(ls.states[actor]))
+        && |ls.sentPackets| == 0
+        && ls.time >= 0
     }
 
-    predicate SystemNextReceive(s:SystemState, s':SystemState, actor:Actor, p:Packet)
+    predicate SystemNextReceive(ls:SystemState, ls':SystemState, actor:Actor, p:Packet)
     {
-           s' == s
+           ls' == ls
         && actor.HostActor?
-        && p in s.sentPackets
+        && p in ls.sentPackets
         && p.dst == actor.ep
     }
 
-    predicate SystemNextSend(s:SystemState, s':SystemState, actor:Actor, p:Packet)
+    predicate SystemNextSend(ls:SystemState, ls':SystemState, actor:Actor, p:Packet)
     {
-           s' == s.(sentPackets := s.sentPackets + {p})
+           ls' == ls.(sentPackets := ls.sentPackets + {p})
         && actor.HostActor?
         && p.src == actor.ep
     }
 
-    predicate SystemNextReadClock(s:SystemState, s':SystemState, actor:Actor, t:int)
+    predicate SystemNextReadClock(ls:SystemState, ls':SystemState, actor:Actor, t:int)
     {
-           s' == s
+           ls' == ls
         && !actor.NoActor?
-        && t == s.time
+        && t == ls.time
     }
 
-    predicate SystemNextUpdateLocalState(s:SystemState, s':SystemState, actor:Actor)
+    predicate SystemNextUpdateLocalState(ls:SystemState, ls':SystemState, actor:Actor)
     {
-           (forall other_actor :: other_actor != actor && other_actor in s.states ==>
-                            other_actor in s'.states && s'.states[other_actor] == s.states[other_actor])
-        && (forall other_actor :: other_actor != actor && other_actor !in s.states ==> other_actor !in s'.states)
-        && s'.sentPackets == s.sentPackets
-        && s'.time == s.time
-        && s'.config == s.config
+           (forall other_actor :: other_actor != actor && other_actor in ls.states ==>
+                            other_actor in ls'.states && ls'.states[other_actor] == ls.states[other_actor])
+        && (forall other_actor :: other_actor != actor && other_actor !in ls.states ==> other_actor !in ls'.states)
+        && ls'.sentPackets == ls.sentPackets
+        && ls'.time == ls.time
+        && ls'.config == ls.config
     }
 
-    predicate SystemNextStutter(s:SystemState, s':SystemState)
+    predicate SystemNextStutter(ls:SystemState, ls':SystemState)
     {
-        s' == s
+        ls' == ls
     }
 
-    predicate SystemNextDeliverPacket(s:SystemState, s':SystemState, actor:Actor, p:Packet)
+    predicate SystemNextDeliverPacket(ls:SystemState, ls':SystemState, actor:Actor, p:Packet)
     {
-           p in s.sentPackets
-        && s' == s
+           p in ls.sentPackets
+        && ls' == ls
         && actor.NoActor?
     }
 
-    predicate SystemNextAdvanceTime(s:SystemState, s':SystemState, actor:Actor, t:int)
+    predicate SystemNextAdvanceTime(ls:SystemState, ls':SystemState, actor:Actor, t:int)
     {
-           t > s.time
-        && s' == s.(time := t)
+           t > ls.time
+        && ls' == ls.(time := t)
         && actor.NoActor?
     }
 
     predicate SystemNextPerformIos(
-        s:SystemState,
-        s':SystemState,
+        ls:SystemState,
+        ls':SystemState,
         actor:Actor,
         ios:seq<Action>
         )
     {
            actor.HostActor?
-        && s'.states == s.states
-        && s'.time == s.time
-        && s'.config == s.config
-        && (forall p :: p in s.sentPackets ==> p in s'.sentPackets)
-        && (forall p :: p in s'.sentPackets ==> p in s.sentPackets || Send(p) in ios)
-        && (forall io :: io in ios && io.Receive? ==> io.r in s.sentPackets && io.r.dst == actor.ep)
-        && (forall io :: io in ios && io.Send? ==> io.s in s'.sentPackets && io.s.src == actor.ep)
+        && ls'.states == ls.states
+        && ls'.time == ls.time
+        && ls'.config == ls.config
+        && (forall p :: p in ls.sentPackets ==> p in ls'.sentPackets)
+        && (forall p :: p in ls'.sentPackets ==> p in ls.sentPackets || Send(p) in ios)
+        && (forall io :: io in ios && io.Receive? ==> io.r in ls.sentPackets && io.r.dst == actor.ep)
+        && (forall io :: io in ios && io.Send? ==> io.s in ls'.sentPackets && io.s.src == actor.ep)
     }
 
     predicate SystemNextHostNext(
-        s:SystemState,
-        s':SystemState,
+        ls:SystemState,
+        ls':SystemState,
         actor:Actor,
         ios:seq<Action>
         )
     {
            actor.HostActor?
-        && actor in s.states
-        && actor in s'.states
-        && s'.states == s.states[actor := s'.states[actor]]
-        && HostNext(s.states[actor], s'.states[actor], ios)
-        && s'.time == s.time
-        && s'.config == s.config
-        && (forall p :: p in s.sentPackets ==> p in s'.sentPackets)
-        && (forall p :: p in s'.sentPackets ==> p in s.sentPackets || Send(p) in ios)
-        && (forall io :: io in ios && io.Receive? ==> io.r in s.sentPackets && io.r.dst == actor.ep)
-        && (forall io :: io in ios && io.Send? ==> io.s in s'.sentPackets && io.s.src == actor.ep)
+        && actor in ls.states
+        && actor in ls'.states
+        && ls'.states == ls.states[actor := ls'.states[actor]]
+        && HostNext(ls.states[actor], ls'.states[actor], ios)
+        && ls'.time == ls.time
+        && ls'.config == ls.config
+        && (forall p :: p in ls.sentPackets ==> p in ls'.sentPackets)
+        && (forall p :: p in ls'.sentPackets ==> p in ls.sentPackets || Send(p) in ios)
+        && (forall io :: io in ios && io.Receive? ==> io.r in ls.sentPackets && io.r.dst == actor.ep)
+        && (forall io :: io in ios && io.Send? ==> io.s in ls'.sentPackets && io.s.src == actor.ep)
     }
 
-    predicate SystemNextAction(s:SystemState, s':SystemState, actor:Actor, action:Action)
+    predicate SystemNextAction(ls:SystemState, ls':SystemState, actor:Actor, action:Action)
     {
         match action
-            case Receive(p) => SystemNextReceive(s, s', actor, p)
-            case Send(p) => SystemNextSend(s, s', actor, p)
-            case ReadClock(t) => SystemNextReadClock(s, s', actor, t)
-            case UpdateLocalState => SystemNextUpdateLocalState(s, s', actor)
-            case DeliverPacket(p) => SystemNextDeliverPacket(s, s', actor, p)
-            case AdvanceTime(t) => SystemNextAdvanceTime(s, s', actor, t)
-            case PerformIos(ios) => SystemNextPerformIos(s, s', actor, ios)
-            case HostNext(ios) => SystemNextHostNext(s, s', actor, ios)
+            case Receive(p) => SystemNextReceive(ls, ls', actor, p)
+            case Send(p) => SystemNextSend(ls, ls', actor, p)
+            case ReadClock(t) => SystemNextReadClock(ls, ls', actor, t)
+            case UpdateLocalState => SystemNextUpdateLocalState(ls, ls', actor)
+            case DeliverPacket(p) => SystemNextDeliverPacket(ls, ls', actor, p)
+            case AdvanceTime(t) => SystemNextAdvanceTime(ls, ls', actor, t)
+            case PerformIos(ios) => SystemNextPerformIos(ls, ls', actor, ios)
+            case HostNext(ios) => SystemNextHostNext(ls, ls', actor, ios)
     }
 
-    predicate SystemNextEntry(s:SystemState, s':SystemState, entry:Entry)
+    predicate SystemNextEntry(ls:SystemState, ls':SystemState, entry:Entry)
     {
-        SystemNextAction(s, s', entry.actor, entry.action)
+        SystemNextAction(ls, ls', entry.actor, entry.action)
     }
 
-    predicate SystemNext(s:SystemState, s':SystemState)
+    predicate SystemNext(ls:SystemState, ls':SystemState)
     {
-        exists entry :: SystemNextEntry(s, s', entry)
+        exists entry :: SystemNextEntry(ls, ls', entry)
     }
 
-    predicate IsValidSystemBehavior(db:SystemBehavior)
+    predicate IsValidSystemBehavior(lb:SystemBehavior)
     {
-           |db| > 0
-        && SystemInit(db[0])
-        && (forall i {:trigger SystemNext(db[i], db[i+1])} :: 0 <= i < |db| - 1 ==> SystemNext(db[i], db[i+1]))
+           |lb| > 0
+        && SystemInit(lb[0])
+        && (forall i {:trigger SystemNext(lb[i], lb[i+1])} :: 0 <= i < |lb| - 1 ==> SystemNext(lb[i], lb[i+1]))
     }
 
-    predicate IsValidSystemTraceAndBehavior(trace:Trace, db:SystemBehavior)
+    predicate IsValidSystemTraceAndBehavior(trace:Trace, lb:SystemBehavior)
     {
-           |db| == |trace| + 1
-        && SystemInit(db[0])
-        && (forall i {:trigger SystemNextEntry(db[i], db[i+1], trace[i])} :: 0 <= i < |trace| ==> SystemNextEntry(db[i], db[i+1], trace[i]))
+           |lb| == |trace| + 1
+        && SystemInit(lb[0])
+        && (forall i {:trigger SystemNextEntry(lb[i], lb[i+1], trace[i])} :: 0 <= i < |trace| ==> SystemNextEntry(lb[i], lb[i+1], trace[i]))
     }
 }

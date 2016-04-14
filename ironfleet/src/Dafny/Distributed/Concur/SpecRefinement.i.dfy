@@ -13,31 +13,31 @@ module SpecRefinementModule {
     type SpecState
     type SpecBehavior = seq<SpecState>
 
-    predicate SpecInit(ss:SpecState)
-    predicate SpecNext(ss:SpecState, ss':SpecState)
-    predicate SpecCorrespondence(ds:SystemState, ss:SpecState)
+    predicate SpecInit(hs:SpecState)
+    predicate SpecNext(hs:SpecState, hs':SpecState)
+    predicate SpecCorrespondence(ls:SystemState, hs:SpecState)
 
-    lemma {:axiom} lemma_RightMoverForwardPreservation(rightMover:Entry, ds:SystemState, ds':SystemState, ss:SpecState)
+    lemma {:axiom} lemma_RightMoverForwardPreservation(rightMover:Entry, ls:SystemState, ls':SystemState, hs:SpecState)
         requires EntryIsRightMover(rightMover);
-        requires SystemNextEntry(ds, ds', rightMover);
-        requires SpecCorrespondence(ds, ss);
-        ensures  SpecCorrespondence(ds', ss);
+        requires SystemNextEntry(ls, ls', rightMover);
+        requires SpecCorrespondence(ls, hs);
+        ensures  SpecCorrespondence(ls', hs);
 
-    lemma {:axiom} lemma_LeftMoverBackwardPreservation(leftMover:Entry, ds:SystemState, ds':SystemState, ss:SpecState)
+    lemma {:axiom} lemma_LeftMoverBackwardPreservation(leftMover:Entry, ls:SystemState, ls':SystemState, hs:SpecState)
         requires EntryIsLeftMover(leftMover);
-        requires SystemNextEntry(ds, ds', leftMover);
-        requires SpecCorrespondence(ds', ss);
-        ensures  SpecCorrespondence(ds, ss);
+        requires SystemNextEntry(ls, ls', leftMover);
+        requires SpecCorrespondence(ls', hs);
+        ensures  SpecCorrespondence(ls, hs);
 
     ///////////////////////
     // Spec behaviors
     ///////////////////////
         
-    predicate IsValidSpecBehavior(sb:SpecBehavior)
+    predicate IsValidSpecBehavior(hb:SpecBehavior)
     {
-           |sb| > 0
-        && SpecInit(sb[0])
-        && (forall i {:trigger SpecNext(sb[i], sb[i+1])} :: 0 <= i < |sb| - 1 ==> SpecNext(sb[i], sb[i+1]))
+           |hb| > 0
+        && SpecInit(hb[0])
+        && (forall i {:trigger SpecNext(hb[i], hb[i+1])} :: 0 <= i < |hb| - 1 ==> SpecNext(hb[i], hb[i+1]))
     }
 
     function GetSystemSpecRefinementRelation() : RefinementRelation<SystemState, SpecState>
@@ -46,20 +46,20 @@ module SpecRefinementModule {
              SpecCorrespondence(pair.low, pair.high)
     }
 
-    predicate SystemBehaviorRefinesValidSpecBehaviorUsingRefinementMap(db:SystemBehavior, sb:SpecBehavior, rm:RefinementMap)
+    predicate SystemBehaviorRefinesValidSpecBehaviorUsingRefinementMap(lb:SystemBehavior, hb:SpecBehavior, rm:RefinementMap)
     {
-           IsValidSpecBehavior(sb)
-        && BehaviorRefinesBehaviorUsingRefinementMap(db, sb, GetSystemSpecRefinementRelation(), rm)
+           IsValidSpecBehavior(hb)
+        && BehaviorRefinesBehaviorUsingRefinementMap(lb, hb, GetSystemSpecRefinementRelation(), rm)
     }
 
-    predicate SystemBehaviorRefinesValidSpecBehavior(db:SystemBehavior, sb:SpecBehavior)
+    predicate SystemBehaviorRefinesValidSpecBehavior(lb:SystemBehavior, hb:SpecBehavior)
     {
-        exists rm :: SystemBehaviorRefinesValidSpecBehaviorUsingRefinementMap(db, sb, rm)
+        exists rm :: SystemBehaviorRefinesValidSpecBehaviorUsingRefinementMap(lb, hb, rm)
     }
 
-    predicate SystemBehaviorRefinesSpec(db:SystemBehavior)
+    predicate SystemBehaviorRefinesSpec(lb:SystemBehavior)
     {
-        exists sb, rm :: SystemBehaviorRefinesValidSpecBehaviorUsingRefinementMap(db, sb, rm)
+        exists hb, rm :: SystemBehaviorRefinesValidSpecBehaviorUsingRefinementMap(lb, hb, rm)
     }
 }
 

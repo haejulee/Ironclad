@@ -8,10 +8,10 @@ module SystemRefinementModule {
     import opened SystemModule
     import opened SpecRefinementModule
 
-    predicate SystemCorrespondence(ds:SystemState, ds':SystemState)
+    predicate SystemCorrespondence(ls:SystemState, hs:SystemState)
     {
-        forall ss {:trigger SpecCorrespondence(ds, ss)}{:trigger SpecCorrespondence(ds', ss)} ::
-              SpecCorrespondence(ds', ss) ==> SpecCorrespondence(ds, ss)
+        forall ss {:trigger SpecCorrespondence(ls, ss)}{:trigger SpecCorrespondence(hs, ss)} ::
+              SpecCorrespondence(hs, ss) ==> SpecCorrespondence(ls, ss)
     }
 
     function GetSystemSystemRefinementRelation() : RefinementRelation<SystemState, SystemState>
@@ -20,14 +20,14 @@ module SystemRefinementModule {
              SystemCorrespondence(pair.low, pair.high)
     }
 
-    predicate SystemBehaviorRefinesSystemBehavior(db:seq<SystemState>, db':seq<SystemState>)
+    predicate SystemBehaviorRefinesSystemBehavior(lb:seq<SystemState>, hb:seq<SystemState>)
     {
-        BehaviorRefinesBehavior(db, db', GetSystemSystemRefinementRelation())
+        BehaviorRefinesBehavior(lb, hb, GetSystemSystemRefinementRelation())
     }
 
-    predicate SystemBehaviorRefinesSpecBehavior(db:seq<SystemState>, sb:seq<SpecState>)
+    predicate SystemBehaviorRefinesSpecBehavior(lb:seq<SystemState>, hb:seq<SpecState>)
     {
-        BehaviorRefinesBehavior(db, sb, GetSystemSpecRefinementRelation())
+        BehaviorRefinesBehavior(lb, hb, GetSystemSpecRefinementRelation())
     }
 
     lemma lemma_SystemRefinementRelationConvolvesWithItself()
