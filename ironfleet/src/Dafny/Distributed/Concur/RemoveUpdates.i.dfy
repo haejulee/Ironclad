@@ -1,12 +1,14 @@
 include "Reduction.i.dfy"
 include "RefinementConvolution.i.dfy"
 include "SystemRefinement.i.dfy"
+include "../Common/Collections/Maps.i.dfy"
 
 module RemoveUpdatesModule {
 
     import opened ReductionModule
     import opened RefinementConvolutionModule
     import opened SystemRefinementModule
+    import opened Collections__Maps_i
 
     function {:opaque} MapSeqToSeq<T,U>(s:seq<T>, refine_func:T->U) : seq<U>
         reads refine_func.reads;
@@ -37,8 +39,8 @@ module RemoveUpdatesModule {
         }
 
         var actor :| actor in ds.states;
-        var ds_mid := ds.(states := mapremove(ds.states, actor));
-        assert |ds_mid.states| == |ds.states| - 1;
+        var new_states := RemoveElt(ds.states, actor);
+        var ds_mid := ds.(states := new_states);
         var relation := GetSystemSystemRefinementRelation();
         lemma_SystemCorrespondenceBetweenSystemStateAndItselfWithoutActorStates(ds_mid, ds');
         assert RefinementPair(ds_mid, ds') in relation;
