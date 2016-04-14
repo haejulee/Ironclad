@@ -190,6 +190,29 @@ function {:opaque} MapSeqToSeq<T,U>(s:seq<T>, refine_func:T->U) : seq<U>
     else [refine_func(s[0])] + MapSeqToSeq(s[1..], refine_func)
 }
 
+lemma lemma_FunctionAdds<T,U>(s1:seq<T>, s2:seq<T>, f:seq<T> -> seq<U>, g:T->seq<U>)
+    requires forall s :: f.requires(s);
+    requires forall s :: g.requires(s);
+    // Risky trigger loop here.  Without it, base case is difficult without an artifical trigger function
+    requires forall s {:trigger f(s)} :: f(s) == if s == [] then [] else g(s[0]) + f(s[1..]); 
+    ensures f(s1) + f(s2) == f(s1+s2);
+{
+    if s1 == [] {
+    } else {
+        calc {
+            f(s1) + f(s2);
+            g(s1[0]) + f(s1[1..]) + f(s2);
+            g(s1[0]) + (f(s1[1..]) + f(s2));
+                { lemma_FunctionAdds(s1[1..], s2, f, g); }
+            g(s1[0]) + f(s1[1..] + s2);
+                { assert [s1[0]] + s1[1..] + s2 == s1 + s2;  
+                  assert (s1+s2)[0] == s1[0]; 
+                  assert (s1+s2)[1..] == s1[1..] + s2; }
+            f(s1+s2);
+        }
+    }
+}
+
 function {:opaque} ConvertMapToSeq<T>(n:int, m:map<int, T>) : seq<T>
     requires n >= 0;
     requires forall i {:trigger i in m} :: 0 <= i < n ==> i in m;
