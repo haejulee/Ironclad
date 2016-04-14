@@ -46,20 +46,20 @@ module SpecRefinementModule {
              SpecCorrespondence(pair.low, pair.high)
     }
 
-    predicate SystemBehaviorRefinesSpecBehaviorUsingRefinementMap(db:SystemBehavior, sb:SpecBehavior, rm:RefinementMap)
+    predicate SystemBehaviorRefinesValidSpecBehaviorUsingRefinementMap(db:SystemBehavior, sb:SpecBehavior, rm:RefinementMap)
     {
            IsValidSpecBehavior(sb)
         && BehaviorRefinesBehaviorUsingRefinementMap(db, sb, GetSystemSpecRefinementRelation(), rm)
     }
 
-    predicate SystemBehaviorRefinesSpecBehavior(db:SystemBehavior, sb:SpecBehavior)
+    predicate SystemBehaviorRefinesValidSpecBehavior(db:SystemBehavior, sb:SpecBehavior)
     {
-        exists rm :: SystemBehaviorRefinesSpecBehaviorUsingRefinementMap(db, sb, rm)
+        exists rm :: SystemBehaviorRefinesValidSpecBehaviorUsingRefinementMap(db, sb, rm)
     }
 
     predicate SystemBehaviorRefinesSpec(db:SystemBehavior)
     {
-        exists sb, rm :: SystemBehaviorRefinesSpecBehaviorUsingRefinementMap(db, sb, rm)
+        exists sb, rm :: SystemBehaviorRefinesValidSpecBehaviorUsingRefinementMap(db, sb, rm)
     }
 }
 

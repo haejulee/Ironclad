@@ -20,6 +20,16 @@ module SystemRefinementModule {
              SystemCorrespondence(pair.low, pair.high)
     }
 
+    predicate SystemBehaviorRefinesSystemBehavior(db:seq<SystemState>, db':seq<SystemState>)
+    {
+        BehaviorRefinesBehavior(db, db', GetSystemSystemRefinementRelation())
+    }
+
+    predicate SystemBehaviorRefinesSpecBehavior(db:seq<SystemState>, sb:seq<SpecState>)
+    {
+        BehaviorRefinesBehavior(db, sb, GetSystemSpecRefinementRelation())
+    }
+
     lemma lemma_SystemRefinementRelationConvolvesWithItself()
         ensures RefinementRelationsConvolve(GetSystemSystemRefinementRelation(),
                                             GetSystemSystemRefinementRelation(),
@@ -77,9 +87,9 @@ module SystemRefinementModule {
         mb:seq<SystemState>,
         hb:seq<SystemState>
         )
-        requires BehaviorRefinesBehavior(lb, mb, GetSystemSystemRefinementRelation());
-        requires BehaviorRefinesBehavior(mb, hb, GetSystemSystemRefinementRelation());
-        ensures  BehaviorRefinesBehavior(lb, hb, GetSystemSystemRefinementRelation());
+        requires SystemBehaviorRefinesSystemBehavior(lb, mb);
+        requires SystemBehaviorRefinesSystemBehavior(mb, hb);
+        ensures  SystemBehaviorRefinesSystemBehavior(lb, hb);
     {
         var relation := GetSystemSystemRefinementRelation();
         lemma_SystemRefinementRelationConvolvesWithItself();
@@ -110,9 +120,9 @@ module SystemRefinementModule {
         mb:seq<SystemState>,
         hb:seq<SpecState>
         )
-        requires BehaviorRefinesBehavior(lb, mb, GetSystemSystemRefinementRelation());
-        requires BehaviorRefinesBehavior(mb, hb, GetSystemSpecRefinementRelation());
-        ensures  BehaviorRefinesBehavior(lb, hb, GetSystemSpecRefinementRelation());
+        requires SystemBehaviorRefinesSystemBehavior(lb, mb);
+        requires SystemBehaviorRefinesSpecBehavior(mb, hb);
+        ensures  SystemBehaviorRefinesSpecBehavior(lb, hb);
     {
         var r1 := GetSystemSystemRefinementRelation();
         var r2 := GetSystemSpecRefinementRelation();
@@ -120,5 +130,3 @@ module SystemRefinementModule {
         lemma_RefinementConvolutionPure(lb, mb, hb, r1, r2, r2);
     }
 }
-
-    
