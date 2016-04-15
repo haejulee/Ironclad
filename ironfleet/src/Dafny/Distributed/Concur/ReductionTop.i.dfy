@@ -37,6 +37,103 @@ module ReductionTopModule {
         lemma_IfEntriesMatchForActorThenSoDoesRestrictTraceToActor(trace1[1..], trace2[1..], actor);
     }
 
+//    lemma lemma_UpdatePerformIosToHostNextHelper(
+//        config:Config,
+//        ltrace:Trace,
+//        lb:SystemBehavior,
+//        plan:ActorReductionPlan,
+//        tracked_actor:Actor,
+//        indices:seq<int>,
+//        position:int,
+//        htrace:Trace,
+//        hb:SystemBehavior
+//        ) returns (
+//        htrace':Trace,
+//        hb':SystemBehavior
+//        )
+//        requires IsValidSystemTraceAndBehavior(config, ltrace, lb);
+//        requires indices == GetTraceIndicesForActor(ltrace, tracked_actor);
+//        requires IsValidActorReductionPlan(plan);
+//        requires forall i :: i in indices ==> ltrace[i].action.PerformIos? 
+//                                           && 0 <= i < |plan.trees| && ltrace[i] == GetRootEntry(plan.trees[i]);
+//        requires  IsValidSystemTraceAndBehavior(config, htrace, hb);
+//        requires  SystemBehaviorRefinesSystemBehavior(lb, hb);
+//        requires  0 <= position < |hb|;
+//        requires  |hb| == |lb|;
+//        requires  forall i {:trigger htrace[i]} :: 0 <= i < position ==>
+//                        htrace[i] == (if i in indices then Entry(tracked_actor, HostNext(ltrace[i].action.raw_ios)) else ltrace[i]);
+//        requires  forall i :: 0 <= i < position ==> hb[i] == lb[i].(states := hb[i].states);
+//        ensures  IsValidSystemTraceAndBehavior(config, htrace', hb');
+//        ensures  SystemBehaviorRefinesSystemBehavior(lb, hb');
+//        ensures  |hb'| == |lb|;
+//        ensures  forall i {:trigger htrace'[i]} :: 0 <= i < |htrace'| ==>
+//                        htrace'[i] == (if i in indices then Entry(tracked_actor, HostNext(ltrace[i].action.raw_ios)) else ltrace[i]);
+//        ensures  forall i :: 0 <= i < |hb'| ==> hb'[i] == lb[i].(states := hb'[i].states);
+//    {
+//        assume false;
+//    }
+
+    ghost method BuildHighBehavior(
+        ltrace:Trace,
+        lb:SystemBehavior,
+        ab:seq<ActorState>,
+        actor:Actor
+        ) returns (
+        hb:SystemBehavior
+        )
+        requires |ab| == |lb| == |ltrace| + 1;
+        ensures  |hb| == |lb|;
+        ensures  forall i :: 0 <= i < |hb| ==> hb[i] == lb[i].(states := hb[i].states); // Only the states change
+        ensures  var indices := GetTraceIndicesForActor(ltrace, actor);     // Initial segment
+                 |indices| > 0 ==> forall j :: 0 <= j <= indices[0] ==> hb[j].states == lb[j].states[actor := ab[0]];
+        ensures  |GetTraceIndicesForActor(ltrace, actor)| <= |ltrace|;
+        ensures  var indices := GetTraceIndicesForActor(ltrace, actor);     // All of the middle segments
+                 forall i,j :: 0 <= i < |indices|-1 && indices[i] < j <= indices[i+1] 
+                           ==> hb[j].states == lb[j].states[actor := ab[i]];
+        ensures  var indices := GetTraceIndicesForActor(ltrace, actor);     // Final segment
+                 |indices| > 0 ==> forall j :: last(indices) < j < |lb| ==> hb[j].states == lb[j].states[actor := last(ab)];
+    {
+        hb := [];
+        var indices := GetTraceIndicesForActor(ltrace, actor);
+        if |indices| == 0 {
+            hb := lb;
+            forall i | 0 <= i < |hb|
+                ensures hb[i] == lb[i].(states := hb[i].states); 
+            {
+                assert hb[i] == lb[i];
+                assert hb[i].states == lb[i].states;
+            }
+            return;
+        }
+        assume false;
+        assert |GetTraceIndicesForActor(ltrace, actor)| <= |ltrace|;
+
+        var k := 0;
+        var indices_index := 0;
+
+        while k < |lb| 
+            invariant 0 <= k <= |lb|;
+            invariant |hb| == k;
+            invariant  forall i :: 0 <= i < |hb| ==> hb[i] == lb[i].(states := hb[i].states); // Only the states change
+            invariant  forall j :: 0 <= j <= indices[0] && j < k ==> hb[j].states == lb[j].states[actor := ab[0]];
+            invariant  forall i,j :: 0 <= i < |indices|-1 && indices[i] < j <= indices[i+1] && j < k 
+                                 ==> hb[j].states == lb[j].states[actor := ab[i]];
+            invariant  forall j :: last(indices) < j < |lb| && j < k 
+                               ==> hb[j].states == lb[j].states[actor := last(ab)];
+        {
+            if indices_index < |indices| - 1 && k > indices[indices_index] {
+                indices_index := indices_index + 1;
+            }
+
+            var new_state := ab[indices[indices_index]];
+            hb := hb + [lb[k].(states := lb[k].states[actor := new_state])];
+
+            k := k + 1;
+        }
+        
+    }
+
+
     lemma lemma_UpdatePerformIosToHostNext(
         config:Config,
         ltrace:Trace,
@@ -62,6 +159,8 @@ module ReductionTopModule {
         ensures  forall i :: 0 <= i < |hb| ==> hb[i] == lb[i].(states := hb[i].states);
         ensures  forall actor, i :: 0 <= i < |hb| && actor != tracked_actor ==> ActorStateMatchesInSystemStates(lb[i], hb[i], actor);
     {
+        var foo;
+        var hb_map := map i | 0 <= i < |lb| :: lb[i].(states := foo);
         assume false;
     }
 
