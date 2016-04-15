@@ -191,14 +191,14 @@ module ReductionModule
         }
     }
 
-    lemma lemma_CountInnterNodesForest(trees:seq<Tree>, index:int, new_tree:Tree)
+    lemma lemma_CountInnerNodesForest(trees:seq<Tree>, index:int, new_tree:Tree)
         requires 0 <= index < |trees|;
         ensures  CountInnerNodesForest(trees[index := new_tree]) ==
                  CountInnerNodesForest(trees) - CountInnerNodes(trees[index]) + CountInnerNodes(new_tree);
     {
         if index == 0 {
         } else {
-            lemma_CountInnterNodesForest(trees[1..], index-1, new_tree);
+            lemma_CountInnerNodesForest(trees[1..], index-1, new_tree);
         }
     }
 
@@ -209,7 +209,7 @@ module ReductionModule
         if |designator| == 0 {
         } else {
             lemma_ReduceTreeDecreasesInnerNodes(tree.children[designator[0]], designator[1..]);
-            lemma_CountInnterNodesForest(tree.children, designator[0], ReduceTree(tree.children[designator[0]], designator[1..]));
+            lemma_CountInnerNodesForest(tree.children, designator[0], ReduceTree(tree.children[designator[0]], designator[1..]));
         }
     }
 
