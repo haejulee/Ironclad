@@ -293,7 +293,7 @@ module RemoveUpdatesModule {
         requires IsValidReductionPlan(config, plan);
         requires forall entry :: entry in ltrace ==> IsRealAction(entry.action);
         requires forall actor :: actor in config.tracked_actors ==>
-                     RestrictTraceToActor(RestrictTraceToTrackedActions(ltrace), actor) == GetEntries(plan[actor].trees);
+                     RestrictTraceToActor(RestrictTraceToTrackedActions(ltrace), actor) == GetLeafEntriesForest(plan[actor].trees);
         requires forall ls :: ls in lb ==> ls.states == map [];
         ensures  SystemBehaviorRefinesSpec(lb);
     {
@@ -308,7 +308,7 @@ module RemoveUpdatesModule {
         }
 
         forall actor | actor in config.tracked_actors
-            ensures RestrictTraceToActor(RestrictTraceToTrackedActions(htrace), actor) == GetEntries(plan[actor].trees);
+            ensures RestrictTraceToActor(RestrictTraceToTrackedActions(htrace), actor) == GetLeafEntriesForest(plan[actor].trees);
         {
             lemma_RemoveLocalStateUpdatesMaintainsRestrictTraceToTrackedActions(ltrace);
             assert RestrictTraceToTrackedActions(htrace) == RestrictTraceToTrackedActions(ltrace);

@@ -18,7 +18,7 @@ module UltimateReductionModule {
         requires IsValidReductionPlan(config, plan);
         requires forall entry :: entry in trace ==> IsRealAction(entry.action);
         requires forall actor :: actor in config.tracked_actors ==>
-                     RestrictTraceToActor(RestrictTraceToTrackedActions(trace), actor) == GetEntries(plan[actor].trees);
+                     RestrictTraceToActor(RestrictTraceToTrackedActions(trace), actor) == GetLeafEntriesForest(plan[actor].trees);
         ensures  SystemBehaviorRefinesSpec(lb);
     {
         var mb := lemma_RefineToBehaviorWithoutStates(config, trace, lb);
