@@ -184,7 +184,7 @@ function {:opaque} MapSeqToSeq<T,U>(s:seq<T>, func:T->U) : seq<U>
     requires forall i :: func.reads(i) == {};
     requires forall i :: 0 <= i < |s| ==> func.requires(s[i]);
     ensures |MapSeqToSeq(s, func)| == |s|;
-    ensures forall i :: 0 <= i < |s| ==> func(s[i]) == MapSeqToSeq(s,func)[i];
+    ensures forall i {:trigger func(s[i])} {:trigger MapSeqToSeq(s,func)[i]} :: 0 <= i < |s| ==> func(s[i]) == MapSeqToSeq(s,func)[i];
 {
     if |s| == 0 then []
     else [func(s[0])] + MapSeqToSeq(s[1..], func)
