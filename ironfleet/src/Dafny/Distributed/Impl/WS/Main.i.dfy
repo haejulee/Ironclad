@@ -131,6 +131,7 @@ module Main_i {
         assert int(fileNameLen) <= request.Length;
         
         b := true;
+        // set fileName to index.htm
         if (fileNameLen == 0) {
             fileName[0] := 0x69;
             fileName[1] := 0x6E;
@@ -178,7 +179,7 @@ module Main_i {
         requires contents != null;
         requires |header| + contents.Length <= 60+65536
         ensures response != null;
-        ensures response.Length <= 60+65536;
+        ensures response.Length <= 60+65536; //TODO: avoid allocating this buffer
     {
         var len := |header|;
 
@@ -220,7 +221,6 @@ module Main_i {
         var fileContents := new byte[maxLength];
         
         var ok := true;
-        //var req;
         var res;
 
         while (ok)
@@ -238,10 +238,10 @@ module Main_i {
                 var header;
                 
                 if b {
-                    
+                    // TODO: C# ignores null-terminated arrays; modify the native interface to accept length as a parameter
                     BytesArrayToCharArray(fileNameBytes, fileName);
                     var fileExists := FileStream.FileExists(fileName, env);
-                    print("Filexists: "); print(fileExists); print("\n\n");
+                    
                     if fileExists {
                         var fileLength;
                         ok, fileLength := FileStream.FileLength(fileName, env);
