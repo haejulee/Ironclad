@@ -22,7 +22,7 @@ module UltimateReductionModule {
         ensures  SystemBehaviorRefinesSpec(lb);
     {
         var mb := lemma_RefineToBehaviorWithoutTrackedActorStates(config, trace, lb, {});
-        lemma_ReductionOfBehaviorWithoutStates(config, trace, mb, plan);
+        lemma_ReductionOfBehaviorWithoutTrackedActorStates(config, trace, mb, plan);
         lemma_SystemSpecRefinementConvolutionExtraPure(lb, mb);
     }
 

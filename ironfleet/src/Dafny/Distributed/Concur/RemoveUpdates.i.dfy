@@ -1,4 +1,5 @@
 include "Reduction.i.dfy"
+include "SystemLemmas.i.dfy"
 include "RefinementConvolution.i.dfy"
 include "SystemRefinement.i.dfy"
 include "ReductionPlan.i.dfy"
@@ -7,6 +8,7 @@ include "MatchTreesToTrace.i.dfy"
 module RemoveUpdatesModule {
 
     import opened ReductionModule
+    import opened SystemLemmasModule
     import opened RefinementConvolutionModule
     import opened SystemRefinementModule
     import opened ReductionPlanModule
@@ -91,7 +93,7 @@ module RemoveUpdatesModule {
             ensures RefinementPair(lb[i], hb[j]) in relation;
         {
             assert j == i;
-            assume lb[i].config == config;
+            lemma_ConfigConstant(config, trace, lb, i);
             assert hb[j] == RemoveActorStatesFromSystemState(lb[i], config.tracked_actors);
             lemma_SystemCorrespondenceBetweenSystemStatesDifferingOnlyInTrackedActorStates(lb[i], hb[j]);
         }

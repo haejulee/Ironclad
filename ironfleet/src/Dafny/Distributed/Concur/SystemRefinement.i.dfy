@@ -3,7 +3,7 @@ include "System.i.dfy"
 include "SpecRefinement.i.dfy"
 include "../Common/Collections/Maps.i.dfy"
 
-module SystemRefinementModule {
+module SystemLemmasModule {
 
     import opened RefinementConvolutionModule
     import opened SystemModule
@@ -193,13 +193,13 @@ module SystemRefinementModule {
         }
     }
 
-    lemma lemma_SystemCorrespondenceBetweenSystemBehaviorsDifferingOnlyInActorStates(
+    lemma lemma_SystemCorrespondenceBetweenSystemBehaviorsDifferingOnlyInTrackedActorStates(
         lb:seq<SystemState>,
         hb:seq<SystemState>
         )
         requires |lb| == |hb|;
         requires forall i :: 0 <= i < |hb| ==> hb[i] == lb[i].(states := hb[i].states);
-        requires forall i, actor :: 0 <= i < |hb| && actor !in lb[i].config.tracked_actors ==> ActorStateMatchesInSystemStates(lb[i], hb[i], actor);
+        requires forall i, actor :: 0 <= i < |lb| && actor !in lb[i].config.tracked_actors ==> ActorStateMatchesInSystemStates(lb[i], hb[i], actor);
         ensures  SystemBehaviorRefinesSystemBehavior(lb, hb);
     {
         var relation := GetSystemSystemRefinementRelation();

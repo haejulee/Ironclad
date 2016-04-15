@@ -49,7 +49,8 @@ module SystemModule {
 
     predicate SystemNextUpdateLocalState(ls:SystemState, ls':SystemState, actor:Actor)
     {
-           (forall other_actor :: other_actor != actor ==> ActorStateMatchesInSystemStates(ls, ls', other_actor))
+           (forall other_actor {:trigger ls.states[other_actor]}{:trigger other_actor in ls.states}{:trigger other_actor in ls'.states} ::
+                           other_actor != actor ==> ActorStateMatchesInSystemStates(ls, ls', other_actor))
         && ls'.sentPackets == ls.sentPackets
         && ls'.time == ls.time
         && ls'.config == ls.config

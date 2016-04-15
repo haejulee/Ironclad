@@ -2,8 +2,9 @@ include "Reduction.i.dfy"
 include "RefinementConvolution.i.dfy"
 include "SystemRefinement.i.dfy"
 include "ReductionPlan.i.dfy"
-include "../Common/Collections/Maps.i.dfy"
 include "UltimateRefinement.i.dfy"
+include "SystemLemmas.i.dfy"
+include "../Common/Collections/Maps.i.dfy"
 
 module ReductionTopModule {
 
@@ -12,6 +13,7 @@ module ReductionTopModule {
     import opened SystemRefinementModule
     import opened ReductionPlanModule
     import opened UltimateRefinementModule
+    import opened SystemLemmasModule
     import opened Collections__Maps_i
 
     lemma lemma_IfAllTreesAreLeavesThenGetLeafEntriesForestIsConcatenationOfThoseLeaves(trees:seq<Tree>)
@@ -49,14 +51,16 @@ module ReductionTopModule {
         requires IsValidSystemTraceAndBehavior(config, ltrace, lb);
         requires indices == GetTraceIndicesForActor(ltrace, tracked_actor);
         requires IsValidActorReductionPlan(plan);
-        requires forall i :: i in indices ==> ltrace[i].action.PerformIos? 
-                                           && 0 <= i < |plan.trees| && ltrace[i] == GetRootEntry(plan.trees[i]);
+        requires |plan.trees| == |indices|;
+        requires forall i :: 0 <= i < |indices| ==>   ltrace[indices[i]].action.PerformIos? 
+                                             && ltrace[indices[i]] == GetRootEntry(plan.trees[i]);
         ensures  IsValidSystemTraceAndBehavior(config, htrace, hb);
         ensures  SystemBehaviorRefinesSystemBehavior(lb, hb);
         ensures  |hb| == |lb|;
         ensures  forall i {:trigger htrace[i]} :: 0 <= i < |htrace| ==>
                         htrace[i] == (if i in indices then Entry(tracked_actor, HostNext(ltrace[i].action.raw_ios)) else ltrace[i]);
         ensures  forall i :: 0 <= i < |hb| ==> hb[i] == lb[i].(states := hb[i].states);
+        ensures  forall actor, i :: 0 <= i < |hb| && actor != tracked_actor ==> ActorStateMatchesInSystemStates(lb[i], hb[i], actor);
     {
         assume false;
     }
@@ -88,21 +92,35 @@ module ReductionTopModule {
         }
 
         var tracked_actor :| tracked_actor in config.tracked_actors - converted_actors;
-        var ab := plan[tracked_actor].ab;
+        var aplan := plan[tracked_actor];
+        var ab := aplan.ab;
         var atrace := RestrictTraceToActor(ltrace, tracked_actor);
-        lemma_IfAllTreesAreLeavesThenGetLeafEntriesForestIsConcatenationOfThoseLeaves(plan[tracked_actor].trees);
+        lemma_IfAllTreesAreLeavesThenGetLeafEntriesForestIsConcatenationOfThoseLeaves(aplan.trees);
         assert |ab| == |atrace| + 1;
         forall entry | entry in atrace
             ensures entry.actor == tracked_actor;
             ensures entry.action.PerformIos?;
         {
             var i :| 0 <= i < |atrace| && atrace[i] == entry;
-            assert atrace[i] == plan[tracked_actor].trees[i].entry;
-            assert GetRootEntry(plan[tracked_actor].trees[i]).action.PerformIos?;
+            assert atrace[i] == aplan.trees[i].entry;
+            assert GetRootEntry(aplan.trees[i]).action.PerformIos?;
         }
 
         var indices := GetTraceIndicesForActor(ltrace, tracked_actor);
-        var mtrace, mb := lemma_UpdatePerformIosToHostNext(config, ltrace, lb, plan[tracked_actor], tracked_actor, indices);
+        lemma_CorrespondenceBetweenGetTraceIndicesAndRestrictTraces(ltrace, tracked_actor);
+        assert |indices| == |atrace|;
+        forall i | 0 <= i < |indices|
+            ensures ltrace[indices[i]] == GetRootEntry(aplan.trees[i]);
+        {
+            calc {
+                ltrace[indices[i]];
+                atrace[i];
+                GetLeafEntriesForest(aplan.trees)[i];
+                aplan.trees[i].entry;
+                GetRootEntry(aplan.trees[i]);
+            }
+        }
+        var mtrace, mb := lemma_UpdatePerformIosToHostNext(config, ltrace, lb, aplan, tracked_actor, indices);
 
         forall actor | actor != tracked_actor
             ensures RestrictTraceToActor(mtrace, actor) == RestrictTraceToActor(ltrace, actor);
@@ -111,7 +129,14 @@ module ReductionTopModule {
         }
 
         lemma_ConvertPerformIosToHostNext(config, mtrace, mb, plan, converted_actors + {tracked_actor});
-        lemma_SystemCorrespondenceBetweenSystemBehaviorsDifferingOnlyInActorStates(lb, mb);
+
+        forall i, actor | 0 <= i < |lb| && actor !in lb[i].config.tracked_actors
+            ensures ActorStateMatchesInSystemStates(lb[i], mb[i], actor);
+        {
+            lemma_ConfigConstant(config, ltrace, lb, i);
+        }
+
+        lemma_SystemCorrespondenceBetweenSystemBehaviorsDifferingOnlyInTrackedActorStates(lb, mb);
         lemma_SystemSpecRefinementConvolutionExtraPure(lb, mb);
     }
 
