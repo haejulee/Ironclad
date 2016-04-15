@@ -1,12 +1,14 @@
 include "RefinementConvolution.i.dfy"
 include "System.i.dfy"
 include "SpecRefinement.i.dfy"
+include "../Common/Collections/Maps.i.dfy"
 
 module SystemRefinementModule {
 
     import opened RefinementConvolutionModule
     import opened SystemModule
     import opened SpecRefinementModule
+    import opened Collections__Maps_i
 
     predicate SystemCorrespondence(ls:SystemState, hs:SystemState)
     {
@@ -174,5 +176,89 @@ module SystemRefinementModule {
             lemma_SystemStateCorrespondsToItself(lb[i]);
         }
         assert BehaviorRefinesBehaviorUsingRefinementMap(lb, lb, relation, lh_map);
+    }
+
+    function RemoveActorStatesFromSystemState(ls:SystemState) : SystemState
+    {
+        ls.(states := map[])
+    }
+
+    lemma lemma_SystemCorrespondenceBetweenSystemStateAndItselfWithoutActorStates(
+        ls:SystemState,
+        hs:SystemState
+        )
+        requires hs == RemoveActorStatesFromSystemState(ls);
+        ensures  SystemCorrespondence(ls, hs);
+        ensures  SystemCorrespondence(hs, ls);
+        decreases |ls.states|;
+    {
+        if ls.states == map [] {
+            return;
+        }
+
+        var actor :| actor in ls.states;
+        var new_states := RemoveElt(ls.states, actor);
+        var ms := ls.(states := new_states);
+        var relation := GetSystemSystemRefinementRelation();
+        lemma_SystemCorrespondenceBetweenSystemStateAndItselfWithoutActorStates(ms, hs);
+        assert RefinementPair(ms, hs) in relation;
+        assert RefinementPair(hs, ms) in relation;
+
+        forall ss | SpecCorrespondence(ms, ss)
+            ensures SpecCorrespondence(ls, ss);
+        {
+            var entry := Entry(actor, UpdateLocalState());
+            assert SystemNextEntry(ls, ms, entry);
+            lemma_LeftMoverBackwardPreservation(entry, ls, ms, ss);
+        }
+        assert SystemCorrespondence(ls, ms);
+        assert RefinementPair(ls, ms) in relation;
+
+        forall ss | SpecCorrespondence(ls, ss)
+            ensures SpecCorrespondence(ms, ss);
+        {
+            var entry := Entry(actor, UpdateLocalState());
+            assert SystemNextEntry(ls, ms, entry);
+            lemma_RightMoverForwardPreservation(entry, ls, ms, ss);
+        }
+        assert SystemCorrespondence(ms, ls);
+        assert RefinementPair(ms, ls) in relation;
+
+        lemma_SystemRefinementRelationConvolvesWithItself();
+        assert RefinementPair(ls, hs) in relation;
+    }
+
+    lemma lemma_SystemCorrespondenceBetweenSystemStatesDifferingOnlyInActorStates(
+        ls:SystemState,
+        hs:SystemState
+        )
+        requires hs == ls.(states := hs.states);
+        ensures  SystemCorrespondence(ls, hs);
+    {
+        var ms := RemoveActorStatesFromSystemState(ls);
+        lemma_SystemCorrespondenceBetweenSystemStateAndItselfWithoutActorStates(ls, ms);
+        lemma_SystemCorrespondenceBetweenSystemStateAndItselfWithoutActorStates(hs, ms);
+        lemma_SystemRefinementRelationConvolvesWithItself();
+    }
+
+    lemma lemma_SystemCorrespondenceBetweenSystemBehaviorsDifferingOnlyInActorStates(
+        lb:seq<SystemState>,
+        hb:seq<SystemState>
+        )
+        requires |lb| == |hb|;
+        requires forall i :: 0 <= i < |hb| ==> hb[i] == lb[i].(states := hb[i].states);
+        ensures  SystemBehaviorRefinesSystemBehavior(lb, hb);
+    {
+        var relation := GetSystemSystemRefinementRelation();
+        var lh_map := ConvertMapToSeq(|lb|, map i | 0 <= i < |lb| :: RefinementRange(i, i));
+
+        forall i, j {:trigger RefinementPair(lb[i], hb[j]) in relation} |
+            0 <= i < |lb| && lh_map[i].first <= j <= lh_map[i].last
+            ensures RefinementPair(lb[i], hb[j]) in relation;
+        {
+            lemma_SystemCorrespondenceBetweenSystemStatesDifferingOnlyInActorStates(lb[i], hb[j]);
+        }
+        
+        assert BehaviorRefinesBehaviorUsingRefinementMap(lb, hb, relation, lh_map);
     }
 }

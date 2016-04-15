@@ -51,13 +51,12 @@ module ReductionTopModule {
         requires atrace == RestrictTraceToActor(ltrace, tracked_actor);
         requires indices == GetTraceIndicesForActor(ltrace, tracked_actor);
         requires forall i :: i in indices ==> ltrace[i].action.PerformIos?;
-        requires forall ls, actor :: ls in lb && actor !in converted_actors ==> actor !in ls.states;
         ensures  IsValidSystemTraceAndBehavior(config, htrace, hb);
         ensures  SystemBehaviorRefinesSystemBehavior(lb, hb);
         ensures  |hb| == |lb|;
         ensures  forall i {:trigger htrace[i]} :: 0 <= i < |htrace| ==>
                         htrace[i] == (if i in indices then Entry(tracked_actor, HostNext(ltrace[i].action.raw_ios)) else ltrace[i]);
-        ensures  forall hs, actor :: hs in hb && actor !in (converted_actors + {tracked_actor}) ==> actor !in hs.states;
+        ensures  forall i :: 0 <= i < |hb| ==> hb[i] == lb[i].(states := hb[i].states);
     {
         assume false;
     }
@@ -80,7 +79,6 @@ module ReductionTopModule {
                             RestrictTraceToActor(ltrace, actor) == GetLeafEntriesForest(plan[actor].trees);
         requires forall actor, tree :: actor in config.tracked_actors && tree in plan[actor].trees ==> tree.Leaf?;
         requires forall entry :: entry in ltrace && entry.actor !in config.tracked_actors ==> IsRealAction(entry.action);
-        requires forall ls, actor :: ls in lb && actor !in converted_actors ==> actor !in ls.states;
         ensures  SystemBehaviorRefinesSpec(lb);
         decreases |config.tracked_actors - converted_actors|;
     {
@@ -113,6 +111,7 @@ module ReductionTopModule {
         }
 
         lemma_ConvertPerformIosToHostNext(config, mtrace, mb, plan, converted_actors + {tracked_actor});
+        lemma_SystemCorrespondenceBetweenSystemBehaviorsDifferingOnlyInActorStates(lb, mb);
         lemma_SystemSpecRefinementConvolutionExtraPure(lb, mb);
     }
 
@@ -127,7 +126,6 @@ module ReductionTopModule {
         requires forall actor :: actor in config.tracked_actors ==>
                             RestrictTraceToActor(ltrace, actor) == GetLeafEntriesForest(plan[actor].trees);
         requires forall entry :: entry in ltrace && entry.actor !in config.tracked_actors ==> IsRealAction(entry.action);
-        requires forall ls :: ls in lb ==> ls.states == map [];
         ensures  SystemBehaviorRefinesSpec(lb);
     {
         if forall actor, tree :: actor in config.tracked_actors && tree in plan[actor].trees ==> tree.Leaf? {
