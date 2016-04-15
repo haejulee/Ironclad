@@ -176,6 +176,13 @@ module ReductionModule
              Inner(tree.reduced_entry, tree.children[child_index := sub_tree], tree.pivot_index)
     }
 
+    function ReduceTreeForest(trees:seq<Tree>, index:int, designator:seq<int>) : seq<Tree>
+        requires 0 <= index < |trees|;
+        requires ReduceTree.requires(trees[index], designator);
+    {
+        trees[index := ReduceTree(trees[index], designator)]
+    }
+
     function CountInnerNodesForest(trees:seq<Tree>) : int
         ensures CountInnerNodesForest(trees) >= 0;
     {
@@ -282,7 +289,7 @@ module ReductionModule
     }
 
     lemma {:timeLimitMultiplier 2} lemma_ReduceTreeLeaves(tree:Tree, designator:seq<int>)
-        requires TreeValid(tree) && ReduceTree.requires(tree, designator)
+        requires ReduceTree.requires(tree, designator)
         decreases |designator|;
         ensures var old_leaves := GetLeafEntries(tree); 
                 var reduced_tree := ReduceTree(tree, designator);
@@ -431,5 +438,131 @@ module ReductionModule
                 }
             }
         }
+    }
+
+
+    lemma {:timeLimitMultiplier 3} lemma_ReduceTreeLeavesForestOld(trees:seq<Tree>, index:int, designator:seq<int>)
+        requires 0 <= index < |trees|;
+        requires ReduceTree.requires(trees[index], designator)
+        decreases |designator|;
+        ensures var tree := trees[index];
+                var old_leaves := GetLeafEntriesForest(trees); 
+                var reduced_trees := ReduceTreeForest(trees, index, designator);
+                var sub_tree := LookupTreeDesignator(designator, tree);
+                var reduced_leaves := GetLeafEntries(sub_tree);
+                var prefix := GetLeafEntriesForestPrefix(trees, index, designator);
+                var suffix := GetLeafEntriesForestSuffix(trees, index, designator);
+                old_leaves == prefix + reduced_leaves + suffix;
+    {
+        var tree := trees[index];
+        var old_leaves := GetLeafEntriesForest(trees); 
+        var reduced_trees := ReduceTreeForest(trees, index, designator);
+        var sub_tree := LookupTreeDesignator(designator, tree);
+        var reduced_leaves := GetLeafEntries(sub_tree);
+        var prefix := GetLeafEntriesForestPrefix(trees, index, designator);
+        var suffix := GetLeafEntriesForestSuffix(trees, index, designator);
+
+        calc {
+            old_leaves;
+            GetLeafEntriesForest(trees); 
+                { 
+                    lemma_FunctionAdds(trees[..index], trees[index..],
+                                       GetLeafEntriesForest, GetLeafEntries);
+                    assert trees == trees[..index] + trees[index..];
+                }
+            GetLeafEntriesForest(trees[..index]) + GetLeafEntriesForest(trees[index..]); 
+                { 
+                    lemma_FunctionAdds([trees[index]], trees[index+1..],
+                                       GetLeafEntriesForest, GetLeafEntries);
+                    assert trees[index..] == [trees[index]] + trees[index+1..];
+                }
+            GetLeafEntriesForest(trees[..index]) + GetLeafEntriesForest([trees[index]]) + GetLeafEntriesForest(trees[index+1..]); 
+            GetLeafEntriesForest(trees[..index]) + GetLeafEntries(trees[index]) + GetLeafEntriesForest(trees[index+1..]); 
+                { lemma_ReduceTreeLeaves(tree, designator); }
+              GetLeafEntriesForestPrefix(trees, index, designator) 
+            + reduced_leaves 
+            + GetLeafEntriesForestSuffix(trees, index, designator);
+            prefix + reduced_leaves + suffix;
+        }
+        
+    }    
+    
+    lemma {:timeLimitMultiplier 4} lemma_ReduceTreeLeavesForestNew(trees:seq<Tree>, index:int, designator:seq<int>)
+        requires 0 <= index < |trees|;
+        requires ReduceTree.requires(trees[index], designator)
+        decreases |designator|;
+        ensures var tree := trees[index];
+                var reduced_trees := ReduceTreeForest(trees, index, designator);
+                var new_leaves := GetLeafEntriesForest(reduced_trees); 
+                var sub_tree := LookupTreeDesignator(designator, tree);
+                var reduced_leaves := GetLeafEntries(sub_tree);
+                var prefix := GetLeafEntriesForestPrefix(trees, index, designator);
+                var suffix := GetLeafEntriesForestSuffix(trees, index, designator);
+                new_leaves == prefix + [sub_tree.reduced_entry] + suffix;
+    {
+        var tree := trees[index];
+        var reduced_trees := ReduceTreeForest(trees, index, designator);
+        var new_leaves := GetLeafEntriesForest(reduced_trees); 
+        var sub_tree := LookupTreeDesignator(designator, tree);
+        var reduced_leaves := GetLeafEntries(sub_tree);
+        var prefix := GetLeafEntriesForestPrefix(trees, index, designator);
+        var suffix := GetLeafEntriesForestSuffix(trees, index, designator);
+
+        calc {
+            new_leaves;
+            GetLeafEntriesForest(reduced_trees); 
+                { 
+                    lemma_FunctionAdds(reduced_trees[..index], reduced_trees[index..],
+                                       GetLeafEntriesForest, GetLeafEntries);
+                    assert reduced_trees == reduced_trees[..index] + reduced_trees[index..];
+                }
+            GetLeafEntriesForest(reduced_trees[..index]) + GetLeafEntriesForest(reduced_trees[index..]); 
+                { 
+                    lemma_FunctionAdds([reduced_trees[index]], reduced_trees[index+1..],
+                                       GetLeafEntriesForest, GetLeafEntries);
+                    assert reduced_trees[index..] == [reduced_trees[index]] + reduced_trees[index+1..];
+                    assert GetLeafEntriesForest(reduced_trees[index..])
+                        == GetLeafEntriesForest([reduced_trees[index]]) + GetLeafEntriesForest(reduced_trees[index+1..]); 
+                }
+              GetLeafEntriesForest(reduced_trees[..index]) 
+            + GetLeafEntriesForest([reduced_trees[index]]) 
+            + GetLeafEntriesForest(reduced_trees[index+1..]); 
+                { assert reduced_trees[..index] == trees[..index];
+                  assert reduced_trees[index+1..] == trees[index+1..]; }
+              GetLeafEntriesForest(trees[..index]) 
+            + GetLeafEntries(reduced_trees[index]) 
+            + GetLeafEntriesForest(trees[index+1..]); 
+                { lemma_ReduceTreeLeaves(tree, designator); }
+              GetLeafEntriesForest(trees[..index]) 
+            + GetLeafEntriesPrefix(trees[index], designator)
+            + [sub_tree.reduced_entry] 
+            + GetLeafEntriesSuffix(trees[index], designator) 
+            + GetLeafEntriesForest(trees[index+1..]);
+
+              GetLeafEntriesForestPrefix(trees, index, designator) 
+            + [sub_tree.reduced_entry] 
+            + GetLeafEntriesForestSuffix(trees, index, designator);
+            prefix + [sub_tree.reduced_entry] + suffix;
+        }
+        
+    }
+
+    lemma lemma_ReduceTreeLeavesForest(trees:seq<Tree>, index:int, designator:seq<int>)
+        requires 0 <= index < |trees|;
+        requires ReduceTree.requires(trees[index], designator)
+        decreases |designator|;
+        ensures var tree := trees[index];
+                var old_leaves := GetLeafEntriesForest(trees); 
+                var reduced_trees := ReduceTreeForest(trees, index, designator);
+                var new_leaves := GetLeafEntriesForest(reduced_trees); 
+                var sub_tree := LookupTreeDesignator(designator, tree);
+                var reduced_leaves := GetLeafEntries(sub_tree);
+                var prefix := GetLeafEntriesForestPrefix(trees, index, designator);
+                var suffix := GetLeafEntriesForestSuffix(trees, index, designator);
+                old_leaves == prefix + reduced_leaves + suffix
+             && new_leaves == prefix + [sub_tree.reduced_entry] + suffix;
+    {
+        lemma_ReduceTreeLeavesForestOld(trees, index, designator);
+        lemma_ReduceTreeLeavesForestNew(trees, index, designator);
     }
 }
