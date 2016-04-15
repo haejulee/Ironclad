@@ -11,6 +11,7 @@ module ReductionPlanModule {
     {
            |plan.ab| == |plan.trees| + 1
         && (forall tree :: tree in plan.trees ==> TreeValid(tree))
+        && (forall tree :: tree in plan.trees ==> GetRootEntry(tree).action.PerformIos?)
     }
 
     predicate IsValidReductionPlan(config:Config, plan:ReductionPlan)
