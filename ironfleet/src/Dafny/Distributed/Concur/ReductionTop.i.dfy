@@ -39,7 +39,7 @@ module ReductionTopModule {
         config:Config,
         ltrace:Trace,
         lb:SystemBehavior,
-        converted_actors:set<Actor>,
+        plan:ActorReductionPlan,
         tracked_actor:Actor,
         indices:seq<int>
         ) returns (
@@ -48,7 +48,9 @@ module ReductionTopModule {
         )
         requires IsValidSystemTraceAndBehavior(config, ltrace, lb);
         requires indices == GetTraceIndicesForActor(ltrace, tracked_actor);
-        requires forall i :: i in indices ==> ltrace[i].action.PerformIos?;
+        requires IsValidActorReductionPlan(plan);
+        requires forall i :: i in indices ==> ltrace[i].action.PerformIos? 
+                                           && 0 <= i < |plan.trees| && ltrace[i] == GetRootEntry(plan.trees[i]);
         ensures  IsValidSystemTraceAndBehavior(config, htrace, hb);
         ensures  SystemBehaviorRefinesSystemBehavior(lb, hb);
         ensures  |hb| == |lb|;
@@ -100,7 +102,7 @@ module ReductionTopModule {
         }
 
         var indices := GetTraceIndicesForActor(ltrace, tracked_actor);
-        var mtrace, mb := lemma_UpdatePerformIosToHostNext(config, ltrace, lb, converted_actors, tracked_actor, indices);
+        var mtrace, mb := lemma_UpdatePerformIosToHostNext(config, ltrace, lb, plan[tracked_actor], tracked_actor, indices);
 
         forall actor | actor != tracked_actor
             ensures RestrictTraceToActor(mtrace, actor) == RestrictTraceToActor(ltrace, actor);
