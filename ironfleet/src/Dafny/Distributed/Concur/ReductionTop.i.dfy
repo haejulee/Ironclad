@@ -41,14 +41,12 @@ module ReductionTopModule {
         lb:SystemBehavior,
         converted_actors:set<Actor>,
         tracked_actor:Actor,
-        atrace:Trace,
         indices:seq<int>
         ) returns (
         htrace:Trace,
         hb:SystemBehavior
         )
         requires IsValidSystemTraceAndBehavior(config, ltrace, lb);
-        requires atrace == RestrictTraceToActor(ltrace, tracked_actor);
         requires indices == GetTraceIndicesForActor(ltrace, tracked_actor);
         requires forall i :: i in indices ==> ltrace[i].action.PerformIos?;
         ensures  IsValidSystemTraceAndBehavior(config, htrace, hb);
@@ -102,7 +100,7 @@ module ReductionTopModule {
         }
 
         var indices := GetTraceIndicesForActor(ltrace, tracked_actor);
-        var mtrace, mb := lemma_UpdatePerformIosToHostNext(config, ltrace, lb, converted_actors, tracked_actor, atrace, indices);
+        var mtrace, mb := lemma_UpdatePerformIosToHostNext(config, ltrace, lb, converted_actors, tracked_actor, indices);
 
         forall actor | actor != tracked_actor
             ensures RestrictTraceToActor(mtrace, actor) == RestrictTraceToActor(ltrace, actor);
