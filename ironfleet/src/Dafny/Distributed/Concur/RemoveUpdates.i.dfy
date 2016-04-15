@@ -14,51 +14,9 @@ module RemoveUpdatesModule {
     import opened ReductionPlanModule
     import opened MatchTreesToTraceModule
 
-    function RemoveActorStatesFromSystemState(ls:SystemState, actors:set<Actor>) : SystemState
-        ensures  forall actor :: actor !in actors ==> ActorStateMatchesInSystemStates(ls, RemoveActorStatesFromSystemState(ls, actors), actor);
-        ensures  forall actor :: actor in actors ==> actor !in RemoveActorStatesFromSystemState(ls, actors).states;
-        ensures  var ls' := RemoveActorStatesFromSystemState(ls, actors);
-                 ls' == ls.(states := ls'.states);
-        decreases |actors|;
+    function RemoveActorStateFromSystemState(ls:SystemState, actor:Actor) : SystemState
     {
-        assume false;
-        if |actors| == 0 then
-            ls
-        else
-            var actor :| actor in actors;
-            RemoveActorStatesFromSystemState(ls.(states := mapremove(ls.states, actor)), actors - { actor })
-    }
-
-    lemma lemma_SystemNextEntryPreservedWhenRemovingActorState(
-        ls0:SystemState,
-        ls1:SystemState,
-        ls0':SystemState,
-        ls1':SystemState,
-        actors:set<Actor>,
-        entry:Entry
-        )
-        requires SystemNextEntry(ls0, ls1, entry);
-        requires ls0' == RemoveActorStatesFromSystemState(ls0, actors);
-        requires ls1' == RemoveActorStatesFromSystemState(ls1, actors);
-        requires !entry.action.HostNext?;
-        ensures  SystemNextEntry(ls0', ls1', entry);
-    {
-        if !entry.action.UpdateLocalState? {
-            assert ls0.states == ls1.states;
-            assert ls0'.states == ls1'.states;
-            assert SystemNextEntry(ls0', ls1', entry);
-        }
-        else {
-            assert ls1'.sentPackets == ls0'.sentPackets;
-            assert ls1'.time == ls0'.time;
-            assert ls1'.config == ls0'.config;
-            forall actor | actor != entry.actor
-                ensures ActorStateMatchesInSystemStates(ls0', ls1', actor)
-            {
-                assert ActorStateMatchesInSystemStates(ls0, ls1, actor);
-            }
-            assert SystemNextEntry(ls0', ls1', entry);
-        }
+        ls.(states := mapremove(ls.states, actor))
     }
 
     lemma lemma_RefineToBehaviorWithoutTrackedActorStates(
@@ -84,26 +42,31 @@ module RemoveUpdatesModule {
             return;
         }
 
-        hb := ConvertMapToSeq(|lb|, map i {:trigger lb[i]} | 0 <= i < |lb| :: RemoveActorStatesFromSystemState(lb[i], config.tracked_actors));
-        var lh_map := ConvertMapToSeq(|lb|, map i {:trigger RefinementRange(i, i)} | 0 <= i < |lb| :: RefinementRange(i, i));
+        var actor_to_remove :| actor_to_remove in config.tracked_actors - already_removed_actors;
+        var mb := ConvertMapToSeq(|lb|, map i {:trigger lb[i]} | 0 <= i < |lb| :: RemoveActorStateFromSystemState(lb[i], actor_to_remove));
+        var lm_map := ConvertMapToSeq(|lb|, map i {:trigger RefinementRange(i, i)} | 0 <= i < |lb| :: RefinementRange(i, i));
         var relation := GetSystemSystemRefinementRelation();
 
-        forall i, j {:trigger RefinementPair(lb[i], hb[j]) in relation} |
-            0 <= i < |lb| && lh_map[i].first <= j <= lh_map[i].last && 0 <= j < |hb|
-            ensures RefinementPair(lb[i], hb[j]) in relation;
+        forall i, j {:trigger RefinementPair(lb[i], mb[j]) in relation} |
+            0 <= i < |lb| && lm_map[i].first <= j <= lm_map[i].last && 0 <= j < |mb|
+            ensures RefinementPair(lb[i], mb[j]) in relation;
         {
             assert j == i;
             lemma_ConfigConstant(config, trace, lb, i);
-            assert hb[j] == RemoveActorStatesFromSystemState(lb[i], config.tracked_actors);
-            lemma_SystemCorrespondenceBetweenSystemStatesDifferingOnlyInTrackedActorStates(lb[i], hb[j]);
+            assert mb[j] == RemoveActorStateFromSystemState(lb[i], actor_to_remove);
+            lemma_SystemCorrespondenceBetweenSystemStatesDifferingOnlyInTrackedActorStates(lb[i], mb[j]);
         }
-        assert BehaviorRefinesBehaviorUsingRefinementMap(lb, hb, relation, lh_map);
+        assert BehaviorRefinesBehaviorUsingRefinementMap(lb, mb, relation, lm_map);
 
-        forall i {:trigger SystemNextEntry(hb[i], hb[i+1], trace[i])} | 0 <= i < |hb|-1
-            ensures SystemNextEntry(hb[i], hb[i+1], trace[i]);
+        forall i {:trigger SystemNextEntry(mb[i], mb[i+1], trace[i])} | 0 <= i < |mb|-1
+            ensures SystemNextEntry(mb[i], mb[i+1], trace[i]);
         {
-            lemma_SystemNextEntryPreservedWhenRemovingActorState(lb[i], lb[i+1], hb[i], hb[i+1], config.tracked_actors, trace[i]);
+            assert SystemNextEntry(lb[i], lb[i+1], trace[i]);
+            assert !trace[i].action.HostNext?;
         }
+
+        hb := lemma_RefineToBehaviorWithoutTrackedActorStates(config, trace, mb, already_removed_actors + {actor_to_remove});
+        lemma_SystemSystemRefinementConvolutionPure(lb, mb, hb);
     }
 
     function RemoveTrackedActorLocalStateUpdates(trace:Trace, tracked_actors:set<Actor>) : Trace
