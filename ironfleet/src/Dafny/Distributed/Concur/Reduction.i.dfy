@@ -176,6 +176,43 @@ module ReductionModule
              Inner(tree.reduced_entry, tree.children[child_index := sub_tree], tree.pivot_index)
     }
 
+    function CountInnerNodesForest(trees:seq<Tree>) : int
+        ensures CountInnerNodesForest(trees) >= 0;
+    {
+        if |trees| == 0 then 0 else CountInnerNodes(trees[0]) + CountInnerNodesForest(trees[1..])
+    }
+
+    function CountInnerNodes(tree:Tree) : int
+        ensures CountInnerNodes(tree) >= 0;
+    {
+        match tree {
+            case Leaf(_) => 0
+            case Inner(_, children, _) => 1 + CountInnerNodesForest(children)
+        }
+    }
+
+    lemma lemma_CountInnterNodesForest(trees:seq<Tree>, index:int, new_tree:Tree)
+        requires 0 <= index < |trees|;
+        ensures  CountInnerNodesForest(trees[index := new_tree]) ==
+                 CountInnerNodesForest(trees) - CountInnerNodes(trees[index]) + CountInnerNodes(new_tree);
+    {
+        if index == 0 {
+        } else {
+            lemma_CountInnterNodesForest(trees[1..], index-1, new_tree);
+        }
+    }
+
+    lemma lemma_ReduceTreeDecreasesInnerNodes(tree:Tree, designator:seq<int>)
+        requires ReduceTree.requires(tree, designator);
+        ensures  CountInnerNodes(tree) > CountInnerNodes(ReduceTree(tree, designator));
+    {
+        if |designator| == 0 {
+        } else {
+            lemma_ReduceTreeDecreasesInnerNodes(tree.children[designator[0]], designator[1..]);
+            lemma_CountInnterNodesForest(tree.children, designator[0], ReduceTree(tree.children[designator[0]], designator[1..]));
+        }
+    }
+
     lemma lemma_ReduceTreePreservesValidity(tree:Tree, designator:seq<int>)
         requires TreeValid(tree) && ReduceTree.requires(tree, designator)
         decreases |designator|;
