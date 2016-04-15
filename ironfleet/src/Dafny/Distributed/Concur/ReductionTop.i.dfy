@@ -131,6 +131,7 @@ module ReductionTopModule {
         }
         else {
             var actor, tree :| actor in config.tracked_actors && tree in plan[actor].trees && tree.Inner?;
+            var which_tree :| 0 <= which_tree < |plan[actor].trees| && plan[actor].trees[which_tree] == tree;
             var success, sub_tree, designator := FindReducibleSubtree(tree);
             assert success;
             assume false;
