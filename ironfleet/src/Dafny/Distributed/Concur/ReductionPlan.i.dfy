@@ -1,8 +1,10 @@
 include "Reduction.i.dfy"
+include "System.i.dfy"
 
 module ReductionPlanModule {
 
     import opened ReductionModule
+    import opened SystemModule
 
     datatype ActorReductionPlan = ActorReductionPlan(ab:seq<ActorState>, trees:seq<Tree>)
     type ReductionPlan = map<Actor, ActorReductionPlan>
@@ -10,8 +12,10 @@ module ReductionPlanModule {
     predicate IsValidActorReductionPlan(plan:ActorReductionPlan)
     {
            |plan.ab| == |plan.trees| + 1
-        && (forall tree :: tree in plan.trees ==> TreeValid(tree))
-        && (forall tree :: tree in plan.trees ==> GetRootEntry(tree).action.PerformIos?)
+        && (forall i {:trigger plan.trees[i]} :: 0 <= i < |plan.trees| ==>
+                                              TreeValid(plan.trees[i])
+                                           && GetRootEntry(plan.trees[i]).action.PerformIos?
+                                           && HostNextPredicate(plan.ab[i], plan.ab[i+1], GetRootEntry(plan.trees[i]).action.raw_ios))
     }
 
     predicate IsValidReductionPlan(config:Config, plan:ReductionPlan)
