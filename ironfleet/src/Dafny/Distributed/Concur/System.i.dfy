@@ -12,9 +12,14 @@ module SystemModule {
     datatype SystemState = SystemState(config:Config, states:map<Actor, ActorState>, time:int, sentPackets:set<Packet>)
     type SystemBehavior = seq<SystemState>
 
+    predicate ActorStateMatchesInSystemStates(ls:SystemState, ls':SystemState, actor:Actor)
+    {
+        if actor in ls.states then (actor in ls'.states && ls'.states[actor] == ls.states[actor]) else actor !in ls'.states
+    }
+
     predicate SystemInit(config:Config, ls:SystemState)
     {
-           (forall actor :: actor in ls.states ==> ActorStateInit(ls.states[actor]))
+           (forall actor :: actor in ls.states && actor !in config.tracked_actors ==> ActorStateInit(ls.states[actor]))
         && ls.config == config
         && ls.time >= 0
         && |ls.sentPackets| == 0
@@ -44,9 +49,7 @@ module SystemModule {
 
     predicate SystemNextUpdateLocalState(ls:SystemState, ls':SystemState, actor:Actor)
     {
-           (forall other_actor :: other_actor != actor && other_actor in ls.states ==>
-                            other_actor in ls'.states && ls'.states[other_actor] == ls.states[other_actor])
-        && (forall other_actor :: other_actor != actor && other_actor !in ls.states ==> other_actor !in ls'.states)
+           (forall other_actor :: other_actor != actor ==> ActorStateMatchesInSystemStates(ls, ls', other_actor))
         && ls'.sentPackets == ls.sentPackets
         && ls'.time == ls.time
         && ls'.config == ls.config

@@ -29,6 +29,12 @@ module SpecRefinementModule {
         requires SpecCorrespondence(ls', hs);
         ensures  SpecCorrespondence(ls, hs);
 
+    lemma {:axiom} lemma_TrackedActorStateDoesntAffectSpecCorrespondence(ls:SystemState, ls':SystemState, hs:SpecState)
+        requires ls' == ls.(states := ls'.states);
+        requires forall actor :: actor !in ls.config.tracked_actors && ls'.config == ls.config ==> ActorStateMatchesInSystemStates(ls, ls', actor);
+        requires SpecCorrespondence(ls', hs);
+        ensures  SpecCorrespondence(ls, hs);
+
     ///////////////////////
     // Spec behaviors
     ///////////////////////

@@ -14,7 +14,7 @@ module MatchTreesToTraceModule {
     import opened ReductionTopModule
     import opened Collections__Maps_i
 
-    lemma lemma_IfNoStatesOrUpdatesThenRestrictionToActorContainsOnlyTrackedActions(
+    lemma lemma_IfNoActorStatesOrUpdatesThenRestrictionToActorContainsOnlyTrackedActions(
         config:Config,
         ltrace:Trace,
         lb:SystemBehavior,
@@ -23,7 +23,7 @@ module MatchTreesToTraceModule {
         requires |lb| == |ltrace| + 1;
         requires forall i {:trigger SystemNextEntry(lb[i], lb[i+1], ltrace[i])} :: 0 <= i < |lb|-1 ==> SystemNextEntry(lb[i], lb[i+1], ltrace[i]);
         requires forall entry :: entry in ltrace ==> IsRealAction(entry.action);
-        requires forall entry :: entry in ltrace ==> !entry.action.UpdateLocalState?;
+        requires forall entry :: entry in ltrace && entry.actor == actor ==> !entry.action.UpdateLocalState?;
         requires !actor.NoActor?;
         ensures  RestrictTraceToActor(RestrictTraceToTrackedActions(ltrace), actor) == RestrictTraceToActor(ltrace, actor);
     {
@@ -40,7 +40,7 @@ module MatchTreesToTraceModule {
             assert SystemNextEntry(lb[j], lb[j+1], ltrace[j]);
         }
 
-        lemma_IfNoStatesOrUpdatesThenRestrictionToActorContainsOnlyTrackedActions(config, ltrace', lb', actor);
+        lemma_IfNoActorStatesOrUpdatesThenRestrictionToActorContainsOnlyTrackedActions(config, ltrace', lb', actor);
 
         var entry := ltrace[0];
         if entry.actor == actor && !IsTrackedAction(entry.action) {
@@ -49,7 +49,7 @@ module MatchTreesToTraceModule {
         }
     }
 
-    lemma lemma_ReductionOfBehaviorWithoutStatesOrUpdates(
+    lemma lemma_ReductionOfBehaviorWithoutTrackedActorStatesOrUpdates(
         config:Config,
         ltrace:Trace,
         lb:SystemBehavior,
@@ -58,16 +58,16 @@ module MatchTreesToTraceModule {
         requires IsValidSystemTraceAndBehavior(config, ltrace, lb);
         requires IsValidReductionPlan(config, plan);
         requires forall entry :: entry in ltrace ==> IsRealAction(entry.action);
-        requires forall entry :: entry in ltrace ==> !entry.action.UpdateLocalState?;
         requires forall actor :: actor in config.tracked_actors ==>
                      RestrictTraceToActor(RestrictTraceToTrackedActions(ltrace), actor) == GetLeafEntriesForest(plan[actor].trees);
-        requires forall ls :: ls in lb ==> ls.states == map [];
+        requires forall ls, actor :: ls in lb && actor in config.tracked_actors ==> actor !in ls.states;
+        requires forall entry :: entry in ltrace && entry.actor in config.tracked_actors ==> !entry.action.UpdateLocalState?;
         ensures  SystemBehaviorRefinesSpec(lb);
     {
         forall actor | actor in config.tracked_actors
             ensures RestrictTraceToActor(ltrace, actor) == GetLeafEntriesForest(plan[actor].trees);
         {
-            lemma_IfNoStatesOrUpdatesThenRestrictionToActorContainsOnlyTrackedActions(config, ltrace, lb, actor);
+            lemma_IfNoActorStatesOrUpdatesThenRestrictionToActorContainsOnlyTrackedActions(config, ltrace, lb, actor);
             assert RestrictTraceToActor(RestrictTraceToTrackedActions(ltrace), actor) == RestrictTraceToActor(ltrace, actor);
         }
 

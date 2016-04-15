@@ -21,7 +21,7 @@ module UltimateReductionModule {
                      RestrictTraceToActor(RestrictTraceToTrackedActions(trace), actor) == GetLeafEntriesForest(plan[actor].trees);
         ensures  SystemBehaviorRefinesSpec(lb);
     {
-        var mb := lemma_RefineToBehaviorWithoutStates(config, trace, lb);
+        var mb := lemma_RefineToBehaviorWithoutTrackedActorStates(config, trace, lb, {});
         lemma_ReductionOfBehaviorWithoutStates(config, trace, mb, plan);
         lemma_SystemSpecRefinementConvolutionExtraPure(lb, mb);
     }

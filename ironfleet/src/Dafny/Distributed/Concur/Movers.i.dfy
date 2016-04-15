@@ -6,12 +6,12 @@ module MoversModule {
 
     predicate ActionIsRightMover(action:Action)
     {
-        action.Receive? || action.UpdateLocalState?
+        action.Receive?
     }
 
     predicate ActionIsLeftMover(action:Action)
     {
-        action.Send? || action.UpdateLocalState?
+        action.Send?
     }
 
     predicate EntryIsRightMover(entry:Entry)
@@ -42,49 +42,6 @@ module MoversModule {
     {
         if entry1.action.Receive? {
             ls2' := ls3;
-        }
-        else if entry1.action.UpdateLocalState? {
-            if entry1.actor in ls1.states {
-                ls2' := ls3.(states := ls3.states[entry1.actor := ls1.states[entry1.actor]]);
-                if !entry2.action.UpdateLocalState? && !entry2.action.PerformIos? && !entry2.action.HostNext? {
-                    assert ls2'.states == ls1.states;
-                }
-            }
-            else if entry1.actor in ls2.states {
-                ls2' := ls3.(states := mapremove(ls3.states, entry1.actor));
-                if !entry2.action.UpdateLocalState? && !entry2.action.PerformIos? && !entry2.action.HostNext? {
-                    assert ls2'.states == ls1.states;
-                }
-            }
-            else {
-                assert ls1.states == ls2.states;
-                ls2' := ls3;
-            }
-        }
-        else if entry2.action.UpdateLocalState? {
-            if entry2.actor in ls2.states {
-                if entry2.actor in ls3.states {
-                    ls2' := ls1.(states := ls1.states[entry2.actor := ls3.states[entry2.actor]]);
-                }
-                else {
-                    ls2' := ls1.(states := mapremove(ls1.states, entry2.actor));
-                }
-                if !entry1.action.UpdateLocalState? && !entry1.action.PerformIos? && !entry1.action.HostNext? {
-                    assert ls2'.states == ls3.states;
-                }
-            }
-            else {
-                if entry2.actor in ls3.states {
-                    ls2' := ls1.(states := ls1.states[entry2.actor := ls3.states[entry2.actor]]);
-                    if !entry1.action.UpdateLocalState? && !entry1.action.PerformIos? && !entry1.action.HostNext? {
-                        assert ls2'.states == ls3.states;
-                    }
-                }
-                else {
-                    ls2' := ls1;
-                    assert ls2.states == ls3.states;
-                }
-            }
         }
         else if entry2.action.Send? {
             ls2' := ls1.(sentPackets := ls1.sentPackets + {entry2.action.s});

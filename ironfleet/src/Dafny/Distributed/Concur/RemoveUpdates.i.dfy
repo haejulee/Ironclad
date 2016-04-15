@@ -12,35 +12,77 @@ module RemoveUpdatesModule {
     import opened ReductionPlanModule
     import opened MatchTreesToTraceModule
 
+    function RemoveActorStatesFromSystemState(ls:SystemState, actors:set<Actor>) : SystemState
+        ensures  forall actor :: actor !in actors ==> ActorStateMatchesInSystemStates(ls, RemoveActorStatesFromSystemState(ls, actors), actor);
+        ensures  forall actor :: actor in actors ==> actor !in RemoveActorStatesFromSystemState(ls, actors).states;
+        ensures  var ls' := RemoveActorStatesFromSystemState(ls, actors);
+                 ls' == ls.(states := ls'.states);
+        decreases |actors|;
+    {
+        assume false;
+        if |actors| == 0 then
+            ls
+        else
+            var actor :| actor in actors;
+            RemoveActorStatesFromSystemState(ls.(states := mapremove(ls.states, actor)), actors - { actor })
+    }
+
     lemma lemma_SystemNextEntryPreservedWhenRemovingActorState(
         ls0:SystemState,
         ls1:SystemState,
         ls0':SystemState,
         ls1':SystemState,
+        actors:set<Actor>,
         entry:Entry
         )
         requires SystemNextEntry(ls0, ls1, entry);
-        requires ls0' == RemoveActorStatesFromSystemState(ls0);
-        requires ls1' == RemoveActorStatesFromSystemState(ls1);
+        requires ls0' == RemoveActorStatesFromSystemState(ls0, actors);
+        requires ls1' == RemoveActorStatesFromSystemState(ls1, actors);
         requires !entry.action.HostNext?;
         ensures  SystemNextEntry(ls0', ls1', entry);
     {
+        if !entry.action.UpdateLocalState? {
+            assert ls0.states == ls1.states;
+            assert ls0'.states == ls1'.states;
+            assert SystemNextEntry(ls0', ls1', entry);
+        }
+        else {
+            assert ls1'.sentPackets == ls0'.sentPackets;
+            assert ls1'.time == ls0'.time;
+            assert ls1'.config == ls0'.config;
+            forall actor | actor != entry.actor
+                ensures ActorStateMatchesInSystemStates(ls0', ls1', actor)
+            {
+                assert ActorStateMatchesInSystemStates(ls0, ls1, actor);
+            }
+            assert SystemNextEntry(ls0', ls1', entry);
+        }
     }
 
-    lemma lemma_RefineToBehaviorWithoutStates(
+    lemma lemma_RefineToBehaviorWithoutTrackedActorStates(
         config:Config,
         trace:Trace,
-        lb:seq<SystemState>
+        lb:seq<SystemState>,
+        already_removed_actors:set<Actor>
         ) returns (
         hb:seq<SystemState>
         )
         requires IsValidSystemTraceAndBehavior(config, trace, lb);
         requires forall entry :: entry in trace ==> IsRealAction(entry.action);
+        requires already_removed_actors <= config.tracked_actors;
+        requires forall ls, actor :: ls in lb && actor in already_removed_actors ==> actor !in ls.states;
         ensures  IsValidSystemTraceAndBehavior(config, trace, hb);
         ensures  SystemBehaviorRefinesSystemBehavior(lb, hb);
-        ensures  forall ls :: ls in hb ==> ls.states == map [];
+        ensures  forall hs, actor :: hs in hb && actor in config.tracked_actors ==> actor !in hs.states;
+        decreases |config.tracked_actors - already_removed_actors|;
     {
-        hb := ConvertMapToSeq(|lb|, map i {:trigger lb[i]} | 0 <= i < |lb| :: RemoveActorStatesFromSystemState(lb[i]));
+        if already_removed_actors == config.tracked_actors {
+            hb := lb;
+            lemma_SystemBehaviorRefinesItself(lb);
+            return;
+        }
+
+        hb := ConvertMapToSeq(|lb|, map i {:trigger lb[i]} | 0 <= i < |lb| :: RemoveActorStatesFromSystemState(lb[i], config.tracked_actors));
         var lh_map := ConvertMapToSeq(|lb|, map i {:trigger RefinementRange(i, i)} | 0 <= i < |lb| :: RefinementRange(i, i));
         var relation := GetSystemSystemRefinementRelation();
 
@@ -49,104 +91,119 @@ module RemoveUpdatesModule {
             ensures RefinementPair(lb[i], hb[j]) in relation;
         {
             assert j == i;
-            assert hb[j] == RemoveActorStatesFromSystemState(lb[i]);
-            lemma_SystemCorrespondenceBetweenSystemStatesDifferingOnlyInActorStates(lb[i], hb[j]);
+            assume lb[i].config == config;
+            assert hb[j] == RemoveActorStatesFromSystemState(lb[i], config.tracked_actors);
+            lemma_SystemCorrespondenceBetweenSystemStatesDifferingOnlyInTrackedActorStates(lb[i], hb[j]);
         }
         assert BehaviorRefinesBehaviorUsingRefinementMap(lb, hb, relation, lh_map);
 
         forall i {:trigger SystemNextEntry(hb[i], hb[i+1], trace[i])} | 0 <= i < |hb|-1
             ensures SystemNextEntry(hb[i], hb[i+1], trace[i]);
         {
-            lemma_SystemNextEntryPreservedWhenRemovingActorState(lb[i], lb[i+1], hb[i], hb[i+1], trace[i]);
+            lemma_SystemNextEntryPreservedWhenRemovingActorState(lb[i], lb[i+1], hb[i], hb[i+1], config.tracked_actors, trace[i]);
         }
     }
 
-    function RemoveLocalStateUpdates(trace:Trace) : Trace
+    function RemoveTrackedActorLocalStateUpdates(trace:Trace, tracked_actors:set<Actor>) : Trace
     {
         if |trace| == 0 then
             []
-        else if trace[0].action.UpdateLocalState? then
-            RemoveLocalStateUpdates(trace[1..])
+        else if trace[0].action.UpdateLocalState? && trace[0].actor in tracked_actors then
+            RemoveTrackedActorLocalStateUpdates(trace[1..], tracked_actors)
         else
-            [trace[0]] + RemoveLocalStateUpdates(trace[1..])
+            [trace[0]] + RemoveTrackedActorLocalStateUpdates(trace[1..], tracked_actors)
     }
 
-    lemma lemma_IfNoLocalStateUpdatesThenRemoveLocalStateUpdatesIsIdentity(trace:Trace)
-        requires forall entry :: entry in trace ==> !entry.action.UpdateLocalState?;
-        ensures  trace == RemoveLocalStateUpdates(trace);
+    lemma lemma_IfNoTrackedActorLocalStateUpdatesThenRemoveTrackedActorLocalStateUpdatesIsIdentity(trace:Trace, tracked_actors:set<Actor>)
+        requires forall entry :: entry in trace ==> !entry.action.UpdateLocalState? || entry.actor !in tracked_actors;
+        ensures  trace == RemoveTrackedActorLocalStateUpdates(trace, tracked_actors);
     {
     }
 
-    lemma lemma_GetPositionOfEntryInTraceWithoutLocalStateUpdates(trace:Trace, cur_pos:int) returns (new_pos:int)
+    lemma lemma_GetPositionOfEntryInTraceWithoutTrackedActorLocalStateUpdates(
+        trace:Trace,
+        tracked_actors:set<Actor>,
+        cur_pos:int
+        ) returns (
+        new_pos:int
+        )
         requires 0 <= cur_pos < |trace|;
         requires !trace[cur_pos].action.UpdateLocalState?;
-        ensures  0 <= new_pos < |RemoveLocalStateUpdates(trace)|;
-        ensures  RemoveLocalStateUpdates(trace)[new_pos] == trace[cur_pos];
+        ensures  0 <= new_pos < |RemoveTrackedActorLocalStateUpdates(trace, tracked_actors)|;
+        ensures  RemoveTrackedActorLocalStateUpdates(trace, tracked_actors)[new_pos] == trace[cur_pos];
     {
         if cur_pos == 0 {
             new_pos := 0;
             return;
         }
-        if trace[0].action.UpdateLocalState? {
-            new_pos := lemma_GetPositionOfEntryInTraceWithoutLocalStateUpdates(trace[1..], cur_pos-1);
+        if trace[0].action.UpdateLocalState? && trace[0].actor in tracked_actors {
+            new_pos := lemma_GetPositionOfEntryInTraceWithoutTrackedActorLocalStateUpdates(trace[1..], tracked_actors, cur_pos-1);
         }
         else {
-            var new_pos' := lemma_GetPositionOfEntryInTraceWithoutLocalStateUpdates(trace[1..], cur_pos-1);
+            var new_pos' := lemma_GetPositionOfEntryInTraceWithoutTrackedActorLocalStateUpdates(trace[1..], tracked_actors, cur_pos-1);
             new_pos := new_pos' + 1;
         }
     }
 
-    lemma lemma_GetPositionOfEntryInTraceBeforeRemovingLocalStateUpdates(trace:Trace, new_pos:int) returns (cur_pos:int)
-        requires 0 <= new_pos < |RemoveLocalStateUpdates(trace)|;
+    lemma lemma_GetPositionOfEntryInTraceBeforeRemovingTrackedActorLocalStateUpdates(
+        trace:Trace,
+        tracked_actors:set<Actor>,
+        new_pos:int
+        ) returns (
+        cur_pos:int
+        )
+        requires 0 <= new_pos < |RemoveTrackedActorLocalStateUpdates(trace, tracked_actors)|;
         ensures  0 <= cur_pos < |trace|;
-        ensures  !trace[cur_pos].action.UpdateLocalState?;
-        ensures  RemoveLocalStateUpdates(trace)[new_pos] == trace[cur_pos];
+        ensures  !trace[cur_pos].action.UpdateLocalState? || trace[cur_pos].actor !in tracked_actors;
+        ensures  RemoveTrackedActorLocalStateUpdates(trace, tracked_actors)[new_pos] == trace[cur_pos];
     {
-        if trace[0].action.UpdateLocalState? {
-            var cur_pos' := lemma_GetPositionOfEntryInTraceBeforeRemovingLocalStateUpdates(trace[1..], new_pos);
+        if trace[0].action.UpdateLocalState? && trace[0].actor in tracked_actors {
+            var cur_pos' := lemma_GetPositionOfEntryInTraceBeforeRemovingTrackedActorLocalStateUpdates(trace[1..], tracked_actors, new_pos);
             cur_pos := cur_pos' + 1;
         }
         else if new_pos == 0 {
             cur_pos := 0;
         }
         else {
-            var cur_pos' := lemma_GetPositionOfEntryInTraceBeforeRemovingLocalStateUpdates(trace[1..], new_pos-1);
+            var cur_pos' := lemma_GetPositionOfEntryInTraceBeforeRemovingTrackedActorLocalStateUpdates(trace[1..], tracked_actors, new_pos-1);
             cur_pos := cur_pos' + 1;
         }
     }
 
-    lemma lemma_SkippingLocalStateUpdatePreservesRemoveLocalStateUpdates(
+    lemma lemma_SkippingTrackedActorLocalStateUpdatePreservesRemoveTrackedActorLocalStateUpdates(
         ltrace:Trace,
         mtrace:Trace,
+        tracked_actors:set<Actor>,
         cur_pos:int
         )
         requires 0 <= cur_pos < |ltrace|;
-        requires ltrace[cur_pos].action.UpdateLocalState?;
+        requires ltrace[cur_pos].action.UpdateLocalState? && ltrace[cur_pos].actor in tracked_actors;
         requires |mtrace| == |ltrace| - 1;
         requires forall i :: 0 <= i < |mtrace| ==> mtrace[i] == (if i < cur_pos then ltrace[i] else ltrace[i+1]);
-        ensures  RemoveLocalStateUpdates(ltrace) == RemoveLocalStateUpdates(mtrace);
+        ensures  RemoveTrackedActorLocalStateUpdates(ltrace, tracked_actors) == RemoveTrackedActorLocalStateUpdates(mtrace, tracked_actors);
     {
         if cur_pos == 0 {
             assert mtrace == ltrace[1..];
-            assert RemoveLocalStateUpdates(ltrace) == RemoveLocalStateUpdates(ltrace[1..]);
+            assert RemoveTrackedActorLocalStateUpdates(ltrace, tracked_actors) == RemoveTrackedActorLocalStateUpdates(ltrace[1..], tracked_actors);
         }
         else  {
-            lemma_SkippingLocalStateUpdatePreservesRemoveLocalStateUpdates(ltrace[1..], mtrace[1..], cur_pos - 1);
+            lemma_SkippingTrackedActorLocalStateUpdatePreservesRemoveTrackedActorLocalStateUpdates(ltrace[1..], mtrace[1..], tracked_actors, cur_pos - 1);
         }
     }
 
-    lemma lemma_RemoveLocalStateUpdatesMaintainsRestrictTraceToTrackedActions(trace:Trace)
-        ensures RestrictTraceToTrackedActions(trace) == RestrictTraceToTrackedActions(RemoveLocalStateUpdates(trace));
+    lemma lemma_RemoveTrackedActorLocalStateUpdatesMaintainsRestrictTraceToTrackedActions(trace:Trace, tracked_actors:set<Actor>)
+        ensures RestrictTraceToTrackedActions(trace) ==
+                RestrictTraceToTrackedActions(RemoveTrackedActorLocalStateUpdates(trace, tracked_actors));
     {
         if |trace| == 0 {
             return;
         }
 
-        lemma_RemoveLocalStateUpdatesMaintainsRestrictTraceToTrackedActions(trace[1..]);
+        lemma_RemoveTrackedActorLocalStateUpdatesMaintainsRestrictTraceToTrackedActions(trace[1..], tracked_actors);
     }
         
 
-    lemma lemma_RemoveLocalStateUpdates(
+    lemma lemma_RemoveTrackedActorLocalStateUpdates(
         config:Config,
         ltrace:Trace,
         lb:SystemBehavior,
@@ -156,27 +213,27 @@ module RemoveUpdatesModule {
         hb:SystemBehavior
         )
         requires IsValidSystemTraceAndBehavior(config, ltrace, lb);
-        requires forall ls :: ls in lb ==> ls.states == map [];
+        requires forall ls, actor :: ls in lb && actor in config.tracked_actors ==> actor !in ls.states;
         requires 0 <= cur_pos <= |ltrace|;
-        requires forall i :: 0 <= i < cur_pos ==> !ltrace[i].action.UpdateLocalState?;
+        requires forall i :: 0 <= i < cur_pos ==> !ltrace[i].action.UpdateLocalState? || ltrace[i].actor !in config.tracked_actors;
         ensures  IsValidSystemTraceAndBehavior(config, htrace, hb);
         ensures  SystemBehaviorRefinesSystemBehavior(lb, hb);
-        ensures  htrace == RemoveLocalStateUpdates(ltrace);
-        ensures  forall i :: 0 <= i < |htrace| ==> !htrace[i].action.UpdateLocalState?;
+        ensures  htrace == RemoveTrackedActorLocalStateUpdates(ltrace, config.tracked_actors);
+        ensures  forall i :: 0 <= i < |htrace| ==> !htrace[i].action.UpdateLocalState? || htrace[i].actor !in config.tracked_actors;
         ensures  |hb| <= |lb|;
-        ensures  forall hs :: hs in hb ==> hs.states == map [];
+        ensures  forall hs, actor :: hs in hb && actor in config.tracked_actors ==> actor !in hs.states;
         decreases |ltrace| - cur_pos;
     {
         if cur_pos == |ltrace| {
             htrace := ltrace;
             hb := lb;
             lemma_SystemBehaviorRefinesItself(lb);
-            lemma_IfNoLocalStateUpdatesThenRemoveLocalStateUpdatesIsIdentity(ltrace);
+            lemma_IfNoTrackedActorLocalStateUpdatesThenRemoveTrackedActorLocalStateUpdatesIsIdentity(ltrace, config.tracked_actors);
             return;
         }
 
-        if !ltrace[cur_pos].action.UpdateLocalState? {
-            htrace, hb := lemma_RemoveLocalStateUpdates(config, ltrace, lb, cur_pos + 1);
+        if !ltrace[cur_pos].action.UpdateLocalState? || ltrace[cur_pos].actor !in config.tracked_actors {
+            htrace, hb := lemma_RemoveTrackedActorLocalStateUpdates(config, ltrace, lb, cur_pos + 1);
             return;
         }
 
@@ -184,11 +241,19 @@ module RemoveUpdatesModule {
         var ls' := lb[cur_pos+1];
         assert SystemNextEntry(ls, ls', ltrace[cur_pos]);
         assert SystemNextUpdateLocalState(ls, ls', ltrace[cur_pos].actor);
+        assert ltrace[cur_pos].actor in config.tracked_actors;
+        forall other_actor
+            ensures other_actor in ls.states <==> other_actor in ls'.states;
+            ensures other_actor in ls.states ==> ls'.states[other_actor] == ls.states[other_actor];
+        {
+            assert ActorStateMatchesInSystemStates(ls, ls', other_actor);
+        }
+        assert ls'.states == ls.states;
         assert ls' == ls;
 
         var mtrace := ConvertMapToSeq(|ltrace|-1, map i | 0 <= i < |ltrace|-1 :: if i < cur_pos then ltrace[i] else ltrace[i+1]);
         var mb := ConvertMapToSeq(|lb|-1, map i | 0 <= i < |lb|-1 :: if i <= cur_pos then lb[i] else lb[i+1]);
-        lemma_SkippingLocalStateUpdatePreservesRemoveLocalStateUpdates(ltrace, mtrace, cur_pos);
+        lemma_SkippingTrackedActorLocalStateUpdatePreservesRemoveTrackedActorLocalStateUpdates(ltrace, mtrace, config.tracked_actors, cur_pos);
         assert IsValidSystemTraceAndBehavior(config, mtrace, mb);
 
         var relation := GetSystemSystemRefinementRelation();
@@ -214,11 +279,11 @@ module RemoveUpdatesModule {
         assert BehaviorRefinesBehaviorUsingRefinementMap(lb, mb, relation, lm_map);
         assert SystemBehaviorRefinesSystemBehavior(lb, mb);
 
-        htrace, hb := lemma_RemoveLocalStateUpdates(config, mtrace, mb, cur_pos);
+        htrace, hb := lemma_RemoveTrackedActorLocalStateUpdates(config, mtrace, mb, cur_pos);
         lemma_SystemSystemRefinementConvolutionPure(lb, mb, hb);
     }
 
-    lemma lemma_ReductionOfBehaviorWithoutStates(
+    lemma lemma_ReductionOfBehaviorWithoutTrackedActorStates(
         config:Config,
         ltrace:Trace,
         lb:SystemBehavior,
@@ -229,27 +294,27 @@ module RemoveUpdatesModule {
         requires forall entry :: entry in ltrace ==> IsRealAction(entry.action);
         requires forall actor :: actor in config.tracked_actors ==>
                      RestrictTraceToActor(RestrictTraceToTrackedActions(ltrace), actor) == GetLeafEntriesForest(plan[actor].trees);
-        requires forall ls :: ls in lb ==> ls.states == map [];
+        requires forall ls, actor :: ls in lb && actor in config.tracked_actors ==> actor !in ls.states;
         ensures  SystemBehaviorRefinesSpec(lb);
     {
-        var htrace, hb := lemma_RemoveLocalStateUpdates(config, ltrace, lb, 0);
-        assert htrace == RemoveLocalStateUpdates(ltrace);
+        var htrace, hb := lemma_RemoveTrackedActorLocalStateUpdates(config, ltrace, lb, 0);
+        assert htrace == RemoveTrackedActorLocalStateUpdates(ltrace, config.tracked_actors);
 
         forall entry | entry in htrace
             ensures IsRealAction(entry.action);
         {
             var hpos :| 0 <= hpos < |htrace| && entry == htrace[hpos];
-            var lpos := lemma_GetPositionOfEntryInTraceBeforeRemovingLocalStateUpdates(ltrace, hpos);
+            var lpos := lemma_GetPositionOfEntryInTraceBeforeRemovingTrackedActorLocalStateUpdates(ltrace, config.tracked_actors, hpos);
         }
 
         forall actor | actor in config.tracked_actors
             ensures RestrictTraceToActor(RestrictTraceToTrackedActions(htrace), actor) == GetLeafEntriesForest(plan[actor].trees);
         {
-            lemma_RemoveLocalStateUpdatesMaintainsRestrictTraceToTrackedActions(ltrace);
+            lemma_RemoveTrackedActorLocalStateUpdatesMaintainsRestrictTraceToTrackedActions(ltrace, config.tracked_actors);
             assert RestrictTraceToTrackedActions(htrace) == RestrictTraceToTrackedActions(ltrace);
         }
 
-        lemma_ReductionOfBehaviorWithoutStatesOrUpdates(config, htrace, hb, plan);
+        lemma_ReductionOfBehaviorWithoutTrackedActorStatesOrUpdates(config, htrace, hb, plan);
         lemma_SystemSpecRefinementConvolutionExtraPure(lb, hb);
     }
 
