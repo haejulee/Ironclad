@@ -134,6 +134,9 @@ module ReductionTopModule {
             lemma_ConvertPerformIosToHostNext(config, ltrace, lb, plan, {});
         }
         else {
+            var actor, tree :| actor in config.tracked_actors && tree in plan[actor].trees && tree.Inner?;
+            var success, sub_tree, designator := FindReducibleSubtree(tree);
+            assert success;
             assume false;
         }
     }
