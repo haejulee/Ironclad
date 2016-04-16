@@ -170,7 +170,15 @@ module ReductionStepModule {
         assert RestrictTraceToActor([entry], actor) == [entry];
 
         assert RestrictTraceToActor(htrace, actor) == prefix + [sub_tree.reduced_entry] + suffix;
-        assume forall other_actor :: other_actor != actor ==> RestrictTraceToActor(htrace, other_actor) == RestrictTraceToActor(ltrace, other_actor);
+
+        forall other_actor | other_actor != actor
+            ensures RestrictTraceToActor(htrace, other_actor) == RestrictTraceToActor(ltrace, other_actor);
+        {
+            lemma_Split3RestrictTraceToActor(ltrace[..entry_pos], [entry], ltrace[entry_pos..], other_actor);
+            assert RestrictTraceToActor([entry], other_actor) == [];
+            lemma_SplitRestrictTraceToActor(ltrace[..entry_pos], ltrace[entry_pos..], other_actor);
+            assert ltrace == ltrace[..entry_pos] + ltrace[entry_pos..];
+        }
     }
 
     lemma lemma_ApplyOneReduction(
