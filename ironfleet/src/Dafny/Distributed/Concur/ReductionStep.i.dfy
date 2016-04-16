@@ -77,6 +77,7 @@ module ReductionStepModule {
         requires actor in config.tracked_actors;
         requires 0 <= which_tree < |aplan.trees|;
         requires tree == aplan.trees[which_tree];
+        requires TreesOnlyForActor(aplan.trees, actor);
         requires ValidTreeDesignator(designator, tree);
         requires LookupTreeDesignator(designator, tree) == sub_tree;
         requires TreeValid(sub_tree);
@@ -110,6 +111,8 @@ module ReductionStepModule {
         lemma_CorrespondenceBetweenGetTraceIndicesAndRestrictTraces(ltrace, actor);
 
         var entry := sub_tree.reduced_entry;
+        lemma_IfTreeOnlyForActorThenSubtreeIs(tree, designator, actor);
+        assert entry.actor == actor;
         var entry_pos := if |prefix| == 0 then 0 else indices[|prefix|-1]+1;
 
         var trace_map := map i | 0 <= i <= |ltrace| :: if i < entry_pos then ltrace[i] else if i == entry_pos then entry else ltrace[i-1];
@@ -159,7 +162,14 @@ module ReductionStepModule {
         assert BehaviorRefinesBehaviorUsingRefinementMap(lb, hb, relation, lh_map);
         assert SystemBehaviorRefinesSystemBehavior(lb, hb);
 
-        assume RestrictTraceToActor(htrace, actor) == prefix + [sub_tree.reduced_entry] + suffix;
+        assert htrace == ltrace[..entry_pos] + [entry] + ltrace[entry_pos..];
+        assume RestrictTraceToActor(ltrace[..entry_pos], actor) == prefix;
+        assume RestrictTraceToActor(ltrace[entry_pos..], actor) == suffix;
+
+        lemma_Split3RestrictTraceToActor(ltrace[..entry_pos], [entry], ltrace[entry_pos..], actor);
+        assert RestrictTraceToActor([entry], actor) == [entry];
+
+        assert RestrictTraceToActor(htrace, actor) == prefix + [sub_tree.reduced_entry] + suffix;
         assume forall other_actor :: other_actor != actor ==> RestrictTraceToActor(htrace, other_actor) == RestrictTraceToActor(ltrace, other_actor);
     }
 
@@ -184,6 +194,7 @@ module ReductionStepModule {
         requires actor in config.tracked_actors;
         requires 0 <= which_tree < |aplan.trees|;
         requires tree == aplan.trees[which_tree];
+        requires TreesOnlyForActor(aplan.trees, actor);
         requires ValidTreeDesignator(designator, tree);
         requires LookupTreeDesignator(designator, tree) == sub_tree;
         requires TreeValid(sub_tree);

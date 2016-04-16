@@ -9,6 +9,19 @@ module ReductionPlanModule {
     datatype ActorReductionPlan = ActorReductionPlan(ab:seq<ActorState>, trees:seq<Tree>)
     type ReductionPlan = map<Actor, ActorReductionPlan>
 
+    predicate TreeOnlyForActor(tree:Tree, actor:Actor)
+    {
+        if tree.Leaf? then
+            tree.entry.actor == actor
+        else
+            tree.reduced_entry.actor == actor && TreesOnlyForActor(tree.children, actor)
+    }
+
+    predicate TreesOnlyForActor(trees:seq<Tree>, actor:Actor)
+    {
+        forall tree :: tree in trees ==> TreeOnlyForActor(tree, actor)
+    }
+
     predicate IsValidActorReductionPlan(plan:ActorReductionPlan)
     {
            |plan.ab| == |plan.trees| + 1
@@ -21,7 +34,9 @@ module ReductionPlanModule {
     predicate IsValidReductionPlan(config:Config, plan:ReductionPlan)
     {
             NoActor() !in config.tracked_actors
-         && (forall actor :: actor in config.tracked_actors ==> actor in plan && IsValidActorReductionPlan(plan[actor]))
+         && (forall actor :: actor in config.tracked_actors ==>    actor in plan 
+                                                          && IsValidActorReductionPlan(plan[actor])
+                                                          && TreesOnlyForActor(plan[actor].trees, actor))
     }
 
     function RestrictTraceToTrackedActions(trace:Trace) : Trace

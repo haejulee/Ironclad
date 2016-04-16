@@ -73,4 +73,20 @@ module ReductionPlanLemmasModule {
         lemma_CountInnerNodesForest(trees, which_tree, new_tree);
     }
 
+    lemma lemma_IfTreeOnlyForActorThenSubtreeIs(
+        tree:Tree,
+        designator:seq<int>,
+        actor:Actor
+        )
+        requires TreeOnlyForActor(tree, actor);
+        requires ValidTreeDesignator(designator, tree);
+        ensures  TreeOnlyForActor(LookupTreeDesignator(designator, tree), actor);
+    {
+        if |designator| == 0 {
+            return;
+        }
+
+        lemma_IfTreeOnlyForActorThenSubtreeIs(tree.children[designator[0]], designator[1..], actor);
+    }
+
 }
