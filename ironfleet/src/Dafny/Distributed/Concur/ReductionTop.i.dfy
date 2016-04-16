@@ -4,6 +4,7 @@ include "SystemRefinement.i.dfy"
 include "ReductionPlan.i.dfy"
 include "UltimateRefinement.i.dfy"
 include "SystemLemmas.i.dfy"
+include "ReductionStep.i.dfy"
 include "../Common/Collections/Maps.i.dfy"
 
 module ReductionTopModule {
@@ -14,6 +15,7 @@ module ReductionTopModule {
     import opened ReductionPlanModule
     import opened UltimateRefinementModule
     import opened SystemLemmasModule
+    import opened ReductionStepModule
     import opened Collections__Maps_i
 
     lemma lemma_IfAllTreesAreLeavesThenGetLeafEntriesForestIsConcatenationOfThoseLeaves(trees:seq<Tree>)
@@ -251,16 +253,33 @@ module ReductionTopModule {
                             RestrictTraceToActor(ltrace, actor) == GetLeafEntriesForest(plan[actor].trees);
         requires forall entry :: entry in ltrace && entry.actor !in config.tracked_actors ==> IsRealAction(entry.action);
         ensures  SystemBehaviorRefinesSpec(lb);
+        decreases CountInnerNodesPlan(plan);
     {
-        if forall actor, tree :: actor in config.tracked_actors && tree in plan[actor].trees ==> tree.Leaf? {
-            lemma_ConvertPerformIosToHostNext(config, ltrace, lb, plan, {});
-        }
-        else {
-            var actor, tree :| actor in config.tracked_actors && tree in plan[actor].trees && tree.Inner?;
+        if actor, tree :| actor in config.tracked_actors && tree in plan[actor].trees && tree.Inner? {
             var which_tree :| 0 <= which_tree < |plan[actor].trees| && plan[actor].trees[which_tree] == tree;
             var success, sub_tree, designator := FindReducibleSubtree(tree);
             assert success;
-            assume false;
+            var htrace, hb, aplan' := lemma_ApplyOneReduction(config, ltrace, lb, actor, plan[actor], which_tree, tree, sub_tree, designator);
+            var plan' := plan[actor := aplan'];
+            lemma_ReducingOneActorsCountInnerNodesForestReducesCountInnerNodesPlan(plan, plan', actor, aplan');
+
+            forall entry | entry in htrace && entry.actor !in config.tracked_actors
+                ensures IsRealAction(entry.action);
+            {
+                var other_actor_ltrace := RestrictTraceToActor(ltrace, entry.actor);
+                var other_actor_htrace := RestrictTraceToActor(htrace, entry.actor);
+                assert entry in other_actor_ltrace;
+                assert entry.actor != actor;
+                assert other_actor_ltrace == other_actor_htrace;
+                assert entry in other_actor_htrace;
+                assert entry in htrace;
+            }
+
+            lemma_ApplyReductionPlanToBehavior(config, htrace, hb, plan');
+            lemma_SystemSpecRefinementConvolutionExtraPure(lb, hb);
+        }
+        else {
+            lemma_ConvertPerformIosToHostNext(config, ltrace, lb, plan, {});
         }
     }
 
