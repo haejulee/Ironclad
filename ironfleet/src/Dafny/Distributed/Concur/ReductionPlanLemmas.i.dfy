@@ -59,4 +59,18 @@ module ReductionPlanLemmasModule {
         lemma_EffectOfRemovingOneActorFromPlanOnCountInnerNodesPlan(plan', actor);
     }
 
+    lemma lemma_ReducingOneTreeReducesCountInnerNodesForest(
+        trees:seq<Tree>,
+        which_tree:int,
+        designator:seq<int>
+        )
+        requires 0 <= which_tree < |trees|;
+        requires ReduceTree.requires(trees[which_tree], designator);
+        ensures  CountInnerNodesForest(trees) > CountInnerNodesForest(trees[which_tree := ReduceTree(trees[which_tree], designator)]);
+    {
+        var new_tree := ReduceTree(trees[which_tree], designator);
+        lemma_ReduceTreeDecreasesInnerNodes(trees[which_tree], designator);
+        lemma_CountInnerNodesForest(trees, which_tree, new_tree);
+    }
+
 }

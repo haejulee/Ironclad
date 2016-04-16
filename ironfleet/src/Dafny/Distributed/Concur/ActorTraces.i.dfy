@@ -582,7 +582,7 @@ module ActorTraces
         ensures var sub_trace := RestrictTraceToActor(trace, actor);
                 var indices := GetTraceIndicesForActor(trace, actor);
                 |sub_trace| == |indices| 
-                && forall i :: 0 <= i < |indices| ==> indices[i] in indices && trace[indices[i]] == sub_trace[i];
+                && forall i {:trigger indices[i]}{:trigger sub_trace[i]} :: 0 <= i < |indices| ==> indices[i] in indices && trace[indices[i]] == sub_trace[i];
     {
         lemma_TraceIndicesForActor_length(trace, actor);
         if |trace| == 0 {

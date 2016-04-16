@@ -28,16 +28,14 @@ module SystemModule {
     predicate SystemNextReceive(ls:SystemState, ls':SystemState, actor:Actor, p:Packet)
     {
            ls' == ls
-        && actor.HostActor?
         && p in ls.sentPackets
-        && p.dst == actor.ep
+        && (actor.HostActor? ==> p.dst == actor.ep)
     }
 
     predicate SystemNextSend(ls:SystemState, ls':SystemState, actor:Actor, p:Packet)
     {
            ls' == ls.(sentPackets := ls.sentPackets + {p})
-        && actor.HostActor?
-        && p.src == actor.ep
+        && (actor.HostActor? ==> p.src == actor.ep)
     }
 
     predicate SystemNextReadClock(ls:SystemState, ls':SystemState, actor:Actor, t:int)
@@ -82,14 +80,13 @@ module SystemModule {
         ios:seq<Action>
         )
     {
-           actor.HostActor?
-        && ls'.states == ls.states
+           ls'.states == ls.states
         && ls'.time == ls.time
         && ls'.config == ls.config
         && (forall p :: p in ls.sentPackets ==> p in ls'.sentPackets)
         && (forall p :: p in ls'.sentPackets ==> p in ls.sentPackets || Send(p) in ios)
-        && (forall io :: io in ios && io.Receive? ==> io.r in ls.sentPackets && io.r.dst == actor.ep)
-        && (forall io :: io in ios && io.Send? ==> io.s in ls'.sentPackets && io.s.src == actor.ep)
+        && (actor.HostActor? ==> forall io :: io in ios && io.Receive? ==> io.r in ls.sentPackets && io.r.dst == actor.ep)
+        && (actor.HostActor? ==> forall io :: io in ios && io.Send? ==> io.s in ls'.sentPackets && io.s.src == actor.ep)
     }
 
     predicate SystemNextHostNext(
@@ -108,8 +105,8 @@ module SystemModule {
         && ls'.config == ls.config
         && (forall p :: p in ls.sentPackets ==> p in ls'.sentPackets)
         && (forall p :: p in ls'.sentPackets ==> p in ls.sentPackets || Send(p) in ios)
-        && (forall io :: io in ios && io.Receive? ==> io.r in ls.sentPackets && io.r.dst == actor.ep)
-        && (forall io :: io in ios && io.Send? ==> io.s in ls'.sentPackets && io.s.src == actor.ep)
+        && (actor.HostActor? ==> forall io :: io in ios && io.Receive? ==> io.r in ls.sentPackets && io.r.dst == actor.ep)
+        && (actor.HostActor? ==> forall io :: io in ios && io.Send? ==> io.s in ls'.sentPackets && io.s.src == actor.ep)
     }
 
     predicate SystemNextAction(ls:SystemState, ls':SystemState, actor:Actor, action:Action)
