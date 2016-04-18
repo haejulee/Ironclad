@@ -25,6 +25,7 @@ module ReductionPlanModule {
     predicate IsValidActorReductionPlan(plan:ActorReductionPlan)
     {
            |plan.ab| == |plan.trees| + 1
+        && HostInit(plan.ab[0])
         && (forall i {:trigger plan.trees[i]} :: 0 <= i < |plan.trees| ==>
                                               TreeValid(plan.trees[i])
                                            && GetRootEntry(plan.trees[i]).action.PerformIos?

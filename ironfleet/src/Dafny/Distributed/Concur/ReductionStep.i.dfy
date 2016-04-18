@@ -86,6 +86,7 @@ module ReductionStepModule {
         ensures  IsValidSystemTraceAndBehavior(config, htrace, hb);
         ensures  SystemBehaviorRefinesSystemBehavior(lb, hb);
         ensures  IsValidActorReductionPlan(aplan');
+        ensures  TreesOnlyForActor(aplan'.trees, actor);
         ensures  RestrictTraceToActor(htrace, actor) == GetLeafEntriesForest(aplan'.trees);
         ensures  forall other_actor :: other_actor != actor ==> RestrictTraceToActor(htrace, other_actor) == RestrictTraceToActor(ltrace, other_actor);
         ensures  CountInnerNodesForest(aplan'.trees) < CountInnerNodesForest(aplan.trees);
@@ -179,6 +180,8 @@ module ReductionStepModule {
             lemma_SplitRestrictTraceToActor(ltrace[..entry_pos], ltrace[entry_pos..], other_actor);
             assert ltrace == ltrace[..entry_pos] + ltrace[entry_pos..];
         }
+
+        assume TreesOnlyForActor(aplan'.trees, actor);
     }
 
     lemma lemma_ApplyOneReduction(
@@ -211,6 +214,7 @@ module ReductionStepModule {
         ensures  IsValidSystemTraceAndBehavior(config, htrace, hb);
         ensures  SystemBehaviorRefinesSystemBehavior(lb, hb);
         ensures  IsValidActorReductionPlan(aplan');
+        ensures  TreesOnlyForActor(aplan'.trees, actor);
         ensures  RestrictTraceToActor(htrace, actor) == GetLeafEntriesForest(aplan'.trees);
         ensures  forall other_actor :: other_actor != actor ==> RestrictTraceToActor(htrace, other_actor) == RestrictTraceToActor(ltrace, other_actor);
         ensures  CountInnerNodesForest(aplan'.trees) < CountInnerNodesForest(aplan.trees);

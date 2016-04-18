@@ -160,6 +160,8 @@ module ReductionTopModule {
                         htrace[i] == (if i in indices then Entry(tracked_actor, HostNext(ltrace[i].action.raw_ios)) else ltrace[i]);
         ensures  forall i :: 0 <= i < |hb| ==> hb[i] == lb[i].(states := hb[i].states);
         ensures  forall actor, i :: 0 <= i < |hb| && actor != tracked_actor ==> ActorStateMatchesInSystemStates(lb[i], hb[i], actor);
+        ensures  tracked_actor in hb[0].states;
+        ensures  HostInit(hb[0].states[tracked_actor]);
     {
         var foo;
         var hb_map := map i | 0 <= i < |lb| :: lb[i].(states := foo);
@@ -184,6 +186,7 @@ module ReductionTopModule {
                             RestrictTraceToActor(ltrace, actor) == GetLeafEntriesForest(plan[actor].trees);
         requires forall actor, tree :: actor in config.tracked_actors && tree in plan[actor].trees ==> tree.Leaf?;
         requires forall entry :: entry in ltrace && entry.actor !in config.tracked_actors ==> IsRealAction(entry.action);
+        requires forall actor :: actor in converted_actors ==> actor in lb[0].states && HostInit(lb[0].states[actor]);
         ensures  SystemBehaviorRefinesSpec(lb);
         decreases |config.tracked_actors - converted_actors|;
     {
@@ -221,12 +224,24 @@ module ReductionTopModule {
                 GetRootEntry(aplan.trees[i]);
             }
         }
+
         var mtrace, mb := lemma_UpdatePerformIosToHostNext(config, ltrace, lb, aplan, tracked_actor, indices);
 
         forall actor | actor != tracked_actor
             ensures RestrictTraceToActor(mtrace, actor) == RestrictTraceToActor(ltrace, actor);
         {
             lemma_IfEntriesMatchForActorThenSoDoesRestrictTraceToActor(ltrace, mtrace, actor);
+        }
+
+        forall actor | actor in (converted_actors + {tracked_actor})
+            ensures actor in mb[0].states;
+            ensures HostInit(mb[0].states[actor]);
+        {
+            if actor != tracked_actor {
+                assert actor in lb[0].states;
+                assert HostInit(lb[0].states[actor]);
+                assert ActorStateMatchesInSystemStates(lb[0], mb[0], actor);
+            }
         }
 
         lemma_ConvertPerformIosToHostNext(config, mtrace, mb, plan, converted_actors + {tracked_actor});

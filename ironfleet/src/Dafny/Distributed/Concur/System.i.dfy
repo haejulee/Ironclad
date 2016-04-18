@@ -6,7 +6,7 @@ module SystemModule {
 
     type ActorState
     datatype Config = Config(tracked_actors:set<Actor>)
-    predicate ActorStateInit(s:ActorState)
+    predicate HostInit(s:ActorState)
     predicate HostNextPredicate(s:ActorState, s':ActorState, ios:seq<Action>)
 
     datatype SystemState = SystemState(config:Config, states:map<Actor, ActorState>, time:int, sentPackets:set<Packet>)
@@ -19,8 +19,7 @@ module SystemModule {
 
     predicate SystemInit(config:Config, ls:SystemState)
     {
-           (forall actor :: actor in ls.states && actor !in config.tracked_actors ==> ActorStateInit(ls.states[actor]))
-        && ls.config == config
+           ls.config == config
         && ls.time >= 0
         && |ls.sentPackets| == 0
     }
