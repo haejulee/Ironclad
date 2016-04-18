@@ -75,6 +75,14 @@ module ReductionTopModule {
 //        assume false;
 //    }
 
+
+    lemma lemma_GetTraceIndicesForActorLength(
+        trace:Trace,
+        actor:Actor)
+        ensures |GetTraceIndicesForActor(trace, actor)| <= |trace|;
+    {
+
+    }
     ghost method BuildHighBehavior(
         ltrace:Trace,
         lb:SystemBehavior,
@@ -102,20 +110,23 @@ module ReductionTopModule {
             forall i | 0 <= i < |hb|
                 ensures hb[i] == lb[i].(states := hb[i].states); 
             {
-                assert hb[i] == lb[i];
                 assert hb[i].states == lb[i].states;
             }
             return;
         }
-        assume false;
+        lemma_GetTraceIndicesForActorLength(ltrace, actor);
         assert |GetTraceIndicesForActor(ltrace, actor)| <= |ltrace|;
 
         var k := 0;
         var indices_index := 0;
+        assume false;
 
         while k < |lb| 
             invariant 0 <= k <= |lb|;
             invariant |hb| == k;
+            invariant 0 <= indices_index <= |indices| - 1;
+            invariant indices_index < |indices|-1 ==> k <= indices[indices_index];
+            invariant indices_index == |indices|-1 ==> k > indices[indices_index];
             invariant  forall i :: 0 <= i < |hb| ==> hb[i] == lb[i].(states := hb[i].states); // Only the states change
             invariant  forall j :: 0 <= j <= indices[0] && j < k ==> hb[j].states == lb[j].states[actor := ab[0]];
             invariant  forall i,j :: 0 <= i < |indices|-1 && indices[i] < j <= indices[i+1] && j < k 
@@ -123,14 +134,27 @@ module ReductionTopModule {
             invariant  forall j :: last(indices) < j < |lb| && j < k 
                                ==> hb[j].states == lb[j].states[actor := last(ab)];
         {
+            assert indices_index == |indices| - 1 || indices[indices_index] < indices[indices_index+1];
             if indices_index < |indices| - 1 && k > indices[indices_index] {
                 indices_index := indices_index + 1;
             }
 
             var new_state := ab[indices[indices_index]];
+            var old_hb := hb;
             hb := hb + [lb[k].(states := lb[k].states[actor := new_state])];
 
             k := k + 1;
+
+            // Prove only the states change
+            forall i | 0 <= i < |hb| 
+                ensures hb[i] == lb[i].(states := hb[i].states); // Only the states change
+            {
+                if i < k - 1 {
+                    assert hb[i] == old_hb[i] == lb[i].(states := hb[i].states);
+                } else {
+                    assert i == k - 1;
+                }
+            }
         }
         
     }

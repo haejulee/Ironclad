@@ -42,6 +42,8 @@ module ActorTraces
     //  Utility lemmas about GetTraceIndicesForActor
     //
     //////////////////////////////////////////////////////////////////////////////
+
+
     lemma lemma_InterveningTraceIndicesFromDifferentActor(
         trace:Trace,
         actor:Actor,
