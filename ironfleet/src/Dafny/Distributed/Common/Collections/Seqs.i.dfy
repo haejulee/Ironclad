@@ -235,4 +235,11 @@ function {:opaque} range(low:int, high:int) : seq<int>
     else [low] + range(low+1, high)
 }
 
+lemma lemma_IfPairsOfSequencesHaveSameConcatenationAndFirstMatchesThenSecondMatches<T>(s1:seq<T>, s2:seq<T>, s3:seq<T>, s4:seq<T>)
+    requires s1 + s2 == s3 + s4;
+    requires s1 == s3;
+    ensures  s2 == s4;
+{
+}
+
 }

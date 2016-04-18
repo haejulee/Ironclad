@@ -89,4 +89,50 @@ module ReductionPlanLemmasModule {
         lemma_IfTreeOnlyForActorThenSubtreeIs(tree.children[designator[0]], designator[1..], actor);
     }
 
+    lemma lemma_ReduceTreePreservesTreeOnlyForActor(
+        tree:Tree,
+        designator:seq<int>,
+        tree':Tree,
+        actor:Actor
+        )
+        requires ReduceTree.requires(tree, designator);
+        requires tree' == ReduceTree(tree, designator);
+        requires TreeOnlyForActor(tree, actor);
+        ensures  TreeOnlyForActor(tree', actor);
+    {
+        if |designator| == 0 {
+            return;
+        }
+
+        var child_index := designator[0];
+        var child := tree.children[child_index];
+        var sub_tree := ReduceTree(child, designator[1..]);
+        lemma_ReduceTreePreservesTreeOnlyForActor(child, designator[1..], sub_tree, actor);
+    }
+
+    lemma lemma_ReduceTreeForestPreservesTreesOnlyForActor(
+        trees:seq<Tree>,
+        which_tree:int,
+        designator:seq<int>,
+        trees':seq<Tree>,
+        actor:Actor
+        )
+        requires ReduceTreeForest.requires(trees, which_tree, designator);
+        requires trees' == ReduceTreeForest(trees, which_tree, designator);
+        requires TreesOnlyForActor(trees, actor);
+        ensures  TreesOnlyForActor(trees', actor);
+    {
+        forall tree | tree in trees'
+            ensures TreeOnlyForActor(tree, actor);
+        {
+            var i :| 0 <= i < |trees'| && trees'[i] == tree;
+            if i == which_tree {
+                lemma_ReduceTreePreservesTreeOnlyForActor(trees[i], designator, trees'[i], actor);
+            }
+            else {
+                assert trees'[i] == trees[i];
+            }
+        }
+    }
+
 }

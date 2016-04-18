@@ -44,6 +44,13 @@ module ReductionStepModule {
         aplan' := aplan.(trees := reduced_trees);
 
         lemma_ReduceTreePreservesValidity(aplan.trees[which_tree], designator);
+
+        forall i {:trigger aplan'.trees[i]} | 0 <= i < |aplan'.trees|
+            ensures HostNextPredicate(aplan'.ab[i], aplan'.ab[i+1], GetRootEntry(aplan'.trees[i]).action.raw_ios);
+        {
+            assert HostNextPredicate(aplan.ab[i], aplan.ab[i+1], GetRootEntry(aplan.trees[i]).action.raw_ios);
+        }
+        
         assert IsValidActorReductionPlan(aplan');
 
         lemma_ReducingOneTreeReducesCountInnerNodesForest(aplan.trees, which_tree, designator);
@@ -56,7 +63,31 @@ module ReductionStepModule {
     {
     }
 
-    lemma lemma_ApplyReductionWithNoChildren(
+    lemma lemma_RestrictPrefixOfTraceToActor(
+        trace:Trace,
+        actor:Actor,
+        atrace:Trace,
+        indices:seq<int>,
+        num_entries:int,
+        end_pos:int
+        )
+        requires atrace == RestrictTraceToActor(trace, actor);
+        requires indices == GetTraceIndicesForActor(trace, actor);
+        requires |atrace| == |indices|;
+        requires 0 <= num_entries <= |indices|;
+        requires end_pos == (if num_entries < |indices| then indices[num_entries] else |trace|);
+        ensures  RestrictTraceToActor(trace[..end_pos], actor) == atrace[..num_entries];
+    {
+        if num_entries == |indices| {
+            assert trace[..end_pos] == trace[..|trace|] == trace;
+            return;
+        }
+        else {
+            lemma_RestrictTraceToActorSeqSliceTake(trace, actor, end_pos, num_entries);
+        }
+    }
+
+    lemma {:timeLimitMultiplier 2} lemma_ApplyReductionWithNoChildren(
         config:Config,
         ltrace:Trace,
         lb:SystemBehavior,
@@ -109,12 +140,10 @@ module ReductionStepModule {
         assert |sub_tree_trace| == 0;
         assert atrace == prefix + suffix;
 
-        lemma_CorrespondenceBetweenGetTraceIndicesAndRestrictTraces(ltrace, actor);
-
         var entry := sub_tree.reduced_entry;
         lemma_IfTreeOnlyForActorThenSubtreeIs(tree, designator, actor);
         assert entry.actor == actor;
-        var entry_pos := if |prefix| == 0 then 0 else indices[|prefix|-1]+1;
+        var entry_pos := if |prefix| < |indices| then indices[|prefix|] else |ltrace|;
 
         var trace_map := map i | 0 <= i <= |ltrace| :: if i < entry_pos then ltrace[i] else if i == entry_pos then entry else ltrace[i-1];
         htrace := ConvertMapToSeq(|ltrace|+1, trace_map);
@@ -164,8 +193,18 @@ module ReductionStepModule {
         assert SystemBehaviorRefinesSystemBehavior(lb, hb);
 
         assert htrace == ltrace[..entry_pos] + [entry] + ltrace[entry_pos..];
-        assume RestrictTraceToActor(ltrace[..entry_pos], actor) == prefix;
-        assume RestrictTraceToActor(ltrace[entry_pos..], actor) == suffix;
+        lemma_TraceIndicesForActor_length(ltrace, actor);
+        lemma_RestrictPrefixOfTraceToActor(ltrace, actor, atrace, indices, |prefix|, entry_pos);
+        assert RestrictTraceToActor(ltrace[..entry_pos], actor) == prefix;
+
+        lemma_SplitRestrictTraceToActor(ltrace[..entry_pos], ltrace[entry_pos..], actor);
+        assert ltrace == ltrace[..entry_pos] + ltrace[entry_pos..];
+        lemma_IfPairsOfSequencesHaveSameConcatenationAndFirstMatchesThenSecondMatches(
+            prefix,
+            suffix,
+            RestrictTraceToActor(ltrace[..entry_pos], actor),
+            RestrictTraceToActor(ltrace[entry_pos..], actor));
+        assert suffix == RestrictTraceToActor(ltrace[entry_pos..], actor);
 
         lemma_Split3RestrictTraceToActor(ltrace[..entry_pos], [entry], ltrace[entry_pos..], actor);
         assert RestrictTraceToActor([entry], actor) == [entry];
@@ -181,7 +220,7 @@ module ReductionStepModule {
             assert ltrace == ltrace[..entry_pos] + ltrace[entry_pos..];
         }
 
-        assume TreesOnlyForActor(aplan'.trees, actor);
+        lemma_ReduceTreeForestPreservesTreesOnlyForActor(aplan.trees, which_tree, designator, aplan'.trees, actor);
     }
 
     lemma lemma_ApplyOneReduction(
@@ -226,4 +265,5 @@ module ReductionStepModule {
             assume false;
         }
     }
+
 }
