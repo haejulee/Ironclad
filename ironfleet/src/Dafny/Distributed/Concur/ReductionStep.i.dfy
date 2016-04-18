@@ -87,7 +87,85 @@ module ReductionStepModule {
         }
     }
 
-    lemma {:timeLimitMultiplier 2} lemma_ApplyReductionWithNoChildren(
+    lemma lemma_ApplyReductionWithNoChildrenHelper(
+        config:Config,
+        ltrace:Trace,
+        lb:SystemBehavior,
+        actor:Actor,
+        entry:Entry,
+        atrace:seq<Entry>,
+        indices:seq<int>,
+        prefix:seq<Entry>,
+        suffix:seq<Entry>,
+        entry_pos:int,
+        htrace:Trace,
+        hb:SystemBehavior
+        )
+        requires IsValidSystemTraceAndBehavior(config, ltrace, lb);
+        requires actor in config.tracked_actors;
+        requires atrace == RestrictTraceToActor(ltrace, actor);
+        requires indices == GetTraceIndicesForActor(ltrace, actor);
+        requires entry.actor == actor;
+        requires atrace == prefix + suffix;
+        requires entry_pos == if |prefix| < |indices| then indices[|prefix|] else |ltrace|;
+        requires |htrace| == |ltrace|+1;
+        requires forall i {:trigger htrace[i]} :: 0 <= i <= |ltrace| ==> htrace[i] == (if i < entry_pos then ltrace[i] else if i == entry_pos then entry else ltrace[i-1]);
+        requires |hb| == |lb|+1;
+        requires forall i {:trigger hb[i]} :: 0 <= i <= |lb| ==> hb[i] == (if i <= entry_pos then lb[i] else lb[i-1]);
+        ensures  SystemBehaviorRefinesSystemBehavior(lb, hb);
+        ensures  RestrictTraceToActor(htrace, actor) == prefix + [entry] + suffix;
+        ensures  forall other_actor :: other_actor != actor ==> RestrictTraceToActor(htrace, other_actor) == RestrictTraceToActor(ltrace, other_actor);
+    {
+        // Prove SystemBehaviorRefinesSystemBehavior(lb, hb)
+
+        var relation := GetSystemSystemRefinementRelation();
+        var lh_map := ConvertMapToSeq(|lb|, map i | 0 <= i < |lb| :: if i < entry_pos then RefinementRange(i, i) else if i == entry_pos then RefinementRange(i, i+1) else RefinementRange(i+1, i+1));
+
+        forall i, j {:trigger RefinementPair(lb[i], hb[j]) in relation} |
+            0 <= i < |lb| && lh_map[i].first <= j <= lh_map[i].last
+            ensures RefinementPair(lb[i], hb[j]) in relation;
+        {
+            assert hb[j] == lb[i];
+            lemma_SystemStateCorrespondsToItself(lb[i]);
+        }
+
+        assert BehaviorRefinesBehaviorUsingRefinementMap(lb, hb, relation, lh_map);
+        assert SystemBehaviorRefinesSystemBehavior(lb, hb);
+
+        // Prove RestrictTraceToActor(htrace, actor) == prefix + [entry] + suffix
+
+        assert htrace == ltrace[..entry_pos] + [entry] + ltrace[entry_pos..];
+        lemma_TraceIndicesForActor_length(ltrace, actor);
+        lemma_RestrictPrefixOfTraceToActor(ltrace, actor, atrace, indices, |prefix|, entry_pos);
+        assert RestrictTraceToActor(ltrace[..entry_pos], actor) == prefix;
+
+        lemma_SplitRestrictTraceToActor(ltrace[..entry_pos], ltrace[entry_pos..], actor);
+        assert ltrace == ltrace[..entry_pos] + ltrace[entry_pos..];
+        lemma_IfPairsOfSequencesHaveSameConcatenationAndFirstMatchesThenSecondMatches(
+            prefix,
+            suffix,
+            RestrictTraceToActor(ltrace[..entry_pos], actor),
+            RestrictTraceToActor(ltrace[entry_pos..], actor));
+        assert suffix == RestrictTraceToActor(ltrace[entry_pos..], actor);
+
+        lemma_Split3RestrictTraceToActor(ltrace[..entry_pos], [entry], ltrace[entry_pos..], actor);
+        assert RestrictTraceToActor([entry], actor) == [entry];
+
+        assert RestrictTraceToActor(htrace, actor) == prefix + [entry] + suffix;
+
+        // Prove forall other_actor :: other_actor != actor ==> RestrictTraceToActor(htrace, other_actor) == RestrictTraceToActor(ltrace, other_actor);
+
+        forall other_actor | other_actor != actor
+            ensures RestrictTraceToActor(htrace, other_actor) == RestrictTraceToActor(ltrace, other_actor);
+        {
+            lemma_Split3RestrictTraceToActor(ltrace[..entry_pos], [entry], ltrace[entry_pos..], other_actor);
+            assert RestrictTraceToActor([entry], other_actor) == [];
+            lemma_SplitRestrictTraceToActor(ltrace[..entry_pos], ltrace[entry_pos..], other_actor);
+            assert ltrace == ltrace[..entry_pos] + ltrace[entry_pos..];
+        }
+    }
+
+    lemma lemma_ApplyReductionWithNoChildren(
         config:Config,
         ltrace:Trace,
         lb:SystemBehavior,
@@ -150,6 +228,8 @@ module ReductionStepModule {
         var behavior_map := map i | 0 <= i <= |lb| :: if i <= entry_pos then lb[i] else lb[i-1];
         hb := ConvertMapToSeq(|lb|+1, behavior_map);
 
+        // Prove IsValidSystemTraceAndBehavior(config, htrace, hb)
+
         forall i {:trigger SystemNextEntry(hb[i], hb[i+1], htrace[i])} | 0 <= i < |htrace|
             ensures SystemNextEntry(hb[i], hb[i+1], htrace[i]);
         {
@@ -178,49 +258,13 @@ module ReductionStepModule {
         }
         assert IsValidSystemTraceAndBehavior(config, htrace, hb);
 
-        var relation := GetSystemSystemRefinementRelation();
-        var lh_map := ConvertMapToSeq(|lb|, map i | 0 <= i < |lb| :: if i < entry_pos then RefinementRange(i, i) else if i == entry_pos then RefinementRange(i, i+1) else RefinementRange(i+1, i+1));
-
-        forall i, j {:trigger RefinementPair(lb[i], hb[j]) in relation} |
-            0 <= i < |lb| && lh_map[i].first <= j <= lh_map[i].last
-            ensures RefinementPair(lb[i], hb[j]) in relation;
-        {
-            assert hb[j] == lb[i];
-            lemma_SystemStateCorrespondsToItself(lb[i]);
-        }
-
-        assert BehaviorRefinesBehaviorUsingRefinementMap(lb, hb, relation, lh_map);
-        assert SystemBehaviorRefinesSystemBehavior(lb, hb);
-
-        assert htrace == ltrace[..entry_pos] + [entry] + ltrace[entry_pos..];
-        lemma_TraceIndicesForActor_length(ltrace, actor);
-        lemma_RestrictPrefixOfTraceToActor(ltrace, actor, atrace, indices, |prefix|, entry_pos);
-        assert RestrictTraceToActor(ltrace[..entry_pos], actor) == prefix;
-
-        lemma_SplitRestrictTraceToActor(ltrace[..entry_pos], ltrace[entry_pos..], actor);
-        assert ltrace == ltrace[..entry_pos] + ltrace[entry_pos..];
-        lemma_IfPairsOfSequencesHaveSameConcatenationAndFirstMatchesThenSecondMatches(
-            prefix,
-            suffix,
-            RestrictTraceToActor(ltrace[..entry_pos], actor),
-            RestrictTraceToActor(ltrace[entry_pos..], actor));
-        assert suffix == RestrictTraceToActor(ltrace[entry_pos..], actor);
-
-        lemma_Split3RestrictTraceToActor(ltrace[..entry_pos], [entry], ltrace[entry_pos..], actor);
-        assert RestrictTraceToActor([entry], actor) == [entry];
-
-        assert RestrictTraceToActor(htrace, actor) == prefix + [sub_tree.reduced_entry] + suffix;
-
-        forall other_actor | other_actor != actor
-            ensures RestrictTraceToActor(htrace, other_actor) == RestrictTraceToActor(ltrace, other_actor);
-        {
-            lemma_Split3RestrictTraceToActor(ltrace[..entry_pos], [entry], ltrace[entry_pos..], other_actor);
-            assert RestrictTraceToActor([entry], other_actor) == [];
-            lemma_SplitRestrictTraceToActor(ltrace[..entry_pos], ltrace[entry_pos..], other_actor);
-            assert ltrace == ltrace[..entry_pos] + ltrace[entry_pos..];
-        }
+        // Prove TreesOnlyForActor(aplan'.trees, actor)
 
         lemma_ReduceTreeForestPreservesTreesOnlyForActor(aplan.trees, which_tree, designator, aplan'.trees, actor);
+
+        // Call helper lemma to prove remaining needed properties.
+
+        lemma_ApplyReductionWithNoChildrenHelper(config, ltrace, lb, actor, entry, atrace, indices, prefix, suffix, entry_pos, htrace, hb);
     }
 
     lemma lemma_ApplyOneReduction(
