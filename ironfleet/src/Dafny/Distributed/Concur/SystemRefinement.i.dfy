@@ -3,7 +3,7 @@ include "System.i.dfy"
 include "SpecRefinement.i.dfy"
 include "../Common/Collections/Maps.i.dfy"
 
-module SystemLemmasModule {
+module SystemRefinementModule {
 
     import opened RefinementConvolutionModule
     import opened SystemModule

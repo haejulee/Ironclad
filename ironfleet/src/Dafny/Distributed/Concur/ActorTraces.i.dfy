@@ -9,6 +9,7 @@ module ActorTraces
     function RestrictTraceToActor(t:Trace, a:Actor) : Trace
         ensures var t' := RestrictTraceToActor(t, a);
                 forall e {:trigger e in t'} {:trigger e in t, e.actor} :: e in t' <==> e in t && e.actor == a;
+        ensures |RestrictTraceToActor(t, a)| <= |t|;
     {
         if |t| == 0 then
             []
@@ -650,6 +651,34 @@ module ActorTraces
             }
         }
 
+    }
+
+    lemma lemma_IfAllEntriesAreFromActorThenRestrictTraceToActorIsIdentity(
+        trace:Trace,
+        actor:Actor
+        )
+        requires forall entry :: entry in trace ==> entry.actor == actor;
+        ensures  RestrictTraceToActor(trace, actor) == trace;
+    {
+        if |trace| == 0 {
+            return;
+        }
+
+        lemma_IfAllEntriesAreFromActorThenRestrictTraceToActorIsIdentity(trace[1..], actor);
+    }
+
+    lemma lemma_IfNoEntriesAreFromActorThenRestrictTraceToActorIsEmpty(
+        trace:Trace,
+        actor:Actor
+        )
+        requires forall entry :: entry in trace ==> entry.actor != actor;
+        ensures  RestrictTraceToActor(trace, actor) == [];
+    {
+        if |trace| == 0 {
+            return;
+        }
+
+        lemma_IfNoEntriesAreFromActorThenRestrictTraceToActorIsEmpty(trace[1..], actor);
     }
 
 }

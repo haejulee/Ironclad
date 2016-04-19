@@ -1,7 +1,7 @@
 include "System.i.dfy"
 include "SpecRefinement.i.dfy"
 
-module SystemRefinementModule {
+module SystemLemmasModule {
 
     import opened SystemModule
     import opened SpecRefinementModule

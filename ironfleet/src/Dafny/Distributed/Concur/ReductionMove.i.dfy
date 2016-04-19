@@ -1,8 +1,102 @@
 include "Reduction.i.dfy"
+include "SystemRefinement.i.dfy"
 
 module ReductionMoveModule
 {
     import opened ReductionModule
+    import opened SystemRefinementModule
+
+    lemma lemma_SequenceOfRightMoversCausesSystemCorrespondence(
+        ltrace:seq<Entry>,
+        lb:seq<SystemState>
+        )
+        requires |lb| == |ltrace| + 1;
+        requires forall i :: 0 <= i < |ltrace| ==> SystemNextEntry(lb[i], lb[i+1], ltrace[i]);
+        requires forall entry :: entry in ltrace ==> EntryIsRightMover(entry);
+        ensures  SystemCorrespondence(last(lb), lb[0]);
+    {
+        if |lb| == 1 {
+            lemma_SystemStateCorrespondsToItself(lb[0]);
+            return;
+        }
+
+        forall ss | SpecCorrespondence(lb[0], ss)
+            ensures SpecCorrespondence(lb[1], ss)
+        {
+            lemma_RightMoverForwardPreservation(ltrace[0], lb[0], lb[0+1], ss);
+        }
+        assert SystemCorrespondence(lb[1], lb[0]);
+        lemma_SequenceOfRightMoversCausesSystemCorrespondence(ltrace[1..], lb[1..]);
+        assert last(lb) == last(lb[1..]);
+        assert lb[1] == lb[1..][0];
+        assert SystemCorrespondence(last(lb), lb[1]);
+        lemma_SystemRefinementRelationConvolvesWithItself();
+    }
+
+    lemma lemma_SequenceOfLeftMoversCausesSystemCorrespondence(
+        ltrace:seq<Entry>,
+        lb:seq<SystemState>
+        )
+        requires |lb| == |ltrace| + 1;
+        requires forall i :: 0 <= i < |ltrace| ==> SystemNextEntry(lb[i], lb[i+1], ltrace[i]);
+        requires forall entry :: entry in ltrace ==> EntryIsLeftMover(entry);
+        ensures  SystemCorrespondence(lb[0], last(lb));
+    {
+        if |lb| == 1 {
+            lemma_SystemStateCorrespondsToItself(lb[0]);
+            return;
+        }
+
+        forall ss | SpecCorrespondence(lb[1], ss)
+            ensures SpecCorrespondence(lb[0], ss)
+        {
+            lemma_LeftMoverBackwardPreservation(ltrace[0], lb[0], lb[0+1], ss);
+        }
+        assert SystemCorrespondence(lb[0], lb[1]);
+
+        lemma_SequenceOfLeftMoversCausesSystemCorrespondence(ltrace[1..], lb[1..]);
+        assert last(lb) == last(lb[1..]);
+        assert lb[1] == lb[1..][0];
+
+        assert SystemCorrespondence(lb[1], last(lb));
+        lemma_SystemRefinementRelationConvolvesWithItself();
+    }
+
+    lemma lemma_MakeActionsForActorAdjacent(
+        config:Config,
+        ltrace:Trace,
+        lb:SystemBehavior,
+        actor:Actor,
+        atrace:seq<Entry>,
+        indices:seq<int>,
+        pivot_index:int,
+        left_index_to_move:int,
+        right_index_to_move:int,
+        left_index_already_in_place:int,
+        right_index_already_in_place:int
+        ) returns (
+        indices':seq<int>,
+        mtrace:Trace,
+        mb:SystemBehavior
+        )
+        requires IsValidSystemTraceAndBehavior(config, ltrace, lb);
+        requires atrace == RestrictTraceToActor(ltrace, actor);
+        requires indices == GetTraceIndicesForActor(ltrace, actor);
+        requires |atrace| == |indices|;
+        requires 0 <= left_index_to_move <= left_index_already_in_place <= pivot_index <= right_index_already_in_place <= right_index_to_move < |atrace|;
+        requires forall i {:trigger EntryIsRightMover(atrace[i])} :: left_index_to_move <= i < pivot_index ==> EntryIsRightMover(atrace[i]);
+        requires forall i {:trigger EntryIsLeftMover(atrace[i])} :: pivot_index < i <= right_index_to_move ==> EntryIsLeftMover(atrace[i]);
+        requires forall i {:trigger indices[i]} :: left_index_already_in_place <= i <= right_index_already_in_place ==> i - pivot_index == indices[i] - indices[pivot_index];
+        ensures  IsValidSystemTraceAndBehavior(config, mtrace, mb);
+        ensures  SystemBehaviorRefinesSystemBehavior(lb, mb);
+        ensures  forall any_actor :: RestrictTraceToActor(ltrace, any_actor) == RestrictTraceToActor(mtrace, any_actor);
+        ensures  |indices'| == |indices|;
+        ensures  indices' == GetTraceIndicesForActor(mtrace, actor);
+        ensures  indices'[pivot_index] == indices[pivot_index];
+        ensures  forall i {:trigger indices'[i]} :: left_index_to_move <= i <= right_index_to_move ==> i - pivot_index == indices'[i] - indices'[pivot_index];
+    {
+        assume false;
+    }
 
 /*
     lemma lemma_PerformMoveRight(

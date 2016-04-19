@@ -242,4 +242,12 @@ lemma lemma_IfPairsOfSequencesHaveSameConcatenationAndFirstMatchesThenSecondMatc
 {
 }
 
+lemma lemma_IfTripletsOfSequencesHaveSameConcatenationAndFirstTwoMatchThenLastMatches<T>(s1:seq<T>, s2:seq<T>, s3:seq<T>, s4:seq<T>, s5:seq<T>, s6:seq<T>)
+    requires s1 + s2 + s3 == s4 + s5 + s6;
+    requires s1 == s4;
+    requires s2 == s5;
+    ensures  s3 == s6;
+{
+}
+
 }
