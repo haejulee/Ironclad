@@ -1,4 +1,5 @@
 include "Reduction.i.dfy"
+include "ReductionBasic.i.dfy"
 include "RefinementConvolution.i.dfy"
 include "SystemRefinement.i.dfy"
 include "ReductionPlan.i.dfy"
@@ -11,6 +12,7 @@ include "../Common/Collections/Maps.i.dfy"
 module ReductionStepModule {
 
     import opened ReductionModule
+    import opened ReductionBasicModule
     import opened RefinementConvolutionModule
     import opened SystemRefinementModule
     import opened ReductionPlanModule
@@ -19,36 +21,6 @@ module ReductionStepModule {
     import opened ReductionPlanLemmasModule
     import opened ReductionMoveModule
     import opened Collections__Maps_i
-
-    lemma lemma_IfTreeHasNoChildrenThenItHasNoLeafEntries(tree:Tree)
-        requires tree.Inner?;
-        requires |tree.children| == 0;
-        ensures  |GetLeafEntries(tree)| == 0;
-    {
-    }
-
-    lemma lemma_IfAllRootsAreLeavesThenGetLeafEntriesForestAreRoots(trees:seq<Tree>)
-        requires forall tree :: tree in trees ==> tree.Leaf?;
-        ensures  |GetLeafEntriesForest(trees)| == |trees|;
-        ensures  forall i {:trigger trees[i]}{:trigger GetLeafEntriesForest(trees)[i]} ::
-                      0 <= i < |trees| ==> GetLeafEntriesForest(trees)[i] == trees[i].entry;
-    {
-        if |trees| == 0 {
-            return;
-        }
-
-        lemma_IfAllRootsAreLeavesThenGetLeafEntriesForestAreRoots(trees[1..]);
-    }
-
-    lemma lemma_IfAllChildrenAreLeavesThenGetLeafEntriesAreChildren(tree:Tree)
-        requires tree.Inner?;
-        requires forall c :: c in tree.children ==> c.Leaf?;
-        ensures  |tree.children| == |GetLeafEntries(tree)|;
-        ensures  forall i {:trigger GetLeafEntries(tree)[i]}{:trigger tree.children[i]} ::
-                      0 <= i < |tree.children| ==> GetLeafEntries(tree)[i] == tree.children[i].entry;
-    {
-        lemma_IfAllRootsAreLeavesThenGetLeafEntriesForestAreRoots(tree.children);
-    }
 
     lemma lemma_RestrictPrefixOfTraceToActor(
         trace:Trace,

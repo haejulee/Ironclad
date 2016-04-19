@@ -250,4 +250,13 @@ lemma lemma_IfTripletsOfSequencesHaveSameConcatenationAndFirstTwoMatchThenLastMa
 {
 }
 
+function IncrementSeq(s:seq<int>, amount:int) : seq<int>
+    ensures var s' := IncrementSeq(s, amount);
+            |s| == |s'| && forall i :: 0 <= i < |s'| ==> s'[i] == s[i] + amount;
+{
+    if s == [] then []
+    else
+        [s[0] + amount] + IncrementSeq(s[1..], amount)
+}
+
 }

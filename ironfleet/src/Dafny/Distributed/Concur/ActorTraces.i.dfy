@@ -732,4 +732,49 @@ module ActorTraces
         }
     }
 
+    ghost method FindIndices(
+        trace:Trace,
+        actor:Actor,
+        actor_trace:Trace,
+        entry_pos:int
+        ) returns (
+        indices:seq<int>
+        )
+        requires 0 <= entry_pos < |trace|;
+        requires entry_pos + |actor_trace| <= |trace|;
+        requires actor_trace == RestrictTraceToActor(trace[entry_pos..], actor);
+        decreases actor_trace, |trace| - entry_pos;
+        ensures  |indices| == |actor_trace|;
+        ensures  forall i, j :: 0 <= i < j < |indices| ==> indices[i] < indices[j];
+        ensures  forall i :: 0 <= i < |indices| ==> entry_pos <= indices[i] < |trace| && trace[indices[i]] == actor_trace[i];
+    {
+        var sub_trace := trace[entry_pos..];
+        var relative_indices := GetTraceIndicesForActor(sub_trace, actor);
+        indices := IncrementSeq(relative_indices, entry_pos);
+            
+        lemma_CorrespondenceBetweenGetTraceIndicesAndRestrictTraces(sub_trace, actor);
+        lemma_TraceIndicesForActor_length(sub_trace, actor);
+
+        forall i, j | 0 <= i < j < |indices|
+            ensures indices[i] < indices[j];
+        {
+            assert relative_indices[i] < relative_indices[j];
+        }
+
+        forall i | 0 <= i < |indices| 
+            ensures entry_pos <= indices[i] < |trace| && trace[indices[i]] == actor_trace[i];
+        {
+            assert indices[i] == relative_indices[i] + entry_pos;
+            assert relative_indices[i] in relative_indices;     // OBSERVE: Trigger forall from GetTraceIndicesForActor
+            assert 0 <= relative_indices[i] < |sub_trace|;
+
+            calc {
+                trace[indices[i]];
+                trace[relative_indices[i] + entry_pos];
+                sub_trace[relative_indices[i]];
+                actor_trace[i];
+            }
+        }
+    }
+
 }

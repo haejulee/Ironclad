@@ -1,199 +1,162 @@
-include "DistributedSystem.i.dfy"
-include "Reduction2.i.dfy"
+include "System.i.dfy"
+include "ReductionBasic.i.dfy"
+include "ReductionPlan.i.dfy"
 
 module EventHandlerModule {
-    import opened DistributedSystemModule
-    import opened Reduction2Module
+    import opened SystemModule
+    import opened ReductionBasicModule
+    import opened ReductionPlanModule
 
-    function CombineIOLevelEntriesIntoIOs(entries:seq<Entry>) : seq<IOAction>
+    function CombineIoEntriesIntoIos(entries:seq<Entry>) : seq<Action>
     {
         if |entries| == 0 then
             []
         else
-            var head_entry := entries[0];
-            if !head_entry.EntryAction? || !head_entry.action.ActionIO? then
-                CombineIOLevelEntriesIntoIOs(entries[1..])
+            var action := entries[0].action;
+            if IsTrackedAction(action) then
+                [action] + CombineIoEntriesIntoIos(entries[1..])
             else
-                var head_io := head_entry.action.io;
-                if head_io.IOActionUpdateLocalState? || head_io.IOActionStutter? then
-                    CombineIOLevelEntriesIntoIOs(entries[1..])
-                else
-                    [head_io] + CombineIOLevelEntriesIntoIOs(entries[1..])
+                CombineIoEntriesIntoIos(entries[1..])
     }
 
-    function CombineIOLevelEntriesIntoDSEntry(actor:Actor, entries:seq<Entry>) : Entry
-        ensures var result := CombineIOLevelEntriesIntoDSEntry(actor, entries);
-                result.EntryAction? && result.actor == actor && result.action.ActionDS? && result.action.ds.DSActionHostEventHandler?;
+    function CombineIoEntriesIntoEntry(actor:Actor, entries:seq<Entry>) : Entry
     {
-        EntryAction(actor, ActionDS(DSActionHostEventHandler(CombineIOLevelEntriesIntoIOs(entries))))
+        Entry(actor, PerformIos(CombineIoEntriesIntoIos(entries)))
     }
 
-    lemma lemma_CombineIOLevelEntriesIntoIOsIntroducesNoNewIOs(entries:seq<Entry>, io:IOAction) returns (entry:Entry)
-        requires io in CombineIOLevelEntriesIntoIOs(entries);
+    lemma lemma_CombineIoEntriesIntoIosIntroducesNoNewIos(entries:seq<Entry>, io:Action) returns (entry:Entry)
+        requires io in CombineIoEntriesIntoIos(entries);
         ensures  entry in entries;
-        ensures  entry.EntryAction?;
-        ensures  entry.action.ActionIO?;
-        ensures  entry.action.io == io;
+        ensures  IsTrackedAction(entry.action);
+        ensures  entry.action == io;
     {
         assert |entries| > 0;
 
-        var head_entry := entries[0];
-        if !head_entry.EntryAction? || !head_entry.action.ActionIO? {
-            entry := lemma_CombineIOLevelEntriesIntoIOsIntroducesNoNewIOs(entries[1..], io);
+        var action := entries[0].action;
+        if !action.Receive? && !action.Send? && !action.ReadClock? {
+            entry := lemma_CombineIoEntriesIntoIosIntroducesNoNewIos(entries[1..], io);
             return;
         }
 
-        var head_io := head_entry.action.io;
-        if head_io.IOActionUpdateLocalState? || head_io.IOActionStutter? {
-            entry := lemma_CombineIOLevelEntriesIntoIOsIntroducesNoNewIOs(entries[1..], io);
+        if action == io {
+            entry := entries[0];
             return;
         }
 
-        if head_io == io {
-            entry := head_entry;
-            return;
-        }
-
-        entry := lemma_CombineIOLevelEntriesIntoIOsIntroducesNoNewIOs(entries[1..], io);
+        entry := lemma_CombineIoEntriesIntoIosIntroducesNoNewIos(entries[1..], io);
     }
 
-    lemma lemma_EffectOfCombiningIOLevelEntriesMatchesEffectOfDoingIOLevelEntries(
-        actor:Actor,
+    lemma lemma_EffectOfCombiningIoEntriesMatchesEffectOfDoingIoEntries(
+        lb:seq<SystemState>,
         entries:seq<Entry>,
+        actor:Actor,
         entry:Entry,
-        pivot_index:int,
-        db:seq<DistributedSystemState>
+        pivot_index:int
         )
-        requires actor.HostActor?;
-        requires |db| == |entries| + 1;
-        requires forall i :: 0 <= i < |entries| ==> DistributedSystemNextEntryAction(db[i], db[i+1], entries[i]);
-        requires forall i :: 0 <= i < |entries| ==> GetEntryActor(entries[i]) == actor && GetEntryLevel(entries[i]) == const_IOLevel();
-        requires entry == CombineIOLevelEntriesIntoDSEntry(actor, entries);
+        requires |lb| == |entries| + 1;
+        requires forall i :: 0 <= i < |entries| ==> SystemNextEntry(lb[i], lb[i+1], entries[i]);
+        requires forall i :: 0 <= i < |entries| ==> entries[i].actor == actor;
+        requires forall i :: 0 <= i < |entries| ==> IsTrackedAction(entries[i].action);
+        requires entry == CombineIoEntriesIntoEntry(actor, entries);
         requires 0 <= pivot_index <= |entries|;
         requires forall i :: 0 <= i < pivot_index ==> EntryIsRightMover(entries[i]);
         requires forall i :: pivot_index < i < |entries| ==> EntryIsLeftMover(entries[i]);
-        ensures  DistributedSystemNextEntryAction(db[0], db[|entries|], entry);
+        ensures  SystemNextEntry(lb[0], lb[|entries|], entry);
     {
         if |entries| == 0 {
             return;
         }
 
-        var entry_all_but_last := CombineIOLevelEntriesIntoDSEntry(actor, entries[1..]);
+        var entry_all_but_last := CombineIoEntriesIntoEntry(actor, entries[1..]);
         var new_pivot_index := lemma_IfEntriesReducibleThenSuffixIs(entries, entries[1..], pivot_index);
-        lemma_EffectOfCombiningIOLevelEntriesMatchesEffectOfDoingIOLevelEntries(actor, entries[1..], entry_all_but_last, new_pivot_index, db[1..]);
+        lemma_EffectOfCombiningIoEntriesMatchesEffectOfDoingIoEntries(lb[1..], entries[1..], actor, entry_all_but_last, new_pivot_index);
 
-        var ds := db[0];
-        var ds' := db[|entries|];
-        var ios := entry.action.ds.ios;
+        var ds := lb[0];
+        var ds' := lb[|entries|];
+        var ios := entry.action.raw_ios;
 
         var first_entry := entries[0];
 
-        if first_entry.EntryAction? && first_entry.action.ActionIO? && first_entry.action.io.IOActionSend? {
-            forall io | io in ios && io.IOActionReceive?
+        if first_entry.action.Send? {
+            forall io | io in ios && io.Receive?
                 ensures false;
             {
-                var found_entry := lemma_CombineIOLevelEntriesIntoIOsIntroducesNoNewIOs(entries, io);
+                var found_entry := lemma_CombineIoEntriesIntoIosIntroducesNoNewIos(entries, io);
                 var i :| 0 <= i < |entries| && entries[i] == found_entry;
                 lemma_IfEntriesReducibleAndOneIsntRightMoverThenRestAreLeftMovers(entries, pivot_index, 0, i);
             }
         }
     }
 
-    lemma lemma_GroupValidIfReducedEntryCombinesIOLevelEntries(
+    lemma lemma_SystemNextEntryForReductionTree(
+        tree:Tree,
         actor:Actor,
-        entries:seq<Entry>,
-        db:seq<DistributedSystemState>
+        lb:seq<SystemState>
         )
-        requires actor.HostActor?;
-        requires |db| == |entries| + 1;
-        requires EntryGroupValid(entries);
-        requires forall i :: 0 <= i < |entries| ==> DistributedSystemNextEntryAction(db[i], db[i+1], entries[i]);
-        requires forall i :: 0 <= i < |entries| ==> GetEntryActor(entries[i]) == actor && GetEntryLevel(entries[i]) == const_IOLevel();
-        requires last(entries).reduced_entry == CombineIOLevelEntriesIntoDSEntry(actor, all_but_last(entries));
-        requires EntriesReducibleUsingPivot(entries);
-        ensures  DistributedSystemNextEntryAction(db[1], db[|entries|-1], last(entries).reduced_entry);
+        requires tree.Inner?;
+        requires |tree.children| > 0;
+        requires forall c :: c in tree.children ==> c.Leaf?;
+        requires forall c :: c in tree.children ==> IsTrackedAction(c.entry.action);
+        requires TreeRootPivotValid(tree);
+        requires TreeOnlyForActor(tree, actor);
+        requires |lb| == |tree.children| + 1;
+        requires forall i :: 0 <= i < |tree.children| ==> SystemNextEntry(lb[i], lb[i+1], tree.children[i].entry);
+        requires tree.reduced_entry == CombineIoEntriesIntoEntry(actor, GetRootEntries(tree.children));
+        ensures  SystemNextEntry(lb[0], last(lb), tree.reduced_entry);
     {
-        var entry := last(entries).reduced_entry;
-        var pivot_index := last(entries).pivot_index;
-        var db' := db[1..|entries|];
-        var entries' := entries[1..|entries|-1];
+        var entries := GetRootEntries(tree.children);
+        var entry := tree.reduced_entry;
+        var pivot_index := tree.pivot_index;
 
-        lemma_EffectOfCombiningIOLevelEntriesMatchesEffectOfDoingIOLevelEntries(actor, entries', entry, pivot_index-1, db');
-    }
+        lemma_IfAllChildrenAreLeavesThenGetLeafEntriesAreChildren(tree);
 
-    lemma lemma_EntriesReducibleToEntryThatCombinesIOLevelEntriesHelper(
-        db:seq<DistributedSystemState>,
-        db':seq<DistributedSystemState>,
-        i:int
-        )
-        requires |db'| >= 1;
-        requires db == [db'[0]] + db' + [last(db')];
-        requires 0 <= i < |db| - 1;
-        ensures  i == 0 ==> db[i] == db'[0] == db[i+1];
-        ensures  i == |db| - 2 ==> db[i] == last(db') == db[i+1];
-        ensures  0 < i < |db| - 2 ==> db[i] == db'[i-1] && db[i+1] == db'[i];
-    {
-        if i == 0 {
-            assert db[i] == db'[0];
-            assert db[i+1] == db'[0];
-        }
-        else if i == |db| - 2 {
-            assert db[i] == last(db');
-            assert db[i+1] == last(db');
-        }
-        else {
-            assert db[i] == db'[i-1];
-            assert db[i+1] == db'[i];
-        }
-    }
-
-    lemma lemma_EntriesReducibleToEntryThatCombinesIOLevelEntries(
-        actor:Actor,
-        entries:seq<Entry>
-        )
-        requires actor.HostActor?;
-        requires EntryGroupValid(entries);
-        requires forall i :: 0 <= i < |entries| ==> GetEntryActor(entries[i]) == actor && GetEntryLevel(entries[i]) == const_IOLevel();
-        requires last(entries).reduced_entry == CombineIOLevelEntriesIntoDSEntry(actor, all_but_last(entries));
-        requires EntriesReducibleUsingPivot(entries);
-        ensures  EntriesReducibleToEntry(RestrictEntriesToLevel(entries[1..|entries|-1], entries[0].begin_group_level), last(entries).reduced_entry);
-    {
-        var entry := last(entries).reduced_entry;
-        var entries' := entries[1..|entries|-1];
-
-        lemma_RestrictEntriesToLevelIsIdentityIfAllEntriesAtLevel(entries', const_IOLevel());
-        assert entries' == RestrictEntriesToLevel(entries', entries[0].begin_group_level);
-
-        forall db':seq<DistributedSystemState> {:trigger DistributedSystemNextEntryAction(db'[0], db'[|entries'|], entry)} |
-                |db'| == |entries'|+1
-                && (forall i {:trigger DistributedSystemNextEntryAction(db'[i], db'[i+1], entries'[i])} ::
-                         0 <= i < |entries'| ==> DistributedSystemNextEntryAction(db'[i], db'[i+1], entries'[i]))
-            ensures DistributedSystemNextEntryAction(db'[0], db'[|entries'|], entry);
+        forall i | 0 <= i < |entries|
+            ensures SystemNextEntry(lb[i], lb[i+1], entries[i]);
+            ensures entries[i].actor == actor;
+            ensures IsTrackedAction(entries[i].action);
         {
-            assert |db'| == |entries|-1;
-            var db := [db'[0]] + db' + [last(db')];
-            assert |db| == |entries|+1;
-            forall i | 0 <= i < |entries|
-                ensures DistributedSystemNextEntryAction(db[i], db[i+1], entries[i]);
-            {
-                lemma_EntriesReducibleToEntryThatCombinesIOLevelEntriesHelper(db, db', i);
-                if i == 0 {
-                    assert db[i] == db'[0] == db[i+1];
-                    assert entries[i].EntryBeginGroup?;
-                }
-                else if i == |entries|-1 {
-                    assert db[i] == last(db') == db[i+1];
-                    assert entries[i].EntryEndGroup?;
-                }
-                else {
-                    var j := i-1;
-                    assert DistributedSystemNextEntryAction(db'[j], db'[j+1], entries'[j]);
-                    assert DistributedSystemNextEntryAction(db[i], db[i+1], entries[i]);
-                }
-            }
-            lemma_GroupValidIfReducedEntryCombinesIOLevelEntries(actor, entries, db);
+            assert entries[i] == tree.children[i].entry;
+            assert TreeOnlyForActor(tree.children[i], actor);
+        }
+        assert |entries| == |tree.children|;
+
+        lemma_EffectOfCombiningIoEntriesMatchesEffectOfDoingIoEntries(lb, entries, actor, entry, pivot_index);
+    }
+
+    lemma lemma_ReductionTreeValidIfReducedEntryCombinesIoEntries(
+        tree:Tree,
+        actor:Actor
+        )
+        requires tree.Inner?;
+        requires forall c :: c in tree.children ==> c.Leaf?;
+        requires forall c :: c in tree.children ==> IsTrackedAction(c.entry.action);
+        requires TreeRootPivotValid(tree);
+        requires TreeOnlyForActor(tree, actor);
+        requires tree.reduced_entry == CombineIoEntriesIntoEntry(actor, GetRootEntries(tree.children));
+        ensures  TreeRootValid(tree);
+    {
+        if |tree.children| == 0 {
+            return;
         }
 
-        assert EntriesReducibleToEntry(entries', entry);
+        var entry := tree.reduced_entry;
+        var entries := GetRootEntries(tree.children);
+        lemma_IfAllChildrenAreLeavesThenGetLeafEntriesAreChildren(tree);
+
+        forall lb:seq<SystemState> {:trigger SystemNextEntry(lb[0], lb[|entries|], entry)}|
+                |lb| == |entries|+1
+             && (forall i {:trigger SystemNextEntry(lb[i], lb[i+1], entries[i])} ::
+                 0 <= i < |entries| ==> SystemNextEntry(lb[i], lb[i+1], entries[i]))
+            ensures SystemNextEntry(lb[0], lb[|entries|], entry);
+        {
+            forall i | 0 <= i < |entries|
+                ensures SystemNextEntry(lb[i], lb[i+1], tree.children[i].entry);
+            {
+                assert entries[i] == tree.children[i].entry;
+            }
+            assert |entries| == |tree.children|;
+
+            lemma_SystemNextEntryForReductionTree(tree, actor, lb);
+        }
     }
 }
