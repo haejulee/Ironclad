@@ -430,6 +430,7 @@ module ReductionStepModule {
         requires |hb| == |mb| - |sub_tree_trace| + 1;
         requires forall i {:trigger hb[i]} :: 0 <= i < |hb| ==> hb[i] == (if i <= first_replaced_entry_pos then mb[i] else mb[i+|sub_tree_trace|-1]);
         requires forall i {:trigger m_indices[i]} :: left_index_to_move <= i <= right_index_to_move ==> i - pivot_index == m_indices[i] - m_indices[pivot_index];
+        ensures  last_replaced_entry_pos == first_replaced_entry_pos + |sub_tree_trace| - 1;
         ensures  IsValidSystemTraceAndBehavior(config, htrace, hb);
         ensures  |sub_tree.children| == last_replaced_entry_pos - first_replaced_entry_pos + 1;
         ensures  forall i {:trigger mtrace[i]} :: first_replaced_entry_pos <= i <= last_replaced_entry_pos ==> mtrace[i] == sub_tree.children[i - first_replaced_entry_pos].entry;
@@ -726,7 +727,7 @@ module ReductionStepModule {
         }
     }
 
-    lemma {:timeLimitMultiplier 3} lemma_ApplyReductionWithChildren(
+    lemma lemma_ApplyReductionWithChildren(
         config:Config,
         ltrace:Trace,
         lb:SystemBehavior,
@@ -793,7 +794,6 @@ module ReductionStepModule {
 
         var first_replaced_entry_pos := m_indices[left_index_to_move];
         var last_replaced_entry_pos := m_indices[right_index_to_move];
-        assert last_replaced_entry_pos == first_replaced_entry_pos + |sub_tree_trace| - 1;
         var trace_map := map i | 0 <= i <= |mtrace| - |sub_tree_trace| :: if i < first_replaced_entry_pos then mtrace[i] else if i == first_replaced_entry_pos then entry else mtrace[i+|sub_tree_trace|-1];
         htrace := ConvertMapToSeq(|mtrace| - |sub_tree_trace| + 1, trace_map);
         var behavior_map := map i | 0 <= i <= |mb| - |sub_tree_trace| :: if i <= first_replaced_entry_pos then mb[i] else mb[i+|sub_tree_trace|-1];
