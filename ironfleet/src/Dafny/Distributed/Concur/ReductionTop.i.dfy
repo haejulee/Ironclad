@@ -140,16 +140,20 @@ module ReductionTopModule {
         k := indices[0] + 1;
         while k <= last(indices)
             invariant indices[0] < k <= last(indices) + 1;
-            invariant k <= last(indices) ==> 0 <= indices_index < |indices| - 1;
+            invariant k <= last(indices) <==> 0 <= indices_index < |indices| - 1;
             invariant k == last(indices) + 1 ==> indices_index == |indices| - 1; // True as we exit the final execution of while-loop body
             invariant 0 <= ab_index < |ab|;
             invariant ab_index == indices_index + 1;
             invariant |hb_mid| == k - (indices[0] + 1);
             invariant k <= last(indices) ==> indices[indices_index] < k <= indices[indices_index+1];
             invariant k <= last(indices) ==>
-                      forall i,j :: 0 <= i < |indices|-1 && indices[i] < j <= indices[i+1] && j < k 
-                           ==> hb_mid[j - (indices[0] + 1)].states == lb[j].states[actor := ab[i]];
+                      forall i,j {:trigger indices[i] < j} :: 
+                           0 <= i < |indices|-1 && indices[i] < j <= indices[i+1] && j < k 
+                           ==> hb_mid[j - (indices[0] + 1)].states == lb[j].states[actor := ab[i+1]];
         {
+            var old_k := k;
+            var old_indices_index := indices_index;
+            var old_ab_index := ab_index;
             hb_mid := hb_mid + [lb[k].(states := lb[k].states[actor := ab[ab_index]])];
             k := k + 1;
             if k > indices[indices_index+1] {
@@ -157,14 +161,31 @@ module ReductionTopModule {
                 ab_index := ab_index + 1;
             }
 
-            forall i,j | 0 <= i < |indices|-1 && indices[i] < j <= indices[i+1] && j < k 
-                ensures hb_mid[j - (indices[0] + 1)].states == lb[j].states[actor := ab[i]];
-            {
-                if j < k - 1 {
-                    // Invariant
-                    assert hb_mid[j - (indices[0] + 1)].states == lb[j].states[actor := ab[i]];
-                } else {
-                    assert hb_mid[j - (indices[0] + 1)].states == lb[j].states[actor := ab[i]];
+            if k <= last(indices) {
+                forall i,j | 0 <= i < |indices|-1 && indices[i] < j <= indices[i+1] && j < k 
+                    ensures hb_mid[j - (indices[0] + 1)].states == lb[j].states[actor := ab[i+1]];
+                {
+                    if j < k - 1 {
+                        // Invariant
+                        assert hb_mid[j - (indices[0] + 1)].states == lb[j].states[actor := ab[i+1]];
+                    } else {
+                        assert j == k - 1 == old_k;
+                        assert indices_index <= |indices| - 1;
+                        assert indices[old_indices_index] < old_k <= indices[old_indices_index+1];
+                        if k > indices[old_indices_index+1] {
+                            assert ab_index == old_ab_index + 1;
+                            assert indices_index == old_indices_index + 1;
+                            assert indices[old_indices_index] < j <= indices[old_indices_index+1];
+                            assert old_indices_index == i;
+                            assert hb_mid[j - (indices[0] + 1)].states == lb[j].states[actor := ab[i+1]];
+                        } else {
+                            assert ab_index == old_ab_index;
+                            assert indices_index == old_indices_index;
+                            assert indices[indices_index] < k <= indices[indices_index+1];
+                            assert indices_index == i;
+                        }
+                        assert hb_mid[j - (indices[0] + 1)].states == lb[j].states[actor := ab[i+1]];
+                    }
                 }
             }
         }
