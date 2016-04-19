@@ -211,36 +211,206 @@ module ReductionMoveModule
         assert BehaviorRefinesBehaviorUsingRefinementMap(lb, hb, relation, lh_map);
     }
 
-
     function MoveTraceElementRight(trace:Trace, cur_pos:int, desired_pos:int) : Trace
         requires 0 <= cur_pos <= desired_pos < |trace|;
-        ensures  var trace' := MoveTraceElementRight(trace, cur_pos, desired_pos);
-                    |trace'| == |trace|
-                 && forall i {:trigger trace'[i]} :: 0 <= i < |trace| ==> trace'[i] == if i < cur_pos then trace[i]
+        ensures  MoveTraceElementRight(trace, cur_pos, desired_pos) == trace[..cur_pos] + trace[cur_pos+1..desired_pos+1] + [trace[cur_pos]] + trace[desired_pos+1..];
+    {
+        ConvertMapToSeq(|trace|, map i | 0 <= i < |trace| :: if i < cur_pos then trace[i]
                                                            else if i < desired_pos then trace[i+1]
                                                            else if i == desired_pos then trace[cur_pos]
-                                                           else trace[i];
-    {
-        trace[..cur_pos] + trace[cur_pos+1..desired_pos+1] + [trace[cur_pos]] + trace[desired_pos+1..]
+                                                           else trace[i])
     }
 
-    function ShiftSpecBehaviorSliceRight(sb':seq<SpecState>, cur_pos:int, desired_pos:int) : seq<SpecState>
-        requires 0 <= cur_pos <= desired_pos < |sb'| - 1;
-        ensures  var sb := ShiftSpecBehaviorSliceRight(sb', cur_pos, desired_pos);
-                    |sb| == |sb'|
-                 && forall i {:trigger sb[i]} :: 0 <= i < |sb| ==> sb[i] == if i <= cur_pos then sb'[i]
-                                                    else if i <= desired_pos + 1 then sb'[i-1]
-                                                    else sb'[i]
+    function MoveTraceElementLeft(trace:Trace, cur_pos:int, desired_pos:int) : Trace
+        requires 0 <= desired_pos <= cur_pos < |trace|;
+        ensures MoveTraceElementLeft(trace, cur_pos, desired_pos) == trace[..desired_pos] + [trace[cur_pos]] + trace[desired_pos..cur_pos] + trace[cur_pos+1..];
     {
-        sb'[..cur_pos+1] + sb'[cur_pos..desired_pos+1] + sb'[desired_pos+2..]
+        ConvertMapToSeq(|trace|, map i | 0 <= i < |trace| :: if i < desired_pos then trace[i]
+                                                           else if i == desired_pos then trace[cur_pos]
+                                                           else if i < cur_pos + 1 then trace[i-1]
+                                                           else trace[i])
     }
 
-/*
+    lemma {:timeLimitMultiplier 2} lemma_MoveTraceElementRightProperties(
+        trace:Trace,
+        trace':Trace,
+        actor:Actor,
+        atrace:Trace,
+        indices:seq<int>,
+        indices':seq<int>,
+        updated_index:int,
+        cur_pos:int,
+        desired_pos:int
+        )
+        requires atrace == RestrictTraceToActor(trace, actor);
+        requires indices == GetTraceIndicesForActor(trace, actor);
+        requires |indices| == |atrace|;
+        requires forall i, j {:trigger indices[i], indices[j]} :: 0 <= i < j < |indices| ==> indices[i] < indices[j];
+        requires forall i :: 0 <= i < |indices| ==> 0 <= indices[i] < |trace| && trace[indices[i]] == atrace[i];
+        requires 0 <= updated_index < |indices|-1;
+        requires trace[indices[updated_index]].actor == actor;
+        requires indices' == indices[updated_index := indices[updated_index+1]-1]
+        requires cur_pos == indices[updated_index];
+        requires desired_pos == indices[updated_index+1]-1;
+        requires cur_pos <= desired_pos;
+        requires trace' == MoveTraceElementRight(trace, cur_pos, desired_pos);
+        ensures  forall any_actor :: RestrictTraceToActor(trace, any_actor) == RestrictTraceToActor(trace', any_actor);
+        ensures  GetTraceIndicesForActor(trace', actor) == indices';
+    {
+        forall i, trace_index {:trigger indices[i], trace[trace_index], indices[i+1]} |
+                              0 <= i < |indices| - 1 && indices[i] < trace_index < indices[i+1]
+            ensures trace[trace_index].actor != actor;
+        {
+            lemma_InterveningTraceIndicesFromDifferentActor(trace, actor, indices, i, trace_index);
+        }
+
+        forall any_actor:Actor
+            ensures RestrictTraceToActor(trace', any_actor) == RestrictTraceToActor(trace, any_actor);
+        {
+            var any_actor_trace := RestrictTraceToActor(trace, any_actor);
+            var any_actor_trace' := RestrictTraceToActor(trace', any_actor);
+
+            var second_component := trace[cur_pos+1..desired_pos+1];
+            var third_component := [trace[cur_pos]];
+
+            if any_actor == actor {
+                forall i | 0 <= i < |second_component|
+                    ensures second_component[i].actor != any_actor;
+                {
+                    var j := i + cur_pos+1;
+                    assert second_component[i] == trace[j];
+                    assert indices[updated_index] < j < indices[updated_index+1];
+                    assert trace[j].actor != any_actor;
+                }
+                lemma_RestrictTraceToActorEmpty(second_component, any_actor);
+            }
+            else {
+                lemma_RestrictTraceToActorEmpty(third_component, any_actor);
+            }
+
+            // Since one of the components' RestrictTraceToActor is empty, the two RestrictTraceToActors must commute.
+            assert RestrictTraceToActor(second_component, any_actor) + RestrictTraceToActor(third_component, any_actor) == RestrictTraceToActor(third_component, any_actor) + RestrictTraceToActor(second_component, any_actor);
+            assert RestrictTraceToActor(trace[cur_pos+1..desired_pos+1], any_actor) + RestrictTraceToActor([trace[cur_pos]], any_actor) ==
+                   RestrictTraceToActor([trace[cur_pos]], any_actor) + RestrictTraceToActor(trace[cur_pos+1..desired_pos+1], any_actor);
+
+            calc {
+                any_actor_trace';
+                RestrictTraceToActor(trace', any_actor);
+                RestrictTraceToActor(trace[..cur_pos] + trace[cur_pos+1..desired_pos+1] + [trace[cur_pos]] + trace[desired_pos+1..], any_actor);
+                    { lemma_Split4RestrictTraceToActor(trace[..cur_pos], trace[cur_pos+1..desired_pos+1], [trace[cur_pos]], trace[desired_pos+1..], any_actor); }
+                RestrictTraceToActor(trace[..cur_pos], any_actor) + RestrictTraceToActor(trace[cur_pos+1..desired_pos+1], any_actor) + RestrictTraceToActor([trace[cur_pos]], any_actor) + RestrictTraceToActor(trace[desired_pos+1..], any_actor);
+                RestrictTraceToActor(trace[..cur_pos], any_actor) + (RestrictTraceToActor(trace[cur_pos+1..desired_pos+1], any_actor) + RestrictTraceToActor([trace[cur_pos]], any_actor)) + RestrictTraceToActor(trace[desired_pos+1..], any_actor);
+                RestrictTraceToActor(trace[..cur_pos], any_actor) + (RestrictTraceToActor([trace[cur_pos]], any_actor) + RestrictTraceToActor(trace[cur_pos+1..desired_pos+1], any_actor)) + RestrictTraceToActor(trace[desired_pos+1..], any_actor);
+                    { assert RestrictTraceToActor(trace[..cur_pos], any_actor) + (RestrictTraceToActor([trace[cur_pos]], any_actor) + RestrictTraceToActor(trace[cur_pos+1..desired_pos+1], any_actor)) ==
+                             RestrictTraceToActor(trace[..cur_pos], any_actor) + RestrictTraceToActor([trace[cur_pos]], any_actor) + RestrictTraceToActor(trace[cur_pos+1..desired_pos+1], any_actor); }
+                RestrictTraceToActor(trace[..cur_pos], any_actor) + RestrictTraceToActor([trace[cur_pos]], any_actor) + RestrictTraceToActor(trace[cur_pos+1..desired_pos+1], any_actor) + RestrictTraceToActor(trace[desired_pos+1..], any_actor);
+                    { lemma_Split4RestrictTraceToActor(trace[..cur_pos], [trace[cur_pos]], trace[cur_pos+1..desired_pos+1], trace[desired_pos+1..], any_actor); }
+                RestrictTraceToActor(trace[..cur_pos] + [trace[cur_pos]] + trace[cur_pos+1..desired_pos+1] + trace[desired_pos+1..], any_actor);
+                    { assert trace[..cur_pos+1] == trace[..cur_pos] + [trace[cur_pos]]; }
+                RestrictTraceToActor(trace[..cur_pos+1] + trace[cur_pos+1..desired_pos+1] + trace[desired_pos+1..], any_actor);
+                    { assert trace[..cur_pos+1] + trace[cur_pos+1..desired_pos+1] == trace[..desired_pos+1]; }
+                RestrictTraceToActor(trace[..desired_pos+1] + trace[desired_pos+1..], any_actor);
+                    { assert trace[..desired_pos+1] + trace[desired_pos+1..] == trace; }
+                RestrictTraceToActor(trace, any_actor);
+                any_actor_trace;
+            }
+        }
+
+        assert RestrictTraceToActor(trace', actor) == atrace;
+        lemma_TraceIndicesForActorConverse(trace', actor, indices');
+    }
+
+    lemma {:timeLimitMultiplier 3} lemma_MoveTraceElementLeftProperties(
+        trace:Trace,
+        trace':Trace,
+        actor:Actor,
+        atrace:Trace,
+        indices:seq<int>,
+        indices':seq<int>,
+        updated_index:int,
+        cur_pos:int,
+        desired_pos:int
+        )
+        requires atrace == RestrictTraceToActor(trace, actor);
+        requires indices == GetTraceIndicesForActor(trace, actor);
+        requires |indices| == |atrace|;
+        requires forall i, j {:trigger indices[i], indices[j]} :: 0 <= i < j < |indices| ==> indices[i] < indices[j];
+        requires forall i :: 0 <= i < |indices| ==> 0 <= indices[i] < |trace| && trace[indices[i]] == atrace[i];
+        requires 0 < updated_index < |indices|;
+        requires trace[indices[updated_index]].actor == actor;
+        requires indices' == indices[updated_index := indices[updated_index-1]+1]
+        requires cur_pos == indices[updated_index];
+        requires desired_pos == indices[updated_index-1]+1;
+        requires desired_pos <= cur_pos;
+        requires trace' == MoveTraceElementLeft(trace, cur_pos, desired_pos);
+        ensures  forall any_actor :: RestrictTraceToActor(trace, any_actor) == RestrictTraceToActor(trace', any_actor);
+        ensures  GetTraceIndicesForActor(trace', actor) == indices';
+    {
+        forall i, trace_index {:trigger indices[i], trace[trace_index], indices[i+1]} |
+                              0 <= i < |indices| - 1 && indices[i] < trace_index < indices[i+1]
+            ensures trace[trace_index].actor != actor;
+        {
+            lemma_InterveningTraceIndicesFromDifferentActor(trace, actor, indices, i, trace_index);
+        }
+
+        forall any_actor:Actor
+            ensures RestrictTraceToActor(trace', any_actor) == RestrictTraceToActor(trace, any_actor);
+        {
+            var any_actor_trace := RestrictTraceToActor(trace, any_actor);
+            var any_actor_trace' := RestrictTraceToActor(trace', any_actor);
+
+            var second_component := [trace[cur_pos]];
+            var third_component := trace[desired_pos..cur_pos];
+
+            if any_actor == actor {
+                forall i | 0 <= i < |third_component|
+                    ensures third_component[i].actor != any_actor;
+                {
+                    var j := i + desired_pos;
+                    assert third_component[i] == trace[j];
+                    assert indices[updated_index-1] < j < indices[updated_index-1+1];
+                    assert trace[j].actor != any_actor;
+                }
+                lemma_RestrictTraceToActorEmpty(third_component, actor);
+            }
+            else {
+                lemma_RestrictTraceToActorEmpty(second_component, any_actor);
+            }
+
+            // Since one of the components' RestrictTraceToActor is empty, the two RestrictTraceToActors must commute.
+            assert RestrictTraceToActor(second_component, any_actor) + RestrictTraceToActor(third_component, any_actor) == RestrictTraceToActor(third_component, any_actor) + RestrictTraceToActor(second_component, any_actor);
+            assert RestrictTraceToActor(trace[desired_pos..cur_pos], any_actor) + RestrictTraceToActor([trace[cur_pos]], any_actor) ==
+                   RestrictTraceToActor([trace[cur_pos]], any_actor) + RestrictTraceToActor(trace[desired_pos..cur_pos], any_actor);
+
+            calc {
+                any_actor_trace';
+                RestrictTraceToActor(trace', any_actor);
+                RestrictTraceToActor(trace[..desired_pos] + [trace[cur_pos]] + trace[desired_pos..cur_pos] + trace[cur_pos+1..], any_actor);
+                    { lemma_Split4RestrictTraceToActor(trace[..desired_pos], [trace[cur_pos]], trace[desired_pos..cur_pos], trace[cur_pos+1..], any_actor); }
+                RestrictTraceToActor(trace[..desired_pos], any_actor) + RestrictTraceToActor([trace[cur_pos]], any_actor) + RestrictTraceToActor(trace[desired_pos..cur_pos], any_actor) + RestrictTraceToActor(trace[cur_pos+1..], any_actor);
+                RestrictTraceToActor(trace[..desired_pos], any_actor) + (RestrictTraceToActor([trace[cur_pos]], any_actor) + RestrictTraceToActor(trace[desired_pos..cur_pos], any_actor)) + RestrictTraceToActor(trace[cur_pos+1..], any_actor);
+                RestrictTraceToActor(trace[..desired_pos], any_actor) + (RestrictTraceToActor(trace[desired_pos..cur_pos], any_actor) + RestrictTraceToActor([trace[cur_pos]], any_actor)) + RestrictTraceToActor(trace[cur_pos+1..], any_actor);
+                RestrictTraceToActor(trace[..desired_pos], any_actor) + RestrictTraceToActor(trace[desired_pos..cur_pos], any_actor) + RestrictTraceToActor([trace[cur_pos]], any_actor) + RestrictTraceToActor(trace[cur_pos+1..], any_actor);
+                    { lemma_Split4RestrictTraceToActor(trace[..desired_pos], trace[desired_pos..cur_pos], [trace[cur_pos]], trace[cur_pos+1..], any_actor); }
+                RestrictTraceToActor(trace[..desired_pos] + trace[desired_pos..cur_pos] + [trace[cur_pos]] + trace[cur_pos+1..], any_actor);
+                    { assert trace[..cur_pos] == trace[..desired_pos] + trace[desired_pos..cur_pos]; }
+                RestrictTraceToActor(trace[..cur_pos] + [trace[cur_pos]] + trace[cur_pos+1..], any_actor);
+                    { assert trace[..cur_pos] + [trace[cur_pos]] == trace[..cur_pos+1]; }
+                RestrictTraceToActor(trace[..cur_pos+1] + trace[cur_pos+1..], any_actor);
+                    { assert trace[..cur_pos+1] + trace[cur_pos+1..] == trace; }
+                RestrictTraceToActor(trace, any_actor);
+                any_actor_trace;
+            }
+        }
+
+        assert RestrictTraceToActor(trace', actor) == atrace;
+        lemma_TraceIndicesForActorConverse(trace', actor, indices');
+    }
+
     lemma lemma_MoveRightMoverIntoPlace(
         config:Config,
         ltrace:Trace,
         lb:SystemBehavior,
-        actor:Actor,
         cur_pos:int,
         desired_pos:int
         ) returns (
@@ -250,16 +420,170 @@ module ReductionMoveModule
         requires IsValidSystemTraceAndBehavior(config, ltrace, lb);
         requires 0 <= cur_pos <= desired_pos < |ltrace|;
         requires EntryIsRightMover(ltrace[cur_pos]);
-        requires forall i :: cur_pos < i <= desired_pos ==> GetEntryActor(ltrace[i]) != GetEntryActor(ltrace[cur_pos]);
+        requires forall i :: cur_pos < i <= desired_pos ==> ltrace[i].actor != ltrace[cur_pos].actor;
 
         ensures  IsValidSystemTraceAndBehavior(config, htrace, hb);
         ensures  htrace == MoveTraceElementRight(ltrace, cur_pos, desired_pos);
-        ensures  SystemBehaviorRefinesSystemBehavior(ltrace, htrace);
+        ensures  SystemBehaviorRefinesSystemBehavior(lb, hb);
 
         decreases desired_pos - cur_pos;
     {
+        if cur_pos == desired_pos {
+            htrace, hb := ltrace, lb;
+            lemma_SystemBehaviorRefinesItself(lb);
+            return;
+        }
+
+        var mtrace, mb := lemma_PerformMoveRight(config, ltrace, lb, cur_pos);
+        var next_pos := cur_pos + 1;
+        htrace, hb := lemma_MoveRightMoverIntoPlace(config, mtrace, mb, next_pos, desired_pos);
+        lemma_SystemSystemRefinementConvolutionPure(lb, mb, hb);
     }
-*/
+
+    lemma lemma_MoveLeftMoverIntoPlace(
+        config:Config,
+        ltrace:Trace,
+        lb:SystemBehavior,
+        cur_pos:int,
+        desired_pos:int
+        ) returns (
+        htrace:Trace,
+        hb:SystemBehavior
+        )
+        requires IsValidSystemTraceAndBehavior(config, ltrace, lb);
+        requires 0 <= desired_pos <= cur_pos < |ltrace|;
+        requires EntryIsLeftMover(ltrace[cur_pos]);
+        requires forall i :: desired_pos <= i < cur_pos ==> ltrace[i].actor != ltrace[cur_pos].actor;
+
+        ensures  IsValidSystemTraceAndBehavior(config, htrace, hb);
+        ensures  htrace == MoveTraceElementLeft(ltrace, cur_pos, desired_pos);
+        ensures  SystemBehaviorRefinesSystemBehavior(lb, hb);
+
+        decreases cur_pos;
+    {
+        if cur_pos == desired_pos {
+            htrace, hb := ltrace, lb;
+            lemma_SystemBehaviorRefinesItself(lb);
+            return;
+        }
+
+        var next_pos := cur_pos - 1;
+        var mtrace, mb := lemma_PerformMoveLeft(config, ltrace, lb, next_pos);
+        htrace, hb := lemma_MoveLeftMoverIntoPlace(config, mtrace, mb, next_pos, desired_pos);
+        lemma_SystemSystemRefinementConvolutionPure(lb, mb, hb);
+    }
+
+    lemma lemma_MakeActionsForActorAdjacentByMovingLeftIndexAlreadyInPlaceLeft(
+        config:Config,
+        ltrace:Trace,
+        lb:SystemBehavior,
+        actor:Actor,
+        atrace:seq<Entry>,
+        l_indices:seq<int>,
+        pivot_index:int,
+        left_index_to_move:int,
+        right_index_to_move:int,
+        left_index_already_in_place:int,
+        right_index_already_in_place:int
+        ) returns (
+        h_indices:seq<int>,
+        htrace:Trace,
+        hb:SystemBehavior
+        )
+        requires IsValidSystemTraceAndBehavior(config, ltrace, lb);
+        requires atrace == RestrictTraceToActor(ltrace, actor);
+        requires l_indices == GetTraceIndicesForActor(ltrace, actor);
+        requires |atrace| == |l_indices|;
+        requires 0 <= left_index_to_move < left_index_already_in_place <= pivot_index <= right_index_already_in_place <= right_index_to_move < |atrace|;
+        requires forall i {:trigger EntryIsRightMover(atrace[i])} :: left_index_to_move <= i < pivot_index ==> EntryIsRightMover(atrace[i]);
+        requires forall i {:trigger EntryIsLeftMover(atrace[i])} :: pivot_index < i <= right_index_to_move ==> EntryIsLeftMover(atrace[i]);
+        requires forall i {:trigger l_indices[i]} :: left_index_already_in_place <= i <= right_index_already_in_place ==> i - pivot_index == l_indices[i] - l_indices[pivot_index];
+        ensures  IsValidSystemTraceAndBehavior(config, htrace, hb);
+        ensures  SystemBehaviorRefinesSystemBehavior(lb, hb);
+        ensures  forall any_actor :: RestrictTraceToActor(ltrace, any_actor) == RestrictTraceToActor(htrace, any_actor);
+        ensures  |h_indices| == |l_indices|;
+        ensures  h_indices == GetTraceIndicesForActor(htrace, actor);
+        ensures  h_indices[pivot_index] == l_indices[pivot_index];
+        ensures  forall i {:trigger h_indices[i]} :: left_index_to_move <= i <= right_index_to_move ==> i - pivot_index == h_indices[i] - h_indices[pivot_index];
+        decreases (right_index_to_move - right_index_already_in_place) + (left_index_already_in_place - left_index_to_move), 0;
+    {
+        assert l_indices[left_index_already_in_place-1] < l_indices[left_index_already_in_place];
+        forall trace_index | l_indices[left_index_already_in_place-1] < trace_index <= l_indices[left_index_already_in_place]-1
+            ensures ltrace[trace_index].actor != ltrace[l_indices[left_index_already_in_place-1]].actor;
+        {
+            var j := left_index_already_in_place-1;
+            assert l_indices[j] < trace_index < l_indices[j+1];
+        }
+
+        var cur_pos := l_indices[left_index_already_in_place-1];
+        var desired_pos := l_indices[left_index_already_in_place]-1;
+
+        lemma_CorrespondenceBetweenGetTraceIndicesAndRestrictTraces(ltrace, actor);
+        assert atrace[left_index_already_in_place-1] == ltrace[l_indices[left_index_already_in_place-1]];
+        assert EntryIsRightMover(atrace[left_index_already_in_place-1]);
+
+        var mtrace, mb := lemma_MoveRightMoverIntoPlace(config, ltrace, lb, cur_pos, desired_pos);
+        var m_indices := l_indices[left_index_already_in_place-1 := l_indices[left_index_already_in_place]-1];
+
+        lemma_MoveTraceElementRightProperties(ltrace, mtrace, actor, atrace, l_indices, m_indices, left_index_already_in_place-1, cur_pos, desired_pos);
+        h_indices, htrace, hb := lemma_MakeActionsForActorAdjacent(config, mtrace, mb, actor, atrace, m_indices, pivot_index, left_index_to_move, right_index_to_move, left_index_already_in_place - 1, right_index_already_in_place);
+        lemma_SystemSystemRefinementConvolutionPure(lb, mb, hb);
+    }
+
+    lemma lemma_MakeActionsForActorAdjacentByMovingRightIndexAlreadyInPlaceRight(
+        config:Config,
+        ltrace:Trace,
+        lb:SystemBehavior,
+        actor:Actor,
+        atrace:seq<Entry>,
+        l_indices:seq<int>,
+        pivot_index:int,
+        left_index_to_move:int,
+        right_index_to_move:int,
+        left_index_already_in_place:int,
+        right_index_already_in_place:int
+        ) returns (
+        h_indices:seq<int>,
+        htrace:Trace,
+        hb:SystemBehavior
+        )
+        requires IsValidSystemTraceAndBehavior(config, ltrace, lb);
+        requires atrace == RestrictTraceToActor(ltrace, actor);
+        requires l_indices == GetTraceIndicesForActor(ltrace, actor);
+        requires |atrace| == |l_indices|;
+        requires 0 <= left_index_to_move <= left_index_already_in_place <= pivot_index <= right_index_already_in_place < right_index_to_move < |atrace|;
+        requires forall i {:trigger EntryIsRightMover(atrace[i])} :: left_index_to_move <= i < pivot_index ==> EntryIsRightMover(atrace[i]);
+        requires forall i {:trigger EntryIsLeftMover(atrace[i])} :: pivot_index < i <= right_index_to_move ==> EntryIsLeftMover(atrace[i]);
+        requires forall i {:trigger l_indices[i]} :: left_index_already_in_place <= i <= right_index_already_in_place ==> i - pivot_index == l_indices[i] - l_indices[pivot_index];
+        ensures  IsValidSystemTraceAndBehavior(config, htrace, hb);
+        ensures  SystemBehaviorRefinesSystemBehavior(lb, hb);
+        ensures  forall any_actor :: RestrictTraceToActor(ltrace, any_actor) == RestrictTraceToActor(htrace, any_actor);
+        ensures  |h_indices| == |l_indices|;
+        ensures  h_indices == GetTraceIndicesForActor(htrace, actor);
+        ensures  h_indices[pivot_index] == l_indices[pivot_index];
+        ensures  forall i {:trigger h_indices[i]} :: left_index_to_move <= i <= right_index_to_move ==> i - pivot_index == h_indices[i] - h_indices[pivot_index];
+        decreases (right_index_to_move - right_index_already_in_place) + (left_index_already_in_place - left_index_to_move), 0;
+    {
+        assert l_indices[right_index_already_in_place+1] > l_indices[right_index_already_in_place];
+        forall trace_index | l_indices[right_index_already_in_place] < trace_index <= l_indices[right_index_already_in_place+1]-1
+            ensures ltrace[trace_index].actor != ltrace[l_indices[right_index_already_in_place]].actor;
+        {
+        }
+
+        var cur_pos := l_indices[right_index_already_in_place+1];
+        var desired_pos := l_indices[right_index_already_in_place]+1;
+
+        lemma_CorrespondenceBetweenGetTraceIndicesAndRestrictTraces(ltrace, actor);
+        assert atrace[right_index_already_in_place+1] == ltrace[l_indices[right_index_already_in_place+1]];
+        assert EntryIsLeftMover(atrace[right_index_already_in_place+1]);
+
+        var mtrace, mb := lemma_MoveLeftMoverIntoPlace(config, ltrace, lb, cur_pos, desired_pos);
+        var m_indices := l_indices[right_index_already_in_place+1 := l_indices[right_index_already_in_place]+1];
+
+        lemma_MoveTraceElementLeftProperties(ltrace, mtrace, actor, atrace, l_indices, m_indices, right_index_already_in_place+1, cur_pos, desired_pos);
+        h_indices, htrace, hb := lemma_MakeActionsForActorAdjacent(config, mtrace, mb, actor, atrace, m_indices, pivot_index, left_index_to_move, right_index_to_move, left_index_already_in_place, right_index_already_in_place + 1);
+        lemma_SystemSystemRefinementConvolutionPure(lb, mb, hb);
+    }
 
     lemma lemma_MakeActionsForActorAdjacent(
         config:Config,
@@ -267,440 +591,43 @@ module ReductionMoveModule
         lb:SystemBehavior,
         actor:Actor,
         atrace:seq<Entry>,
-        indices:seq<int>,
+        l_indices:seq<int>,
         pivot_index:int,
         left_index_to_move:int,
         right_index_to_move:int,
         left_index_already_in_place:int,
         right_index_already_in_place:int
         ) returns (
-        indices':seq<int>,
-        mtrace:Trace,
-        mb:SystemBehavior
+        h_indices:seq<int>,
+        htrace:Trace,
+        hb:SystemBehavior
         )
         requires IsValidSystemTraceAndBehavior(config, ltrace, lb);
         requires atrace == RestrictTraceToActor(ltrace, actor);
-        requires indices == GetTraceIndicesForActor(ltrace, actor);
-        requires |atrace| == |indices|;
+        requires l_indices == GetTraceIndicesForActor(ltrace, actor);
+        requires |atrace| == |l_indices|;
         requires 0 <= left_index_to_move <= left_index_already_in_place <= pivot_index <= right_index_already_in_place <= right_index_to_move < |atrace|;
         requires forall i {:trigger EntryIsRightMover(atrace[i])} :: left_index_to_move <= i < pivot_index ==> EntryIsRightMover(atrace[i]);
         requires forall i {:trigger EntryIsLeftMover(atrace[i])} :: pivot_index < i <= right_index_to_move ==> EntryIsLeftMover(atrace[i]);
-        requires forall i {:trigger indices[i]} :: left_index_already_in_place <= i <= right_index_already_in_place ==> i - pivot_index == indices[i] - indices[pivot_index];
-        ensures  IsValidSystemTraceAndBehavior(config, mtrace, mb);
-        ensures  SystemBehaviorRefinesSystemBehavior(lb, mb);
-        ensures  forall any_actor :: RestrictTraceToActor(ltrace, any_actor) == RestrictTraceToActor(mtrace, any_actor);
-        ensures  |indices'| == |indices|;
-        ensures  indices' == GetTraceIndicesForActor(mtrace, actor);
-        ensures  indices'[pivot_index] == indices[pivot_index];
-        ensures  forall i {:trigger indices'[i]} :: left_index_to_move <= i <= right_index_to_move ==> i - pivot_index == indices'[i] - indices'[pivot_index];
+        requires forall i {:trigger l_indices[i]} :: left_index_already_in_place <= i <= right_index_already_in_place ==> i - pivot_index == l_indices[i] - l_indices[pivot_index];
+        ensures  IsValidSystemTraceAndBehavior(config, htrace, hb);
+        ensures  SystemBehaviorRefinesSystemBehavior(lb, hb);
+        ensures  forall any_actor :: RestrictTraceToActor(ltrace, any_actor) == RestrictTraceToActor(htrace, any_actor);
+        ensures  |h_indices| == |l_indices|;
+        ensures  h_indices == GetTraceIndicesForActor(htrace, actor);
+        ensures  h_indices[pivot_index] == l_indices[pivot_index];
+        ensures  forall i {:trigger h_indices[i]} :: left_index_to_move <= i <= right_index_to_move ==> i - pivot_index == h_indices[i] - h_indices[pivot_index];
+        decreases (right_index_to_move - right_index_already_in_place) + (left_index_already_in_place - left_index_to_move), 1
     {
         if left_index_to_move < left_index_already_in_place {
-            assume false;
+            h_indices, htrace, hb := lemma_MakeActionsForActorAdjacentByMovingLeftIndexAlreadyInPlaceLeft(config, ltrace,lb, actor, atrace, l_indices, pivot_index, left_index_to_move, right_index_to_move, left_index_already_in_place, right_index_already_in_place);
         }
         else if right_index_to_move > right_index_already_in_place {
-            assume false;
+            h_indices, htrace, hb := lemma_MakeActionsForActorAdjacentByMovingRightIndexAlreadyInPlaceRight(config, ltrace,lb, actor, atrace, l_indices, pivot_index, left_index_to_move, right_index_to_move, left_index_already_in_place, right_index_already_in_place);
         }
         else {
-            indices' := indices;
-            mtrace := ltrace;
-            mb := lb;
+            h_indices, htrace, hb := l_indices, ltrace, lb;
             lemma_SystemBehaviorRefinesItself(lb);
         }
     }
-
-/*
-
-    function RepeatSpecState(s:SpecState, n:int) : seq<SpecState>
-        requires n >= 0;
-        ensures  var r := RepeatSpecState(s, n); |r| == n && forall i :: 0 <= i < n ==> r[i] == s;
-    {
-        if n == 0 then [] else [s] + RepeatSpecState(s, n-1)
-    }
-
-    lemma lemma_AddStuttersForReductionStepHelper1(
-        trace:Trace,
-        db:seq<SystemState>,
-        begin_entry_pos:int,
-        end_entry_pos:int,
-        group:seq<Entry>,
-        pivot_index:int,
-        trace':Trace,
-        db':seq<SystemState>,
-        sb':seq<SpecState>,
-        sb:seq<SpecState>,
-        i:int
-        )
-        requires IsValidSystemTraceAndBehavior(trace, db);
-        requires 0 <= begin_entry_pos < end_entry_pos < |trace|;
-        requires group == trace[begin_entry_pos .. end_entry_pos+1];
-        requires EntryGroupValid(group);
-        requires group == RestrictEntriesToLevel(group, group[0].begin_group_level);
-        requires EntriesReducibleUsingPivot(group);
-        requires pivot_index == last(group).pivot_index;
-        requires IsValidSystemTraceAndBehavior(trace', db');
-        requires SystemBehaviorRefinesSpecBehavior(db', sb');
-        requires trace' == trace[..begin_entry_pos] + [last(group).reduced_entry] + trace[end_entry_pos+1 ..];
-        requires db' == db[..begin_entry_pos+1] + db[end_entry_pos+1 ..];
-        requires sb ==   sb'[..begin_entry_pos]
-                       + RepeatSpecState(sb'[begin_entry_pos], pivot_index + 1)
-                       + RepeatSpecState(sb'[begin_entry_pos+1], end_entry_pos - begin_entry_pos - pivot_index + 1)
-                       + sb'[begin_entry_pos+2..];
-        requires 0 <= i <= begin_entry_pos + pivot_index;
-
-        ensures  SpecCorrespondence(db[i], sb[i]);
-    {
-        lemma_ConcatenationOf4Sequences(sb'[..begin_entry_pos],
-                                        RepeatSpecState(sb'[begin_entry_pos], pivot_index + 1),
-                                        RepeatSpecState(sb'[begin_entry_pos+1], end_entry_pos - begin_entry_pos - pivot_index + 1),
-                                        sb'[begin_entry_pos+2..]);
-
-        if i <= begin_entry_pos {
-            assert db'[i] == db[i];
-            assert sb'[i] == sb[i];
-            assert SpecCorrespondence(db'[i], sb'[i]);
-            return;
-        }
-
-        assert i > 0;
-        var ss := sb'[begin_entry_pos];
-
-        lemma_AddStuttersForReductionStepHelper1(trace, db, begin_entry_pos, end_entry_pos, group, pivot_index, trace', db', sb', sb, i-1);
-
-        var k := i - 1;
-        var j := k - begin_entry_pos;
-        assert j >= 0;
-
-        lemma_ElementFromSequenceSlice(trace, group, begin_entry_pos, end_entry_pos+1, k);
-        assert trace[k] == group[j];
-        assert EntryIsRightMover(trace[k]);
-        lemma_RightMoverForwardPreservation(trace[k], db[k], db[k+1], sb[k]);
-        assert SpecCorrespondence(db[k+1], sb[k]);
-        assert k+1 == i;
-        assert sb[i-1] == sb[i];
-        assert SpecCorrespondence(db[i], sb[i]);
-    }
-
-    lemma {:timeLimitMultiplier 2} lemma_AddStuttersForReductionStepHelper2(
-        trace:Trace,
-        db:seq<SystemState>,
-        begin_entry_pos:int,
-        end_entry_pos:int,
-        group:seq<Entry>,
-        pivot_index:int,
-        trace':Trace,
-        db':seq<SystemState>,
-        sb':seq<SpecState>,
-        sb:seq<SpecState>,
-        i:int
-        )
-        requires IsValidSystemTraceAndBehavior(trace, db);
-        requires 0 <= begin_entry_pos < end_entry_pos < |trace|;
-        requires group == trace[begin_entry_pos .. end_entry_pos+1];
-        requires EntryGroupValid(group);
-        requires group == RestrictEntriesToLevel(group, group[0].begin_group_level);
-        requires EntriesReducibleUsingPivot(group);
-        requires pivot_index == last(group).pivot_index;
-        requires IsValidSystemTraceAndBehavior(trace', db');
-        requires SystemBehaviorRefinesSpecBehavior(db', sb');
-        requires trace' == trace[..begin_entry_pos] + [last(group).reduced_entry] + trace[end_entry_pos+1 ..];
-        requires db' == db[..begin_entry_pos+1] + db[end_entry_pos+1 ..];
-        requires sb ==   sb'[..begin_entry_pos]
-                       + RepeatSpecState(sb'[begin_entry_pos], pivot_index + 1)
-                       + RepeatSpecState(sb'[begin_entry_pos+1], end_entry_pos - begin_entry_pos - pivot_index + 1)
-                       + sb'[begin_entry_pos+2..];
-        requires begin_entry_pos + pivot_index < i < |sb|;
-
-        ensures  SpecCorrespondence(db[i], sb[i]);
-        decreases |sb| - i;
-    {
-        if i >= end_entry_pos + 2 {
-            assert |sb| == |sb'| + end_entry_pos - begin_entry_pos;
-            calc {
-                sb[i];
-                    { assert end_entry_pos + 2 == |sb'[..begin_entry_pos]|
-                        + |RepeatSpecState(sb'[begin_entry_pos], pivot_index + 1)|
-                        + |RepeatSpecState(sb'[begin_entry_pos+1], end_entry_pos - begin_entry_pos - pivot_index + 1)|; }
-                    { lemma_ConcatenationOf4Sequences(sb'[..begin_entry_pos],
-                                                      RepeatSpecState(sb'[begin_entry_pos], pivot_index + 1),
-                                                      RepeatSpecState(sb'[begin_entry_pos+1], end_entry_pos - begin_entry_pos - pivot_index + 1),
-                                                      sb'[begin_entry_pos+2..]); }
-                sb'[begin_entry_pos+2..][i - (end_entry_pos + 2)];
-                    { assert i - (end_entry_pos - begin_entry_pos) - (begin_entry_pos + 2) == i - (end_entry_pos + 2); }
-                sb'[begin_entry_pos+2..][i - (end_entry_pos - begin_entry_pos) - (begin_entry_pos + 2)];
-                    { lemma_ElementFromSequenceSuffix(sb', sb'[begin_entry_pos+2..], begin_entry_pos+2, i - (end_entry_pos - begin_entry_pos)); }
-                sb'[i-(end_entry_pos-begin_entry_pos)];
-            }
-            return;
-        }
-        if i == end_entry_pos + 1 {
-            return;
-        }
-
-        assert |db| == |sb|;
-        var ss := sb'[begin_entry_pos];
-        var ss' := sb'[begin_entry_pos+1];
-
-        lemma_AddStuttersForReductionStepHelper2(trace, db, begin_entry_pos, end_entry_pos, group, pivot_index, trace', db', sb', sb, i+1);
-
-        if begin_entry_pos + pivot_index < i < end_entry_pos + 1 {
-            lemma_ElementFromSequenceSlice(trace, group, begin_entry_pos, end_entry_pos+1, i);
-            assert trace[i] == group[i - begin_entry_pos];
-            assert EntryIsLeftMover(trace[i]);
-            lemma_LeftMoverBackwardPreservation(trace[i], db[i], db[i+1], sb[i+1]);
-        } else {
-            assert SpecCorrespondence(db[i], sb[i]);
-        }       
-        assert sb[i] == ss';
-        assert sb[i+1] == ss';
-    }
-
-    lemma {:timeLimitMultiplier 2} lemma_AddStuttersForReductionStepHelper3(
-        begin_entry_pos:int,
-        end_entry_pos:int,
-        pivot_index:int,
-        sb':seq<SpecState>,
-        sb:seq<SpecState>,
-        i:int
-        )
-        requires |sb| == |sb'| + end_entry_pos - begin_entry_pos;
-        requires 0 <= pivot_index <= end_entry_pos - begin_entry_pos;
-        requires 0 <= begin_entry_pos < end_entry_pos < |sb| - 1;
-        requires IsValidSpecBehavior(sb');
-        requires sb ==   sb'[..begin_entry_pos]
-                       + RepeatSpecState(sb'[begin_entry_pos], pivot_index + 1)
-                       + RepeatSpecState(sb'[begin_entry_pos+1], end_entry_pos - begin_entry_pos - pivot_index + 1)
-                       + sb'[begin_entry_pos+2..];
-        requires 0 <= i < |sb| - 1;
-        ensures  SpecNext(sb[i], sb[i+1]) || sb[i] == sb[i+1];
-    {
-        var ss := sb'[begin_entry_pos];
-        var ss' := sb'[begin_entry_pos+1];
-        assert SpecNext(ss, ss') || ss == ss';
-
-        lemma_ConcatenationOf4Sequences(sb'[..begin_entry_pos],
-                                        RepeatSpecState(sb'[begin_entry_pos], pivot_index + 1),
-                                        RepeatSpecState(sb'[begin_entry_pos+1], end_entry_pos - begin_entry_pos - pivot_index + 1),
-                                        sb'[begin_entry_pos+2..]);
-
-        if 0 <= i < begin_entry_pos - 1 {
-            lemma_ElementFromSequencePrefix(sb', sb'[..begin_entry_pos], begin_entry_pos, i);
-            lemma_ElementFromSequencePrefix(sb', sb'[..begin_entry_pos], begin_entry_pos, i+1);
-            assert sb[i] == sb'[i];
-            assert sb[i+1] == sb'[i+1];
-            assert SpecNext(sb[i], sb[i+1]) || sb[i] == sb[i+1];
-        }
-        else if i == begin_entry_pos - 1 {
-            assert i >= 0;
-            lemma_ElementFromSequencePrefix(sb', sb'[..begin_entry_pos], begin_entry_pos, i);
-            assert sb[i] == sb'[i];
-            assert sb[i+1] == sb'[begin_entry_pos] == sb'[i+1];
-            assert SpecNext(sb[i], sb[i+1]) || sb[i] == sb[i+1];
-        }
-        else if begin_entry_pos <= i < begin_entry_pos + pivot_index {
-            assert |sb'[..begin_entry_pos]| <= i < begin_entry_pos + pivot_index + 1 == |sb'[..begin_entry_pos]| + |RepeatSpecState(ss, pivot_index+1)|;
-            assert |sb'[..begin_entry_pos]| <= i + 1 < |sb'[..begin_entry_pos]| + |RepeatSpecState(ss, pivot_index+1)|;
-            assert sb[i] == ss;
-            assert sb[i+1] == ss;
-        }
-        else if i == begin_entry_pos + pivot_index {
-            assert sb[i] == ss;
-            assert sb[i+1] == ss';
-            assert SpecNext(sb[i], sb[i+1]) || sb[i] == sb[i+1];
-        }
-        else if begin_entry_pos + pivot_index < i <= end_entry_pos {
-            assert |sb'[..begin_entry_pos]| + |RepeatSpecState(ss, pivot_index+1)| <= i < |sb'[..begin_entry_pos]| + |RepeatSpecState(ss, pivot_index+1)| + |RepeatSpecState(ss', end_entry_pos - begin_entry_pos - pivot_index + 1)|;
-            assert |sb'[..begin_entry_pos]| + |RepeatSpecState(ss, pivot_index+1)| <= i + 1 < |sb'[..begin_entry_pos]| + |RepeatSpecState(ss, pivot_index+1)| + |RepeatSpecState(ss', end_entry_pos - begin_entry_pos - pivot_index + 1)|;
-            assert i > begin_entry_pos + pivot_index;
-            assert sb[i] == ss';
-            assert sb[i+1] == ss';
-        }
-        else if i == end_entry_pos + 1 {
-            assert |sb'[..begin_entry_pos]| + |RepeatSpecState(ss, pivot_index+1)| <= i < |sb'[..begin_entry_pos]| + |RepeatSpecState(ss, pivot_index+1)| + |RepeatSpecState(ss', end_entry_pos - begin_entry_pos - pivot_index + 1)|;
-            assert sb[i] == ss' == sb'[begin_entry_pos+1];
-            assert |sb'[..begin_entry_pos]| + |RepeatSpecState(ss, pivot_index+1)| + |RepeatSpecState(ss', end_entry_pos - begin_entry_pos - pivot_index + 1)| <= i + 1;
-            assert sb[i+1] == sb'[begin_entry_pos+2];
-            assert SpecNext(sb'[begin_entry_pos+1], sb'[begin_entry_pos+1+1]) || sb'[begin_entry_pos+1] == sb'[begin_entry_pos+1+1];
-            assert SpecNext(sb[i], sb[i+1]) || sb[i] == sb[i+1];
-        }
-        else {
-            assert end_entry_pos + 2 == |sb'[..begin_entry_pos]| + |RepeatSpecState(ss, pivot_index+1)| + |RepeatSpecState(ss', end_entry_pos - begin_entry_pos - pivot_index + 1)| <= i < i + 1;
-            calc {
-                sb[i];
-                sb'[begin_entry_pos+2..][i - (end_entry_pos + 2)];
-                    { assert i - (end_entry_pos - begin_entry_pos) - (begin_entry_pos + 2) == i - (end_entry_pos + 2); }
-                sb'[begin_entry_pos+2..][i - (end_entry_pos - begin_entry_pos) - (begin_entry_pos + 2)];
-                    { lemma_ElementFromSequenceSuffix(sb', sb'[begin_entry_pos+2..], begin_entry_pos+2, i - (end_entry_pos - begin_entry_pos)); }
-                sb'[i-(end_entry_pos-begin_entry_pos)];
-            }
-            assert sb[i+1] == sb'[i+1 - end_entry_pos + begin_entry_pos];
-            var j := i - end_entry_pos + begin_entry_pos;
-            assert SpecNext(sb'[j], sb'[j+1]) || sb'[j] == sb'[j+1];
-            assert SpecNext(sb[i], sb[i+1]) || sb[i] == sb[i+1];
-        }
-    }
-
-    lemma lemma_AddStuttersForReductionStep(
-        trace:Trace,
-        db:seq<SystemState>,
-        begin_entry_pos:int,
-        end_entry_pos:int,
-        group:seq<Entry>,
-        trace':Trace,
-        db':seq<SystemState>,
-        sb':seq<SpecState>
-        ) returns (
-        sb:seq<SpecState>
-        )
-        requires IsValidSystemTraceAndBehavior(trace, db);
-        requires 0 <= begin_entry_pos < end_entry_pos < |trace|;
-        requires group == trace[begin_entry_pos .. end_entry_pos+1];
-        requires EntryGroupValid(group);
-        requires group == RestrictEntriesToLevel(group, group[0].begin_group_level);
-        requires EntriesReducibleUsingPivot(group);
-        requires IsValidSystemTraceAndBehavior(trace', db');
-        requires SystemBehaviorRefinesSpecBehavior(db', sb');
-        requires trace' == trace[..begin_entry_pos] + [last(group).reduced_entry] + trace[end_entry_pos+1 ..];
-        requires db' == db[..begin_entry_pos+1] + db[end_entry_pos+1 ..];
-
-        ensures  SystemBehaviorRefinesSpecBehavior(db, sb);
-        ensures  forall i :: begin_entry_pos <= i <= end_entry_pos && i != begin_entry_pos + last(group).pivot_index ==> sb[i] == sb[i+1];
-    {
-        var pivot_index := last(group).pivot_index;
-        var entries := trace[begin_entry_pos+1 .. end_entry_pos];
-        var ss := sb'[begin_entry_pos];
-        var ss' := sb'[begin_entry_pos+1];
-
-        sb := sb'[..begin_entry_pos] + RepeatSpecState(ss, pivot_index + 1) + RepeatSpecState(ss', end_entry_pos - begin_entry_pos - pivot_index + 1) + sb'[begin_entry_pos+2..];
-
-        lemma_ConcatenationOf4Sequences(sb'[..begin_entry_pos],
-                                        RepeatSpecState(ss, pivot_index + 1),
-                                        RepeatSpecState(ss', end_entry_pos - begin_entry_pos - pivot_index + 1),
-                                        sb'[begin_entry_pos+2..]);
-        assert |sb| == |sb'| + |entries| + 1 == |db|;
-
-        forall i | begin_entry_pos <= i <= end_entry_pos && i != begin_entry_pos + pivot_index
-            ensures sb[i] == sb[i+1];
-        {
-            if i == begin_entry_pos {
-                assert sb[i] == ss;
-                assert sb[i+1] == ss;
-            }
-            else if i < begin_entry_pos + pivot_index {
-                assert |sb'[..begin_entry_pos]| <= i < begin_entry_pos + pivot_index + 1 == |sb'[..begin_entry_pos]| + |RepeatSpecState(ss, pivot_index+1)|;
-                assert sb[i] == RepeatSpecState(ss, pivot_index + 1)[i - begin_entry_pos];
-                assert sb[i] == ss;
-                assert |sb'[..begin_entry_pos]| <= i + 1 < begin_entry_pos + pivot_index + 1 == |sb'[..begin_entry_pos]| + |RepeatSpecState(ss, pivot_index+1)|;
-                assert sb[i+1] == ss;
-            }
-            else {
-                assert |sb'[..begin_entry_pos]| + |RepeatSpecState(ss, pivot_index+1)| <= i < i + 1 < |sb'[..begin_entry_pos]| + |RepeatSpecState(ss, pivot_index+1)| + |RepeatSpecState(ss', end_entry_pos - begin_entry_pos - pivot_index + 1)|;
-                assert i > begin_entry_pos + pivot_index;
-                assert sb[i] == ss';
-                assert sb[i+1] == ss';
-            }
-        }
-
-        forall i | 0 <= i < |sb|
-            ensures SpecCorrespondence(db[i], sb[i]);
-        {
-            if i <= begin_entry_pos + pivot_index {
-                lemma_AddStuttersForReductionStepHelper1(trace, db, begin_entry_pos, end_entry_pos, group, pivot_index, trace', db', sb', sb, i);
-            } else {
-                lemma_AddStuttersForReductionStepHelper2(trace, db, begin_entry_pos, end_entry_pos, group, pivot_index, trace', db', sb', sb, i);
-            } 
-        }
-
-        forall i | 0 <= i < |sb| - 1
-            ensures SpecNext(sb[i], sb[i+1]) || sb[i] == sb[i+1];
-        {
-            lemma_AddStuttersForReductionStepHelper3(begin_entry_pos, end_entry_pos, pivot_index, sb', sb, i);
-        }
-    }
-
-    predicate SystemBehaviorRefinesSpecBehaviorWithConsecutiveNonPivotsAsStutters(
-        db:seq<SystemState>,
-        sb:seq<SpecState>,
-        begin_entry_pos:int,
-        end_entry_pos:int,
-        pivot_index:int
-        )
-    {
-           0 <= begin_entry_pos <= end_entry_pos < |sb|-1
-        && SystemBehaviorRefinesSpecBehavior(db, sb)
-        && forall i :: begin_entry_pos <= i <= end_entry_pos && i != begin_entry_pos + pivot_index ==> sb[i] == sb[i+1]
-    }
-
-    lemma lemma_PerformOneReductionStep(
-        trace:Trace,
-        db:seq<SystemState>,
-        actor:Actor,
-        level:int,
-        begin_entry_pos:int,
-        end_entry_pos:int,
-        group:seq<Entry>,
-        pivot_index:int
-        ) returns (
-        trace':Trace,
-        db':seq<SystemState>
-        )
-        requires IsValidSystemTraceAndBehavior(trace, db);
-        requires 0 <= begin_entry_pos < end_entry_pos < |trace|;
-        requires group == trace[begin_entry_pos .. end_entry_pos+1];
-        requires EntryGroupValid(group);
-        requires group == RestrictEntriesToLevel(group, group[0].begin_group_level);
-        requires forall i :: begin_entry_pos < i < end_entry_pos ==> trace[i].EntryAction?;
-        requires forall i :: begin_entry_pos <= i <= end_entry_pos ==> trace[i].actor == actor;
-        requires forall i :: begin_entry_pos <= i <= end_entry_pos ==> GetEntryLevel(trace[i]) == level;
-        requires EntriesReducibleUsingPivot(group);
-        requires EntriesReducibleToEntry(group, last(group).reduced_entry);
-        requires pivot_index == last(group).pivot_index;
-        ensures  IsValidSystemTraceAndBehavior(trace', db');
-        ensures  SystemBehaviorRefinesSpec(db')
-                 ==> exists sb :: SystemBehaviorRefinesSpecBehaviorWithConsecutiveNonPivotsAsStutters(db, sb, begin_entry_pos, end_entry_pos, pivot_index);
-        ensures  trace' == trace[..begin_entry_pos] + [last(group).reduced_entry] + trace[end_entry_pos+1 ..];
-    {
-        var reduced_entry := last(group).reduced_entry;
-        trace' := trace[..begin_entry_pos] + [reduced_entry] + trace[end_entry_pos+1 ..];
-        db' := db[..begin_entry_pos+1] + db[end_entry_pos+1 ..];
-
-        var tiny_db := db[begin_entry_pos .. end_entry_pos+2];
-        assert |tiny_db| == |group| + 1;
-        forall i {:trigger SystemNextEntry(tiny_db[i], tiny_db[i+1], group[i])} | 0 <= i < |tiny_db|-1
-            ensures SystemNextEntry(tiny_db[i], tiny_db[i+1], group[i]);
-        {
-            var j := i + begin_entry_pos;
-            lemma_ElementFromSequenceSlice(trace, group, begin_entry_pos, end_entry_pos+1, j);
-            assert trace[j] == group[j - begin_entry_pos] == group[i];
-            assert SystemNextEntry(db[j], db[j+1], trace[j]);
-            lemma_ElementFromSequenceSlice(db, tiny_db, begin_entry_pos, end_entry_pos+2, j);
-            assert db[j] == tiny_db[j - begin_entry_pos] == tiny_db[i];
-            lemma_ElementFromSequenceSlice(db, tiny_db, begin_entry_pos, end_entry_pos+2, j+1);
-            assert db[j+1] == tiny_db[j+1 - begin_entry_pos] == tiny_db[i+1];
-        }
-        assert EntriesReducibleToEntry(group, reduced_entry);
-        assert SystemNextEntry(tiny_db[0], tiny_db[|group|], reduced_entry);
-        assert SystemNextEntry(db'[begin_entry_pos], db'[begin_entry_pos+1], reduced_entry);
-
-        lemma_ConcatenationOf2Sequences(db[..begin_entry_pos+1], db[end_entry_pos+1..]);
-        lemma_ConcatenationOf3Sequences(trace[..begin_entry_pos], [last(group).reduced_entry], trace[end_entry_pos+1..]);
-        
-        forall i | 0 <= i < |trace'|
-            ensures SystemNextEntry(db'[i], db'[i+1], trace'[i]);
-        {
-            assert db'[i] == if i < begin_entry_pos+1 then db[i] else db[i + end_entry_pos - begin_entry_pos];
-            assert db'[i+1] == if i+1 < begin_entry_pos+1 then db[i+1] else db[i+1 + end_entry_pos - begin_entry_pos];
-            assert trace'[i] == if i < begin_entry_pos then trace[i] else if i == begin_entry_pos then reduced_entry else trace[i + end_entry_pos - begin_entry_pos];
-        }
-
-        assert IsValidSystemTraceAndBehavior(trace', db');
-
-        if SystemBehaviorRefinesSpec(db') {
-            var sb' :| SystemBehaviorRefinesSpecBehavior(db', sb');
-            var sb := lemma_AddStuttersForReductionStep(trace, db, begin_entry_pos, end_entry_pos, group, trace', db', sb');
-            assert SystemBehaviorRefinesSpecBehavior(db, sb);
-            assert forall i :: begin_entry_pos <= i <= end_entry_pos && i != begin_entry_pos + pivot_index ==> sb[i] == sb[i+1];
-            assert SystemBehaviorRefinesSpecBehaviorWithConsecutiveNonPivotsAsStutters(db, sb, begin_entry_pos, end_entry_pos, pivot_index);
-        }
-    }
-*/
 }

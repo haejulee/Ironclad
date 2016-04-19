@@ -219,7 +219,7 @@ module ReductionStepModule {
         actor:Actor,
         entry:Entry,
         atrace:seq<Entry>,
-        indices:seq<int>,
+        l_indices:seq<int>,
         prefix:seq<Entry>,
         suffix:seq<Entry>,
         entry_pos:int,
@@ -229,10 +229,10 @@ module ReductionStepModule {
         requires IsValidSystemTraceAndBehavior(config, ltrace, lb);
         requires actor in config.tracked_actors;
         requires atrace == RestrictTraceToActor(ltrace, actor);
-        requires indices == GetTraceIndicesForActor(ltrace, actor);
+        requires l_indices == GetTraceIndicesForActor(ltrace, actor);
         requires entry.actor == actor;
         requires atrace == prefix + suffix;
-        requires entry_pos == if |prefix| < |indices| then indices[|prefix|] else |ltrace|;
+        requires entry_pos == if |prefix| < |l_indices| then l_indices[|prefix|] else |ltrace|;
         requires |htrace| == |ltrace|+1;
         requires forall i {:trigger htrace[i]} :: 0 <= i <= |ltrace| ==> htrace[i] == (if i < entry_pos then ltrace[i] else if i == entry_pos then entry else ltrace[i-1]);
         requires |hb| == |lb|+1;
@@ -261,7 +261,7 @@ module ReductionStepModule {
 
         assert htrace == ltrace[..entry_pos] + [entry] + ltrace[entry_pos..];
         lemma_TraceIndicesForActor_length(ltrace, actor);
-        lemma_RestrictPrefixOfTraceToActor(ltrace, actor, atrace, indices, |prefix|, entry_pos);
+        lemma_RestrictPrefixOfTraceToActor(ltrace, actor, atrace, l_indices, |prefix|, entry_pos);
         assert RestrictTraceToActor(ltrace[..entry_pos], actor) == prefix;
 
         lemma_SplitRestrictTraceToActor(ltrace[..entry_pos], ltrace[entry_pos..], actor);
@@ -328,7 +328,7 @@ module ReductionStepModule {
         aplan' := lemma_UpdatePlanViaReduction(aplan, which_tree, tree, sub_tree, designator);
 
         var atrace := RestrictTraceToActor(ltrace, actor);
-        var indices := GetTraceIndicesForActor(ltrace, actor);
+        var l_indices := GetTraceIndicesForActor(ltrace, actor);
 
         var prefix := GetLeafEntriesForestPrefix(aplan.trees, which_tree, designator);
         var sub_tree_trace := GetLeafEntries(sub_tree);
@@ -346,7 +346,7 @@ module ReductionStepModule {
         var entry := sub_tree.reduced_entry;
         lemma_IfTreeOnlyForActorThenSubtreeIs(tree, designator, actor);
         assert entry.actor == actor;
-        var entry_pos := if |prefix| < |indices| then indices[|prefix|] else |ltrace|;
+        var entry_pos := if |prefix| < |l_indices| then l_indices[|prefix|] else |ltrace|;
 
         var trace_map := map i | 0 <= i <= |ltrace| :: if i < entry_pos then ltrace[i] else if i == entry_pos then entry else ltrace[i-1];
         htrace := ConvertMapToSeq(|ltrace|+1, trace_map);
@@ -389,7 +389,7 @@ module ReductionStepModule {
 
         // Call helper lemma to prove remaining needed properties.
 
-        lemma_ApplyReductionWithNoChildrenHelper(config, ltrace, lb, actor, entry, atrace, indices, prefix, suffix, entry_pos, htrace, hb);
+        lemma_ApplyReductionWithNoChildrenHelper(config, ltrace, lb, actor, entry, atrace, l_indices, prefix, suffix, entry_pos, htrace, hb);
     }
 
     lemma lemma_ApplyReductionWithChildrenHelper1(
@@ -407,18 +407,18 @@ module ReductionStepModule {
         first_replaced_entry_pos:int,
         last_replaced_entry_pos:int,
         pivot_index:int,
-        indices':seq<int>,
+        m_indices:seq<int>,
         entry:Entry
         )
         requires IsValidSystemTraceAndBehavior(config, mtrace, mb);
-        requires indices' == GetTraceIndicesForActor(mtrace, actor);
+        requires m_indices == GetTraceIndicesForActor(mtrace, actor);
         requires atrace == RestrictTraceToActor(mtrace, actor);
-        requires |atrace| == |indices'|;
-        requires 0 <= left_index_to_move <= right_index_to_move < |indices'|;
+        requires |atrace| == |m_indices|;
+        requires 0 <= left_index_to_move <= right_index_to_move < |m_indices|;
         requires GetLeafEntries(sub_tree) == atrace[left_index_to_move .. right_index_to_move + 1];
         requires right_index_to_move == left_index_to_move + |sub_tree_trace| - 1;
-        requires first_replaced_entry_pos == indices'[left_index_to_move];
-        requires last_replaced_entry_pos == indices'[right_index_to_move];
+        requires first_replaced_entry_pos == m_indices[left_index_to_move];
+        requires last_replaced_entry_pos == m_indices[right_index_to_move];
         requires left_index_to_move <= pivot_index <= right_index_to_move;
         requires TreeValid(sub_tree);
         requires sub_tree.Inner?;
@@ -429,7 +429,7 @@ module ReductionStepModule {
         requires forall i {:trigger htrace[i]} :: 0 <= i < |htrace| ==> htrace[i] == (if i < first_replaced_entry_pos then mtrace[i] else if i == first_replaced_entry_pos then entry else mtrace[i+|sub_tree_trace|-1]);
         requires |hb| == |mb| - |sub_tree_trace| + 1;
         requires forall i {:trigger hb[i]} :: 0 <= i < |hb| ==> hb[i] == (if i <= first_replaced_entry_pos then mb[i] else mb[i+|sub_tree_trace|-1]);
-        requires forall i {:trigger indices'[i]} :: left_index_to_move <= i <= right_index_to_move ==> i - pivot_index == indices'[i] - indices'[pivot_index];
+        requires forall i {:trigger m_indices[i]} :: left_index_to_move <= i <= right_index_to_move ==> i - pivot_index == m_indices[i] - m_indices[pivot_index];
         ensures  IsValidSystemTraceAndBehavior(config, htrace, hb);
         ensures  |sub_tree.children| == last_replaced_entry_pos - first_replaced_entry_pos + 1;
         ensures  forall i {:trigger mtrace[i]} :: first_replaced_entry_pos <= i <= last_replaced_entry_pos ==> mtrace[i] == sub_tree.children[i - first_replaced_entry_pos].entry;
@@ -443,16 +443,16 @@ module ReductionStepModule {
             var idx := i - first_replaced_entry_pos + left_index_to_move;
             assert left_index_to_move <= idx <= right_index_to_move;
             calc {
-                indices'[idx];
-                indices'[pivot_index] - pivot_index + idx;
-                indices'[left_index_to_move] - left_index_to_move + idx;
+                m_indices[idx];
+                m_indices[pivot_index] - pivot_index + idx;
+                m_indices[left_index_to_move] - left_index_to_move + idx;
                 first_replaced_entry_pos - left_index_to_move + idx;
                 i;
             }
 
             calc {
                 mtrace[i];
-                mtrace[indices'[idx]];
+                mtrace[m_indices[idx]];
                     { lemma_CorrespondenceBetweenGetTraceIndicesAndRestrictTraces(mtrace, actor); }
                 atrace[idx];
             }
@@ -496,7 +496,7 @@ module ReductionStepModule {
         actor:Actor,
         entry:Entry,
         atrace:seq<Entry>,
-        indices:seq<int>,
+        l_indices:seq<int>,
         sub_tree:Tree,
         prefix:seq<Entry>,
         sub_tree_trace:seq<Entry>,
@@ -511,8 +511,8 @@ module ReductionStepModule {
         requires IsValidSystemTraceAndBehavior(config, mtrace, mb);
         requires actor in config.tracked_actors;
         requires atrace == RestrictTraceToActor(mtrace, actor);
-        requires indices == GetTraceIndicesForActor(mtrace, actor);
-        requires |atrace| == |indices|;
+        requires l_indices == GetTraceIndicesForActor(mtrace, actor);
+        requires |atrace| == |l_indices|;
         requires entry.actor == actor;
         requires TreeValid(sub_tree);
         requires sub_tree.Inner?;
@@ -520,12 +520,12 @@ module ReductionStepModule {
         requires forall c :: c in sub_tree.children ==> c.Leaf?;
         requires sub_tree_trace == GetLeafEntries(sub_tree);
         requires atrace == prefix + sub_tree_trace + suffix;
-        requires 0 <= left_index_to_move <= right_index_to_move < |indices|;
+        requires 0 <= left_index_to_move <= right_index_to_move < |l_indices|;
         requires GetLeafEntries(sub_tree) == atrace[left_index_to_move .. right_index_to_move + 1];
         requires left_index_to_move == |prefix|;
         requires right_index_to_move == left_index_to_move + |sub_tree_trace| - 1;
-        requires first_replaced_entry_pos == indices[left_index_to_move];
-        requires last_replaced_entry_pos == indices[right_index_to_move];
+        requires first_replaced_entry_pos == l_indices[left_index_to_move];
+        requires last_replaced_entry_pos == l_indices[right_index_to_move];
         requires 0 <= first_replaced_entry_pos <= last_replaced_entry_pos < |mtrace|;
         requires last_replaced_entry_pos == first_replaced_entry_pos + |sub_tree_trace| - 1;
         requires |htrace| == |mtrace| - |sub_tree_trace| + 1;
@@ -622,7 +622,7 @@ module ReductionStepModule {
         actor:Actor,
         entry:Entry,
         atrace:seq<Entry>,
-        indices:seq<int>,
+        l_indices:seq<int>,
         sub_tree:Tree,
         prefix:seq<Entry>,
         sub_tree_trace:seq<Entry>,
@@ -637,8 +637,8 @@ module ReductionStepModule {
         requires IsValidSystemTraceAndBehavior(config, mtrace, mb);
         requires actor in config.tracked_actors;
         requires atrace == RestrictTraceToActor(mtrace, actor);
-        requires indices == GetTraceIndicesForActor(mtrace, actor);
-        requires |atrace| == |indices|;
+        requires l_indices == GetTraceIndicesForActor(mtrace, actor);
+        requires |atrace| == |l_indices|;
         requires entry.actor == actor;
         requires TreeValid(sub_tree);
         requires sub_tree.Inner?;
@@ -647,12 +647,12 @@ module ReductionStepModule {
         requires sub_tree_trace == GetLeafEntries(sub_tree);
         requires TreeOnlyForActor(sub_tree, actor);
         requires atrace == prefix + sub_tree_trace + suffix;
-        requires 0 <= left_index_to_move <= right_index_to_move < |indices|;
+        requires 0 <= left_index_to_move <= right_index_to_move < |l_indices|;
         requires GetLeafEntries(sub_tree) == atrace[left_index_to_move .. right_index_to_move + 1];
         requires left_index_to_move == |prefix|;
         requires right_index_to_move == left_index_to_move + |sub_tree_trace| - 1;
-        requires first_replaced_entry_pos == indices[left_index_to_move];
-        requires last_replaced_entry_pos == indices[right_index_to_move];
+        requires first_replaced_entry_pos == l_indices[left_index_to_move];
+        requires last_replaced_entry_pos == l_indices[right_index_to_move];
         requires 0 <= first_replaced_entry_pos <= last_replaced_entry_pos < |mtrace|;
         requires last_replaced_entry_pos == first_replaced_entry_pos + |sub_tree_trace| - 1;
         requires |htrace| == |mtrace| - |sub_tree_trace| + 1;
@@ -668,7 +668,7 @@ module ReductionStepModule {
 
         assert htrace == mtrace[..first_replaced_entry_pos] + [entry] + mtrace[last_replaced_entry_pos+1..];
         lemma_TraceIndicesForActor_length(mtrace, actor);
-        lemma_RestrictPrefixOfTraceToActor(mtrace, actor, atrace, indices, |prefix|, first_replaced_entry_pos);
+        lemma_RestrictPrefixOfTraceToActor(mtrace, actor, atrace, l_indices, |prefix|, first_replaced_entry_pos);
         assert RestrictTraceToActor(mtrace[..first_replaced_entry_pos], actor) == prefix;
 
         lemma_Split3RestrictTraceToActor(mtrace[..first_replaced_entry_pos], mtrace[first_replaced_entry_pos..last_replaced_entry_pos+1], mtrace[last_replaced_entry_pos+1..], actor);
@@ -765,7 +765,7 @@ module ReductionStepModule {
         aplan' := lemma_UpdatePlanViaReduction(aplan, which_tree, tree, sub_tree, designator);
 
         var atrace := RestrictTraceToActor(ltrace, actor);
-        var indices := GetTraceIndicesForActor(ltrace, actor);
+        var l_indices := GetTraceIndicesForActor(ltrace, actor);
 
         var prefix := GetLeafEntriesForestPrefix(aplan.trees, which_tree, designator);
         var sub_tree_trace := GetLeafEntries(sub_tree);
@@ -789,10 +789,10 @@ module ReductionStepModule {
 
         lemma_RelationshipBetweenActorTraceAndTreeChildren(ltrace, actor, atrace, sub_tree, left_index_to_move, right_index_to_move);
 
-        var indices', mtrace, mb := lemma_MakeActionsForActorAdjacent(config, ltrace, lb, actor, atrace, indices, pivot_index, |prefix|, |prefix| + |sub_tree_trace| - 1, pivot_index, pivot_index);
+        var m_indices, mtrace, mb := lemma_MakeActionsForActorAdjacent(config, ltrace, lb, actor, atrace, l_indices, pivot_index, |prefix|, |prefix| + |sub_tree_trace| - 1, pivot_index, pivot_index);
 
-        var first_replaced_entry_pos := indices'[left_index_to_move];
-        var last_replaced_entry_pos := indices'[right_index_to_move];
+        var first_replaced_entry_pos := m_indices[left_index_to_move];
+        var last_replaced_entry_pos := m_indices[right_index_to_move];
         assert last_replaced_entry_pos == first_replaced_entry_pos + |sub_tree_trace| - 1;
         var trace_map := map i | 0 <= i <= |mtrace| - |sub_tree_trace| :: if i < first_replaced_entry_pos then mtrace[i] else if i == first_replaced_entry_pos then entry else mtrace[i+|sub_tree_trace|-1];
         htrace := ConvertMapToSeq(|mtrace| - |sub_tree_trace| + 1, trace_map);
@@ -801,7 +801,7 @@ module ReductionStepModule {
 
         // Prove IsValidSystemTraceAndBehavior(config, htrace, hb)
 
-        lemma_ApplyReductionWithChildrenHelper1(config, mtrace, mb, htrace, hb, actor, atrace, sub_tree, sub_tree_trace, left_index_to_move, right_index_to_move, first_replaced_entry_pos, last_replaced_entry_pos, pivot_index, indices', entry);
+        lemma_ApplyReductionWithChildrenHelper1(config, mtrace, mb, htrace, hb, actor, atrace, sub_tree, sub_tree_trace, left_index_to_move, right_index_to_move, first_replaced_entry_pos, last_replaced_entry_pos, pivot_index, m_indices, entry);
         assert IsValidSystemTraceAndBehavior(config, htrace, hb);
 
         // Prove TreesOnlyForActor(aplan'.trees, actor)
@@ -809,8 +809,8 @@ module ReductionStepModule {
         lemma_ReduceTreeForestPreservesTreesOnlyForActor(aplan.trees, which_tree, designator, aplan'.trees, actor);
 
         // Call helper lemmas to prove remaining needed properties.
-        lemma_ApplyReductionWithChildrenHelper2(config, mtrace, mb, actor, entry, atrace, indices', sub_tree, prefix, sub_tree_trace, suffix, left_index_to_move, right_index_to_move, first_replaced_entry_pos, last_replaced_entry_pos, htrace, hb);
-        lemma_ApplyReductionWithChildrenHelper3(config, mtrace, mb, actor, entry, atrace, indices', sub_tree, prefix, sub_tree_trace, suffix, left_index_to_move, right_index_to_move, first_replaced_entry_pos, last_replaced_entry_pos, htrace, hb);
+        lemma_ApplyReductionWithChildrenHelper2(config, mtrace, mb, actor, entry, atrace, m_indices, sub_tree, prefix, sub_tree_trace, suffix, left_index_to_move, right_index_to_move, first_replaced_entry_pos, last_replaced_entry_pos, htrace, hb);
+        lemma_ApplyReductionWithChildrenHelper3(config, mtrace, mb, actor, entry, atrace, m_indices, sub_tree, prefix, sub_tree_trace, suffix, left_index_to_move, right_index_to_move, first_replaced_entry_pos, last_replaced_entry_pos, htrace, hb);
         lemma_SystemSystemRefinementConvolutionPure(lb, mb, hb);
     }
 

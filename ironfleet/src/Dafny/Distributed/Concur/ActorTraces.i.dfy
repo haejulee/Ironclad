@@ -385,7 +385,7 @@ module ActorTraces
         }
     }
 
-    lemma {:timeLimitMultiplier 2} lemma_RestrictTraceToActorSeqSliceDrop(trace:Trace, actor:Actor, trace_index:int, actor_index:int)
+    lemma {:timeLimitMultiplier 3} lemma_RestrictTraceToActorSeqSliceDrop(trace:Trace, actor:Actor, trace_index:int, actor_index:int)
         requires var indices := GetTraceIndicesForActor(trace, actor); 
                  0 <= actor_index < |indices| && indices[actor_index] == trace_index;
         decreases |GetTraceIndicesForActor(trace, actor)| - actor_index;
@@ -679,6 +679,52 @@ module ActorTraces
         }
 
         lemma_IfNoEntriesAreFromActorThenRestrictTraceToActorIsEmpty(trace[1..], actor);
+    }
+
+    lemma lemma_TraceIndicesForActorConverse(
+        trace:Trace,
+        actor:Actor,
+        indices:seq<int>
+        )
+        requires forall i :: 0 <= i < |indices| ==> 0 <= indices[i] < |trace|;
+        requires forall i :: 0 <= i < |indices| - 1 ==> indices[i] < indices[i+1];
+        requires forall i :: 0 <= i < |indices| ==> trace[indices[i]].actor == actor;
+        requires |indices| == |RestrictTraceToActor(trace, actor)|;
+        ensures  indices == GetTraceIndicesForActor(trace, actor);
+    {
+        var indices_actual := GetTraceIndicesForActor(trace, actor);
+        lemma_TraceIndicesForActor_length(trace, actor);
+
+        var i := 0;
+        while i < |indices|
+            invariant 0 <= i <= |indices|;
+            invariant forall j :: 0 <= j < i ==> indices[j] >= indices_actual[j];
+        {
+            if indices[i] < indices_actual[i] {
+                lemma_InterveningTraceIndicesFromDifferentActor(trace, actor, indices_actual, i-1, indices[i]);
+                assert false;
+            }
+            i := i + 1;
+        }
+
+        i := |indices| - 1;
+        while i >= 0
+            invariant -1 <= i < |indices|;
+            invariant forall j :: i < j < |indices| ==> indices[j] <= indices_actual[j];
+        {
+            forall j | i <= j < |indices|
+                ensures indices[j] <= indices_actual[j];
+            {
+                if i < j < |indices| {
+                    assert indices[j] <= indices_actual[j];
+                }
+                else if indices[i] > indices_actual[i] {
+                    lemma_InterveningTraceIndicesFromDifferentActor(trace, actor, indices_actual, i, indices[i]);
+                    assert false;
+                }
+            }
+            i := i - 1;
+        }
     }
 
 }
