@@ -104,8 +104,9 @@ module ReductionTopModule {
                  |indices| > 0 ==> forall j :: 0 <= j <= indices[0] ==> hb[j].states == lb[j].states[actor := ab[0]];
         ensures  |GetTraceIndicesForActor(ltrace, actor)| <= |ltrace|;
         ensures  var indices := GetTraceIndicesForActor(ltrace, actor);     // All of the middle segments
-                 forall i,j :: 0 <= i < |indices|-1 && indices[i] < j <= indices[i+1] 
-                           ==> hb[j].states == lb[j].states[actor := ab[i]];
+                 forall i,j {:trigger ActorStateUpdated(lb[j].states, hb[j].states, actor, ab[i+1]) } :: 
+                           0 <= i < |indices|-1 && indices[i] < j <= indices[i+1] 
+                           ==> ActorStateUpdated(lb[j].states, hb[j].states, actor, ab[i+1]);
         ensures  var indices := GetTraceIndicesForActor(ltrace, actor);     // Final segment
                  |indices| > 0 ==> forall j :: last(indices) < j < |lb| ==> hb[j].states == lb[j].states[actor := last(ab)];
     {
@@ -125,9 +126,10 @@ module ReductionTopModule {
         var k := 0;
         var hb_head:SystemBehavior := [];
 
-        while k < indices[0]
-            invariant 0 <= k <= indices[0] < |lb|;
+        while k <= indices[0]
+            invariant 0 <= k <= indices[0] + 1 < |lb|;
             invariant |hb_head| == k;
+            invariant forall j {:trigger hb_head[j]} :: 0 <= j < k ==> hb_head[j] == lb[j].(states := hb_head[j].states);
             invariant forall j {:trigger hb_head[j]} :: 0 <= j < k ==> hb_head[j].states == lb[j].states[actor := ab[0]];
         {
             hb_head := hb_head + [lb[k].(states := lb[k].states[actor := ab[0]])];
@@ -146,10 +148,11 @@ module ReductionTopModule {
             invariant ab_index == indices_index + 1;
             invariant |hb_mid| == k - (indices[0] + 1);
             invariant k <= last(indices) ==> indices[indices_index] < k <= indices[indices_index+1];
-            invariant k <= last(indices) ==>
-                      forall i,j {:trigger indices[i] < j} :: 
+            invariant forall j :: indices[0] < j < k ==> hb_mid[j-(indices[0]+1)] == lb[j].(states := hb_mid[j-(indices[0]+1)].states);
+            invariant forall i,j, m {:trigger ActorStateUpdated(lb[j].states, hb_mid[m].states, actor, ab[i+1]) } ::
+                           m == j - (indices[0] + 1) &&
                            0 <= i < |indices|-1 && indices[i] < j <= indices[i+1] && j < k 
-                           ==> hb_mid[j - (indices[0] + 1)].states == lb[j].states[actor := ab[i+1]];
+                           ==> ActorStateUpdated(lb[j].states, hb_mid[m].states, actor, ab[i+1]);
         {
             var old_k := k;
             var old_indices_index := indices_index;
@@ -163,11 +166,12 @@ module ReductionTopModule {
 
             if k <= last(indices) {
                 forall i,j | 0 <= i < |indices|-1 && indices[i] < j <= indices[i+1] && j < k 
-                    ensures hb_mid[j - (indices[0] + 1)].states == lb[j].states[actor := ab[i+1]];
+                    ensures ActorStateUpdated(lb[j].states, hb_mid[j - (indices[0] + 1)].states, actor, ab[i+1]);
                 {
+                    var m := j - (indices[0] + 1);
                     if j < k - 1 {
                         // Invariant
-                        assert hb_mid[j - (indices[0] + 1)].states == lb[j].states[actor := ab[i+1]];
+                        assert ActorStateUpdated(lb[j].states, hb_mid[m].states, actor, ab[i+1]);
                     } else {
                         assert j == k - 1 == old_k;
                         assert indices_index <= |indices| - 1;
@@ -178,13 +182,14 @@ module ReductionTopModule {
                             assert indices[old_indices_index] < j <= indices[old_indices_index+1];
                             assert old_indices_index == i;
                             assert hb_mid[j - (indices[0] + 1)].states == lb[j].states[actor := ab[i+1]];
+                            assert ActorStateUpdated(lb[j].states, hb_mid[m].states, actor, ab[i+1]);
                         } else {
                             assert ab_index == old_ab_index;
                             assert indices_index == old_indices_index;
                             assert indices[indices_index] < k <= indices[indices_index+1];
                             assert indices_index == i;
+                            assert ActorStateUpdated(lb[j].states, hb_mid[m].states, actor, ab[i+1]);
                         }
-                        assert hb_mid[j - (indices[0] + 1)].states == lb[j].states[actor := ab[i+1]];
                     }
                 }
             }
@@ -196,6 +201,7 @@ module ReductionTopModule {
         while k < |lb|
             invariant last(indices) < k <= |lb|;
             invariant |hb_tail| == k - (last(indices) + 1);
+            invariant forall j :: last(indices) < j < k ==> hb_tail[j - (last(indices)+1)] == lb[j].(states := hb_tail[j - (last(indices)+1)].states);
             invariant forall j :: last(indices) < j < k ==> hb_tail[j - (last(indices)+1)].states == lb[j].states[actor := last(ab)];
         {
             hb_tail := hb_tail + [lb[k].(states := lb[k].states[actor := last(ab)])];
@@ -203,7 +209,28 @@ module ReductionTopModule {
         }
 
         hb := hb_head + hb_mid + hb_tail;
-        assume false;
+
+
+//        calc {
+//            |hb|;
+//            |hb_head + hb_mid + hb_tail|;
+//            |hb_head| + |hb_mid| + |hb_tail|;
+//            (indices[0] + 1) + (last(indices) + 1 - (indices[0] + 1)) + (|lb| - (last(indices)+1));
+//            indices[0] + 1 + last(indices) + 1 - indices[0] - 1 + |lb| - last(indices)-1;
+//            |lb|;
+//        }
+
+
+        forall i,j | 0 <= i < |indices|-1 && indices[i] < j <= indices[i+1] 
+            ensures ActorStateUpdated(lb[j].states, hb[j].states, actor, ab[i+1]);
+        {
+            //assert |hb_head| == 
+            assert j <= last(indices);
+            var m := j - (indices[0] + 1);
+            assert hb[j] == hb_mid[m];
+            assert ActorStateUpdated(lb[j].states, hb_mid[m].states, actor, ab[i+1]);
+        }
+
     }
 
     /*
