@@ -6,6 +6,38 @@ module ReductionMoveModule
     import opened ReductionModule
     import opened SystemRefinementModule
 
+    lemma lemma_SystemStatesConnectedByRightMoverCorrespond(
+        ls:SystemState,
+        ls':SystemState,
+        entry:Entry
+        )
+        requires SystemNextEntry(ls, ls', entry);
+        requires EntryIsRightMover(entry);
+        ensures  SystemCorrespondence(ls', ls);
+    {
+        forall ss | SpecCorrespondence(ls, ss)
+            ensures SpecCorrespondence(ls', ss)
+        {
+            lemma_RightMoverForwardPreservation(entry, ls, ls', ss);
+        }
+    }
+
+    lemma lemma_SystemStatesConnectedByLeftMoverCorrespond(
+        ls:SystemState,
+        ls':SystemState,
+        entry:Entry
+        )
+        requires SystemNextEntry(ls, ls', entry);
+        requires EntryIsLeftMover(entry);
+        ensures  SystemCorrespondence(ls, ls');
+    {
+        forall ss | SpecCorrespondence(ls', ss)
+            ensures SpecCorrespondence(ls, ss)
+        {
+            lemma_LeftMoverBackwardPreservation(entry, ls, ls', ss);
+        }
+    }
+
     lemma lemma_SequenceOfRightMoversCausesSystemCorrespondence(
         ltrace:seq<Entry>,
         lb:seq<SystemState>
@@ -20,12 +52,7 @@ module ReductionMoveModule
             return;
         }
 
-        forall ss | SpecCorrespondence(lb[0], ss)
-            ensures SpecCorrespondence(lb[1], ss)
-        {
-            lemma_RightMoverForwardPreservation(ltrace[0], lb[0], lb[0+1], ss);
-        }
-        assert SystemCorrespondence(lb[1], lb[0]);
+        lemma_SystemStatesConnectedByRightMoverCorrespond(lb[0], lb[0+1], ltrace[0]);
         lemma_SequenceOfRightMoversCausesSystemCorrespondence(ltrace[1..], lb[1..]);
         assert last(lb) == last(lb[1..]);
         assert lb[1] == lb[1..][0];
@@ -47,13 +74,7 @@ module ReductionMoveModule
             return;
         }
 
-        forall ss | SpecCorrespondence(lb[1], ss)
-            ensures SpecCorrespondence(lb[0], ss)
-        {
-            lemma_LeftMoverBackwardPreservation(ltrace[0], lb[0], lb[0+1], ss);
-        }
-        assert SystemCorrespondence(lb[0], lb[1]);
-
+        lemma_SystemStatesConnectedByLeftMoverCorrespond(lb[0], lb[0+1], ltrace[0]);
         lemma_SequenceOfLeftMoversCausesSystemCorrespondence(ltrace[1..], lb[1..]);
         assert last(lb) == last(lb[1..]);
         assert lb[1] == lb[1..][0];
@@ -61,6 +82,184 @@ module ReductionMoveModule
         assert SystemCorrespondence(lb[1], last(lb));
         lemma_SystemRefinementRelationConvolvesWithItself();
     }
+
+    lemma lemma_PerformMoveRight(
+        config:Config,
+        ltrace:Trace,
+        lb:seq<SystemState>,
+        first_entry_pos:int
+        ) returns (
+        htrace:Trace,
+        hb:seq<SystemState>
+        )
+        requires IsValidSystemTraceAndBehavior(config, ltrace, lb);
+        requires 0 <= first_entry_pos < |ltrace| - 1;
+        requires ltrace[first_entry_pos].actor != ltrace[first_entry_pos+1].actor;
+        requires EntryIsRightMover(ltrace[first_entry_pos]);
+        ensures  IsValidSystemTraceAndBehavior(config, htrace, hb);
+        ensures  |hb| == |lb|;
+        ensures  SystemBehaviorRefinesSystemBehavior(lb, hb);
+        ensures  htrace == ltrace[first_entry_pos := ltrace[first_entry_pos+1]][first_entry_pos + 1 := ltrace[first_entry_pos]];
+    {
+        var entry1 := ltrace[first_entry_pos];
+        var entry2 := ltrace[first_entry_pos+1];
+        var ls1 := lb[first_entry_pos];
+        var ls2 := lb[first_entry_pos+1];
+        var ls3 := lb[first_entry_pos+2];
+
+        htrace := ltrace[first_entry_pos := entry2][first_entry_pos + 1 := entry1];
+        assert SystemNextEntry(lb[first_entry_pos+1], lb[first_entry_pos+1+1], ltrace[first_entry_pos+1]);
+        var ls2' := lemma_MoverCommutativityForEntries(entry1, entry2, ls1, ls2, ls3);
+        hb := lb[first_entry_pos + 1 := ls2'];
+
+        var relation := GetSystemSystemRefinementRelation();
+        var lh_map := ConvertMapToSeq(|lb|, map i | 0 <= i < |lb| ::
+            if i <= first_entry_pos then
+                RefinementRange(i, i)
+            else if i == first_entry_pos + 1 then
+                RefinementRange(first_entry_pos, first_entry_pos)
+            else if i == first_entry_pos + 2 then
+                RefinementRange(first_entry_pos+1, first_entry_pos+2)
+            else
+                RefinementRange(i, i));
+
+        forall i, j {:trigger RefinementPair(lb[i], hb[j]) in relation} |
+            0 <= i < |lb| && lh_map[i].first <= j <= lh_map[i].last
+            ensures RefinementPair(lb[i], hb[j]) in relation;
+        {
+            if i <= first_entry_pos {
+                assert hb[j] == lb[i];
+                lemma_SystemStateCorrespondsToItself(lb[i]);
+            }
+            else if i == first_entry_pos + 1 {
+                lemma_SystemStatesConnectedByRightMoverCorrespond(lb[first_entry_pos], lb[first_entry_pos+1], ltrace[first_entry_pos]);
+            }
+            else if i == first_entry_pos + 2 {
+                lemma_SystemStatesConnectedByRightMoverCorrespond(hb[first_entry_pos+1], hb[first_entry_pos+1+1], htrace[first_entry_pos+1]);
+                lemma_SystemStateCorrespondsToItself(lb[i]);
+            }
+            else {
+                assert hb[j] == lb[i];
+                lemma_SystemStateCorrespondsToItself(lb[i]);
+            }
+        }
+
+        assert BehaviorRefinesBehaviorUsingRefinementMap(lb, hb, relation, lh_map);
+    }
+
+    lemma lemma_PerformMoveLeft(
+        config:Config,
+        ltrace:Trace,
+        lb:seq<SystemState>,
+        first_entry_pos:int
+        ) returns (
+        htrace:Trace,
+        hb:seq<SystemState>
+        )
+        requires IsValidSystemTraceAndBehavior(config, ltrace, lb);
+        requires 0 <= first_entry_pos < |ltrace| - 1;
+        requires ltrace[first_entry_pos].actor != ltrace[first_entry_pos+1].actor;
+        requires EntryIsLeftMover(ltrace[first_entry_pos+1]);
+        ensures  IsValidSystemTraceAndBehavior(config, htrace, hb);
+        ensures  |hb| == |lb|;
+        ensures  SystemBehaviorRefinesSystemBehavior(lb, hb);
+        ensures  htrace == ltrace[first_entry_pos := ltrace[first_entry_pos+1]][first_entry_pos + 1 := ltrace[first_entry_pos]];
+    {
+        var entry1 := ltrace[first_entry_pos];
+        var entry2 := ltrace[first_entry_pos+1];
+        var ls1 := lb[first_entry_pos];
+        var ls2 := lb[first_entry_pos+1];
+        var ls3 := lb[first_entry_pos+2];
+
+        htrace := ltrace[first_entry_pos := entry2][first_entry_pos + 1 := entry1];
+        assert SystemNextEntry(lb[first_entry_pos+1], lb[first_entry_pos+1+1], ltrace[first_entry_pos+1]);
+        var ls2' := lemma_MoverCommutativityForEntries(entry1, entry2, ls1, ls2, ls3);
+        hb := lb[first_entry_pos + 1 := ls2'];
+
+        var relation := GetSystemSystemRefinementRelation();
+        var lh_map := ConvertMapToSeq(|lb|, map i | 0 <= i < |lb| ::
+            if i < first_entry_pos then
+                RefinementRange(i, i)
+            else if i == first_entry_pos then
+                RefinementRange(first_entry_pos, first_entry_pos+1)
+            else if i == first_entry_pos + 1 then
+                RefinementRange(first_entry_pos+2, first_entry_pos+2)
+            else
+                RefinementRange(i, i));
+
+        forall i, j {:trigger RefinementPair(lb[i], hb[j]) in relation} |
+            0 <= i < |lb| && lh_map[i].first <= j <= lh_map[i].last
+            ensures RefinementPair(lb[i], hb[j]) in relation;
+        {
+            if i < first_entry_pos {
+                assert hb[j] == lb[i];
+                lemma_SystemStateCorrespondsToItself(lb[i]);
+            }
+            else if i == first_entry_pos {
+                lemma_SystemStateCorrespondsToItself(lb[i]);
+                lemma_SystemStatesConnectedByLeftMoverCorrespond(hb[first_entry_pos], hb[first_entry_pos+1], htrace[first_entry_pos]);
+            }
+            else if i == first_entry_pos + 1 {
+                lemma_SystemStatesConnectedByLeftMoverCorrespond(lb[first_entry_pos+1], lb[first_entry_pos+1+1], ltrace[first_entry_pos+1]);
+            }
+            else {
+                assert hb[j] == lb[i];
+                lemma_SystemStateCorrespondsToItself(lb[i]);
+            }
+        }
+
+        assert BehaviorRefinesBehaviorUsingRefinementMap(lb, hb, relation, lh_map);
+    }
+
+
+    function MoveTraceElementRight(trace:Trace, cur_pos:int, desired_pos:int) : Trace
+        requires 0 <= cur_pos <= desired_pos < |trace|;
+        ensures  var trace' := MoveTraceElementRight(trace, cur_pos, desired_pos);
+                    |trace'| == |trace|
+                 && forall i {:trigger trace'[i]} :: 0 <= i < |trace| ==> trace'[i] == if i < cur_pos then trace[i]
+                                                           else if i < desired_pos then trace[i+1]
+                                                           else if i == desired_pos then trace[cur_pos]
+                                                           else trace[i];
+    {
+        trace[..cur_pos] + trace[cur_pos+1..desired_pos+1] + [trace[cur_pos]] + trace[desired_pos+1..]
+    }
+
+    function ShiftSpecBehaviorSliceRight(sb':seq<SpecState>, cur_pos:int, desired_pos:int) : seq<SpecState>
+        requires 0 <= cur_pos <= desired_pos < |sb'| - 1;
+        ensures  var sb := ShiftSpecBehaviorSliceRight(sb', cur_pos, desired_pos);
+                    |sb| == |sb'|
+                 && forall i {:trigger sb[i]} :: 0 <= i < |sb| ==> sb[i] == if i <= cur_pos then sb'[i]
+                                                    else if i <= desired_pos + 1 then sb'[i-1]
+                                                    else sb'[i]
+    {
+        sb'[..cur_pos+1] + sb'[cur_pos..desired_pos+1] + sb'[desired_pos+2..]
+    }
+
+/*
+    lemma lemma_MoveRightMoverIntoPlace(
+        config:Config,
+        ltrace:Trace,
+        lb:SystemBehavior,
+        actor:Actor,
+        cur_pos:int,
+        desired_pos:int
+        ) returns (
+        htrace:Trace,
+        hb:SystemBehavior
+        )
+        requires IsValidSystemTraceAndBehavior(config, ltrace, lb);
+        requires 0 <= cur_pos <= desired_pos < |ltrace|;
+        requires EntryIsRightMover(ltrace[cur_pos]);
+        requires forall i :: cur_pos < i <= desired_pos ==> GetEntryActor(ltrace[i]) != GetEntryActor(ltrace[cur_pos]);
+
+        ensures  IsValidSystemTraceAndBehavior(config, htrace, hb);
+        ensures  htrace == MoveTraceElementRight(ltrace, cur_pos, desired_pos);
+        ensures  SystemBehaviorRefinesSystemBehavior(ltrace, htrace);
+
+        decreases desired_pos - cur_pos;
+    {
+    }
+*/
 
     lemma lemma_MakeActionsForActorAdjacent(
         config:Config,
@@ -95,85 +294,21 @@ module ReductionMoveModule
         ensures  indices'[pivot_index] == indices[pivot_index];
         ensures  forall i {:trigger indices'[i]} :: left_index_to_move <= i <= right_index_to_move ==> i - pivot_index == indices'[i] - indices'[pivot_index];
     {
-        assume false;
+        if left_index_to_move < left_index_already_in_place {
+            assume false;
+        }
+        else if right_index_to_move > right_index_already_in_place {
+            assume false;
+        }
+        else {
+            indices' := indices;
+            mtrace := ltrace;
+            mb := lb;
+            lemma_SystemBehaviorRefinesItself(lb);
+        }
     }
 
 /*
-    lemma lemma_PerformMoveRight(
-        trace:Trace,
-        db:seq<SystemState>,
-        first_entry_pos:int
-        ) returns (
-        trace':Trace,
-        db':seq<SystemState>
-        )
-        requires IsValidSystemTraceAndBehavior(trace, db);
-        requires 0 <= first_entry_pos < |trace| - 1;
-        requires trace[first_entry_pos].actor != trace[first_entry_pos+1].actor;
-        requires EntryIsRightMover(trace[first_entry_pos]);
-        ensures  IsValidSystemTraceAndBehavior(trace', db');
-        ensures  |db'| == |db|;
-        ensures  forall sb' :: SystemBehaviorRefinesSpecBehavior(db', sb') && sb'[first_entry_pos+1] == sb'[first_entry_pos+2]
-                 ==> SystemBehaviorRefinesSpecBehavior(db, sb'[first_entry_pos+1 := sb'[first_entry_pos]]);
-        ensures  trace' == trace[first_entry_pos := trace[first_entry_pos+1]][first_entry_pos + 1 := trace[first_entry_pos]];
-    {
-        var entry1 := trace[first_entry_pos];
-        var entry2 := trace[first_entry_pos+1];
-        var ds1 := db[first_entry_pos];
-        var ds2 := db[first_entry_pos+1];
-        var ds3 := db[first_entry_pos+2];
-
-        trace' := trace[first_entry_pos := entry2][first_entry_pos + 1 := entry1];
-        var ds2' := lemma_MoverCommutativityForEntries(entry1, entry2, ds1, ds2, ds3);
-        db' := db[first_entry_pos + 1 := ds2'];
-
-        forall sb' | SystemBehaviorRefinesSpecBehavior(db', sb') && sb'[first_entry_pos+1] == sb'[first_entry_pos+2]
-            ensures SystemBehaviorRefinesSpecBehavior(db, sb'[first_entry_pos+1 := sb'[first_entry_pos]]);
-        {
-            var sb := sb'[first_entry_pos + 1 := sb'[first_entry_pos]];
-            lemma_RightMoverForwardPreservation(entry1, ds1, ds2, sb[first_entry_pos]);
-            assert SystemBehaviorRefinesSpecBehavior(db, sb);
-            assert sb[first_entry_pos] == sb[first_entry_pos+1];
-        }
-    }
-
-    lemma lemma_PerformMoveLeft(
-        trace:Trace,
-        db:seq<SystemState>,
-        first_entry_pos:int
-        ) returns (
-        trace':Trace,
-        db':seq<SystemState>
-        )
-        requires IsValidSystemTraceAndBehavior(trace, db);
-        requires 0 <= first_entry_pos < |trace| - 1;
-        requires trace[first_entry_pos].actor != trace[first_entry_pos+1].actor;
-        requires EntryIsLeftMover(trace[first_entry_pos+1]);
-        ensures  IsValidSystemTraceAndBehavior(trace', db');
-        ensures  |db'| == |db|;
-        ensures  forall sb' :: SystemBehaviorRefinesSpecBehavior(db', sb') && sb'[first_entry_pos] == sb'[first_entry_pos+1]
-                 ==> SystemBehaviorRefinesSpecBehavior(db, sb'[first_entry_pos+1 := sb'[first_entry_pos+2]]);
-        ensures  trace' == trace[first_entry_pos := trace[first_entry_pos+1]][first_entry_pos + 1 := trace[first_entry_pos]];
-    {
-        var entry1 := trace[first_entry_pos];
-        var entry2 := trace[first_entry_pos+1];
-        var ds1 := db[first_entry_pos];
-        var ds2 := db[first_entry_pos+1];
-        var ds3 := db[first_entry_pos+2];
-
-        trace' := trace[first_entry_pos := entry2][first_entry_pos + 1 := entry1];
-        var ds2' := lemma_MoverCommutativityForEntries(entry1, entry2, ds1, ds2, ds3);
-        db' := db[first_entry_pos + 1 := ds2'];
-
-        forall sb' | SystemBehaviorRefinesSpecBehavior(db', sb') && sb'[first_entry_pos] == sb'[first_entry_pos+1]
-            ensures SystemBehaviorRefinesSpecBehavior(db, sb'[first_entry_pos+1 := sb'[first_entry_pos+2]]);
-        {
-            var sb := sb'[first_entry_pos + 1 := sb'[first_entry_pos+2]];
-            lemma_LeftMoverBackwardPreservation(entry2, ds2, ds3, sb[first_entry_pos+1]);
-            assert SystemBehaviorRefinesSpecBehavior(db, sb);
-            assert sb[first_entry_pos+1] == sb[first_entry_pos+2];
-        }
-    }
 
     function RepeatSpecState(s:SpecState, n:int) : seq<SpecState>
         requires n >= 0;
