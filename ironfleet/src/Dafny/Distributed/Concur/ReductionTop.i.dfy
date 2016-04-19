@@ -370,7 +370,6 @@ module ReductionTopModule {
         requires forall i :: 0 <= i < |indices| ==>   ltrace[indices[i]].action.PerformIos? 
                                              && ltrace[indices[i]] == GetRootEntry(plan.trees[i]);
         ensures  IsValidSystemTraceAndBehavior(config, htrace, hb);
-        ensures  SystemBehaviorRefinesSystemBehavior(lb, hb);
         ensures  |hb| == |lb|;
         ensures  forall i {:trigger htrace[i]} :: 0 <= i < |htrace| ==>
                         htrace[i] == (if i in indices then Entry(tracked_actor, HostNext(ltrace[i].action.raw_ios)) else ltrace[i]);
