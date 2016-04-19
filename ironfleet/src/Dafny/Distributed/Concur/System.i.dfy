@@ -95,8 +95,7 @@ module SystemModule {
         ios:seq<Action>
         )
     {
-           actor.HostActor?
-        && actor in ls.states
+           actor in ls.states
         && actor in ls'.states
         && ls'.states == ls.states[actor := ls'.states[actor]]
         && HostNextPredicate(ls.states[actor], ls'.states[actor], ios)
