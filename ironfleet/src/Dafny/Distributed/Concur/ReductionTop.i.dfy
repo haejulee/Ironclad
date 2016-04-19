@@ -247,8 +247,60 @@ module ReductionTopModule {
         ensures  tracked_actor in hb[0].states;
         ensures  HostInit(hb[0].states[tracked_actor]);
     {
-        var foo;
-        var hb_map := map i | 0 <= i < |lb| :: lb[i].(states := foo);
+        var htrace_map := map i | 0 <= i < |lb|-1 :: (if i in indices then Entry(tracked_actor, HostNext(ltrace[i].action.raw_ios)) else ltrace[i]);
+        htrace := ConvertMapToSeq(|lb|-1, htrace_map);
+        hb := BuildHighBehavior(ltrace, lb, plan.ab, tracked_actor);
+
+
+        // Prove: IsValidSystemTraceAndBehavior(config, htrace, hb);
+        forall i | 0 <= i < |htrace|
+            ensures SystemNextEntry(hb[i], hb[i+1], htrace[i]);
+        {
+            if i in indices {
+                assert htrace[i] == Entry(tracked_actor, HostNext(ltrace[i].action.raw_ios));
+                var i_index :| 0 <= i_index < |indices| && indices[i_index] == i;
+                if htrace[i].actor == tracked_actor {
+                    assert 0 <= i_index < |plan.trees|; 
+                    assert TreeValid(plan.trees[i_index]);
+                    if i <= indices[0] {
+                        assert hb[i].states == lb[i].states[tracked_actor := plan.ab[0]];
+                    } else if i > last(indices) {
+                        assert hb[i].states == lb[i].states[tracked_actor := last(plan.ab)];
+                    } else {
+                        //assert 0 <= i_index < |indices| - 1;
+                        assert indices[i_index-1] < i <= indices[i_index];
+                        var i_index_minus_1 := i_index-1;
+                        assert ActorStateUpdated(lb[i].states, hb[i].states, tracked_actor, plan.ab[i_index_minus_1+1]);
+                        assert hb[i].states == lb[i].states[tracked_actor := plan.ab[i_index_minus_1+1]];
+                    }
+
+                    assert hb[i].states[tracked_actor] == plan.ab[i_index];
+
+                    assume tracked_actor in hb[i+1].states && hb[i+1].states[tracked_actor] == plan.ab[i_index+1];
+
+                    assert HostNextPredicate(plan.ab[i_index], plan.ab[i_index+1], GetRootEntry(plan.trees[i_index]).action.raw_ios);
+                    assert GetRootEntry(plan.trees[i_index]).action.raw_ios == ltrace[i].action.raw_ios;
+                    assert SystemNextHostNext(hb[i], hb[i+1], tracked_actor, ltrace[i].action.raw_ios);
+                    assert SystemNextEntry(hb[i], hb[i+1], Entry(tracked_actor, HostNext(ltrace[i].action.raw_ios)));
+                    assert SystemNextEntry(hb[i], hb[i+1], htrace[i]);
+                } else {
+                    assert SystemNextEntry(hb[i], hb[i+1], htrace[i]);
+                }
+            } else {
+                assume false;       // TODO *************
+                assert htrace[i] == ltrace[i];
+                if htrace[i].actor == tracked_actor {
+                    assert SystemNextEntry(hb[i], hb[i+1], htrace[i]);
+                } else {
+                    assert SystemNextEntry(hb[i], hb[i+1], htrace[i]);
+                }
+            }
+        }
+        assert  IsValidSystemTraceAndBehavior(config, htrace, hb);
+        //assert  SystemBehaviorRefinesSystemBehavior(lb, hb);
+        assert  |hb| == |lb|;
+        assert  forall i {:trigger htrace[i]} :: 0 <= i < |htrace| ==>
+                        htrace[i] == (if i in indices then Entry(tracked_actor, HostNext(ltrace[i].action.raw_ios)) else ltrace[i]);
         assume false;
     }
 
