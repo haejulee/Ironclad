@@ -700,9 +700,15 @@ module ActorTraces
             invariant 0 <= i <= |indices|;
             invariant forall j :: 0 <= j < i ==> indices[j] >= indices_actual[j];
         {
-            if indices[i] < indices_actual[i] {
-                lemma_InterveningTraceIndicesFromDifferentActor(trace, actor, indices_actual, i-1, indices[i]);
-                assert false;
+            forall j | 0 <= j <= i
+                ensures indices[j] >= indices_actual[j];
+            {
+                if 0 <= j < i {
+                }
+                else if indices[i] < indices_actual[i] {
+                    lemma_InterveningTraceIndicesFromDifferentActor(trace, actor, indices_actual, i-1, indices[i]);
+                    assert false;
+                }
             }
             i := i + 1;
         }
@@ -716,7 +722,6 @@ module ActorTraces
                 ensures indices[j] <= indices_actual[j];
             {
                 if i < j < |indices| {
-                    assert indices[j] <= indices_actual[j];
                 }
                 else if indices[i] > indices_actual[i] {
                     lemma_InterveningTraceIndicesFromDifferentActor(trace, actor, indices_actual, i, indices[i]);

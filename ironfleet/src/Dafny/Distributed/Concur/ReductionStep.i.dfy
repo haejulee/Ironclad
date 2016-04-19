@@ -726,7 +726,7 @@ module ReductionStepModule {
         }
     }
 
-    lemma {:timeLimitMultiplier 2} lemma_ApplyReductionWithChildren(
+    lemma {:timeLimitMultiplier 3} lemma_ApplyReductionWithChildren(
         config:Config,
         ltrace:Trace,
         lb:SystemBehavior,
