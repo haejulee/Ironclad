@@ -7,6 +7,16 @@ module EventHandlerModule {
     import opened ReductionBasicModule
     import opened ReductionPlanModule
 
+    predicate IoPerformableByItsActor(entry:Entry)
+    {
+        (entry.action.Send? && entry.actor.HostActor? ==> entry.action.s.src == entry.actor.ep)
+    }
+    
+    predicate AllIosPerformableByTheirActors(entries:seq<Entry>)
+    {
+        forall entry :: entry in entries ==> IoPerformableByItsActor(entry)
+    }
+
     function CombineIoEntriesIntoIos(entries:seq<Entry>) : seq<Action>
     {
         if |entries| == 0 then
@@ -123,6 +133,39 @@ module EventHandlerModule {
         lemma_EffectOfCombiningIoEntriesMatchesEffectOfDoingIoEntries(lb, entries, actor, entry, pivot_index);
     }
 
+    lemma lemma_LeftMoversAlwaysEnabledIfAllIosPerformableByTheirActors(
+        tree:Tree,
+        actor:Actor
+        )
+        requires tree.Inner?;
+        requires forall c :: c in tree.children ==> c.Leaf?;
+        requires forall c :: c in tree.children ==> IsTrackedAction(c.entry.action);
+        requires TreeRootPivotValid(tree);
+        requires TreeOnlyForActor(tree, actor);
+        requires AllIosPerformableByTheirActors(GetRootEntries(tree.children));
+        requires tree.reduced_entry == CombineIoEntriesIntoEntry(actor, GetRootEntries(tree.children));
+        ensures  LeftMoversAlwaysEnabled(tree);
+    {
+        forall left_mover_pos:int, other_actor_entries:seq<Entry>, lb:seq<SystemState>
+               {:trigger IsValidSystemTraceAndBehaviorSlice(GetRootEntries(tree.children[..left_mover_pos]) + other_actor_entries, lb)} |
+               tree.Inner?
+            && 0 <= tree.pivot_index < left_mover_pos < |tree.children|
+            && (forall entry :: entry in other_actor_entries ==> entry.actor != tree.reduced_entry.actor)
+            && IsValidSystemTraceAndBehaviorSlice(GetRootEntries(tree.children[..left_mover_pos]) + other_actor_entries, lb)
+            ensures exists ls' :: SystemNextEntry(last(lb), ls', GetRootEntry(tree.children[left_mover_pos]));
+        {
+            var entry := GetRootEntry(tree.children[left_mover_pos]);
+            assert EntryIsLeftMover(entry);
+            assert entry.action.Send?;
+            var ls := last(lb);
+            var ls' := ls.(sentPackets := ls.sentPackets + { entry.action.s });
+
+            assert TreeOnlyForActor(tree.children[left_mover_pos], actor);
+            assert IoPerformableByItsActor(entry);
+            assert SystemNextEntry(ls, ls', entry);
+        }
+    }
+
     lemma lemma_ReductionTreeValidIfReducedEntryCombinesIoEntries(
         tree:Tree,
         actor:Actor
@@ -132,8 +175,9 @@ module EventHandlerModule {
         requires forall c :: c in tree.children ==> IsTrackedAction(c.entry.action);
         requires TreeRootPivotValid(tree);
         requires TreeOnlyForActor(tree, actor);
+        requires AllIosPerformableByTheirActors(GetRootEntries(tree.children));
         requires tree.reduced_entry == CombineIoEntriesIntoEntry(actor, GetRootEntries(tree.children));
-        ensures  TreeRootValid(tree);
+        ensures  TreeValid(tree);
     {
         if |tree.children| == 0 {
             return;
@@ -158,5 +202,9 @@ module EventHandlerModule {
 
             lemma_SystemNextEntryForReductionTree(tree, actor, lb);
         }
+
+        lemma_LeftMoversAlwaysEnabledIfAllIosPerformableByTheirActors(tree, actor);
+
+        assert TreeRootValid(tree);
     }
 }

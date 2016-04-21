@@ -137,10 +137,15 @@ module SystemModule {
         && (forall i {:trigger SystemNext(lb[i], lb[i+1])} :: 0 <= i < |lb| - 1 ==> SystemNext(lb[i], lb[i+1]))
     }
 
-    predicate IsValidSystemTraceAndBehavior(config:Config, trace:Trace, lb:SystemBehavior)
+    predicate IsValidSystemTraceAndBehaviorSlice(trace:Trace, lb:SystemBehavior)
     {
            |lb| == |trace| + 1
+        && forall i {:trigger SystemNextEntry(lb[i], lb[i+1], trace[i])} :: 0 <= i < |trace| ==> SystemNextEntry(lb[i], lb[i+1], trace[i])
+    }
+
+    predicate IsValidSystemTraceAndBehavior(config:Config, trace:Trace, lb:SystemBehavior)
+    {
+           IsValidSystemTraceAndBehaviorSlice(trace, lb)
         && SystemInit(config, lb[0])
-        && (forall i {:trigger SystemNextEntry(lb[i], lb[i+1], trace[i])} :: 0 <= i < |trace| ==> SystemNextEntry(lb[i], lb[i+1], trace[i]))
     }
 }

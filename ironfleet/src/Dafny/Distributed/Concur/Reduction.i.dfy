@@ -52,10 +52,22 @@ module ReductionModule
                      tree.pivot_index < i < |tree.children| ==> EntryIsLeftMover(GetRootEntry(tree.children[i])))
     }
 
+    predicate LeftMoversAlwaysEnabled(tree:Tree)
+    {
+        forall left_mover_pos:int, other_actor_entries:seq<Entry>, lb:seq<SystemState>
+               {:trigger IsValidSystemTraceAndBehaviorSlice(GetRootEntries(tree.children[..left_mover_pos]) + other_actor_entries, lb)} ::
+               tree.Inner?
+            && 0 <= tree.pivot_index < left_mover_pos < |tree.children|
+            && (forall other_entry :: other_entry in other_actor_entries ==> other_entry.actor != tree.reduced_entry.actor)
+            && IsValidSystemTraceAndBehaviorSlice(GetRootEntries(tree.children[..left_mover_pos]) + other_actor_entries, lb)
+            ==> exists ls' :: SystemNextEntry(last(lb), ls', GetRootEntry(tree.children[left_mover_pos]))
+    }
+
     predicate TreeRootValid(tree:Tree)
     {
            TreeRootPivotValid(tree)
         && TreeChildrenReducibleToTreeRoot(tree)
+        && LeftMoversAlwaysEnabled(tree)
     }
 
     predicate TreeValid(tree:Tree)
@@ -271,6 +283,21 @@ module ReductionModule
             {
             }
 
+            // OBSERVE: Re-establish LeftMoversAlwaysEnabled
+            forall left_mover_pos:int, other_actor_entries:seq<Entry>, lb:seq<SystemState>
+                   {:trigger IsValidSystemTraceAndBehaviorSlice(GetRootEntries(reduced_tree.children[..left_mover_pos]) + other_actor_entries, lb)} |
+                   reduced_tree.Inner?
+                && 0 <= reduced_tree.pivot_index < left_mover_pos < |reduced_tree.children|
+                && (forall other_entry :: other_entry in other_actor_entries ==> other_entry.actor != reduced_tree.reduced_entry.actor)
+                && IsValidSystemTraceAndBehaviorSlice(GetRootEntries(reduced_tree.children[..left_mover_pos]) + other_actor_entries, lb)
+                ensures exists ls' :: SystemNextEntry(last(lb), ls', GetRootEntry(reduced_tree.children[left_mover_pos]));
+            {
+                assert GetRootEntries(tree.children[..left_mover_pos]) == GetRootEntries(reduced_tree.children[..left_mover_pos]);
+                assert IsValidSystemTraceAndBehaviorSlice(GetRootEntries(tree.children[..left_mover_pos]) + other_actor_entries, lb);
+                var ls' :| SystemNextEntry(last(lb), ls', GetRootEntry(tree.children[left_mover_pos]));
+                assert GetRootEntry(tree.children[left_mover_pos]) == GetRootEntry(reduced_tree.children[left_mover_pos]);
+            }
+
             // OBSERVE: Re-establish children valid
             forall c | c in reduced_tree.children
                 ensures TreeValid(c);
@@ -288,7 +315,7 @@ module ReductionModule
         }
     }
 
-    lemma {:timeLimitMultiplier 2} lemma_ReduceTreeLeaves(tree:Tree, designator:seq<int>)
+    lemma {:timeLimitMultiplier 3} lemma_ReduceTreeLeaves(tree:Tree, designator:seq<int>)
         requires ReduceTree.requires(tree, designator)
         decreases |designator|;
         ensures var old_leaves := GetLeafEntries(tree); 
@@ -440,7 +467,6 @@ module ReductionModule
         }
     }
 
-
     lemma {:timeLimitMultiplier 3} lemma_ReduceTreeLeavesForestOld(trees:seq<Tree>, index:int, designator:seq<int>)
         requires 0 <= index < |trees|;
         requires ReduceTree.requires(trees[index], designator)
@@ -476,6 +502,7 @@ module ReductionModule
                                        GetLeafEntriesForest, GetLeafEntries);
                     assert trees[index..] == [trees[index]] + trees[index+1..];
                 }
+            GetLeafEntriesForest(trees[..index]) + (GetLeafEntriesForest([trees[index]]) + GetLeafEntriesForest(trees[index+1..]));
             GetLeafEntriesForest(trees[..index]) + GetLeafEntriesForest([trees[index]]) + GetLeafEntriesForest(trees[index+1..]); 
             GetLeafEntriesForest(trees[..index]) + GetLeafEntries(trees[index]) + GetLeafEntriesForest(trees[index+1..]); 
                 { lemma_ReduceTreeLeaves(tree, designator); }
@@ -524,15 +551,23 @@ module ReductionModule
                     assert GetLeafEntriesForest(reduced_trees[index..])
                         == GetLeafEntriesForest([reduced_trees[index]]) + GetLeafEntriesForest(reduced_trees[index+1..]); 
                 }
+
+              GetLeafEntriesForest(reduced_trees[..index]) 
+            + (GetLeafEntriesForest([reduced_trees[index]]) + GetLeafEntriesForest(reduced_trees[index+1..]));
+
               GetLeafEntriesForest(reduced_trees[..index]) 
             + GetLeafEntriesForest([reduced_trees[index]]) 
             + GetLeafEntriesForest(reduced_trees[index+1..]); 
+
                 { assert reduced_trees[..index] == trees[..index];
                   assert reduced_trees[index+1..] == trees[index+1..]; }
+
               GetLeafEntriesForest(trees[..index]) 
             + GetLeafEntries(reduced_trees[index]) 
             + GetLeafEntriesForest(trees[index+1..]); 
+
                 { lemma_ReduceTreeLeaves(tree, designator); }
+
               GetLeafEntriesForest(trees[..index]) 
             + GetLeafEntriesPrefix(trees[index], designator)
             + [sub_tree.reduced_entry] 
