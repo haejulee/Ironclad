@@ -1,9 +1,4 @@
-include "Reduction.i.dfy"
-include "RefinementConvolution.i.dfy"
-include "SystemRefinement.i.dfy"
-include "ReductionPlan.i.dfy"
-include "UltimateRefinement.i.dfy"
-include "SystemLemmas.i.dfy"
+include "AtomicRefinement.i.dfy"
 include "ReductionStep.i.dfy"
 include "../Common/Collections/Maps.i.dfy"
 
@@ -13,7 +8,7 @@ module ReductionTopModule {
     import opened RefinementConvolutionModule
     import opened SystemRefinementModule
     import opened ReductionPlanModule
-    import opened UltimateRefinementModule
+    import opened AtomicRefinementModule
     import opened SystemLemmasModule
     import opened ReductionStepModule
     import opened Collections__Maps_i
@@ -462,7 +457,7 @@ module ReductionTopModule {
         decreases |config.tracked_actors - converted_actors|;
     {
         if converted_actors == config.tracked_actors {
-            lemma_UltimateRefinement(config, ltrace, lb);
+            lemma_AtomicRefinement(config, ltrace, lb);
             return;
         }
 

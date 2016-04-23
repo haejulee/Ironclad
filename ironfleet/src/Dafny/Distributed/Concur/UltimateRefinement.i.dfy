@@ -1,19 +1,29 @@
+include "RemoveUpdates.i.dfy"
 include "SpecRefinement.i.dfy"
 
 module UltimateRefinementModule {
 
+    import opened RemoveUpdatesModule
     import opened SpecRefinementModule
+    import opened ReductionPlanModule
 
-    lemma {:axiom} lemma_UltimateRefinement(
+    lemma lemma_UltimateRefinement(
         config:Config,
         trace:Trace,
-        lb:SystemBehavior
+        lb:SystemBehavior,
+        plan:ReductionPlan
         )
         requires IsValidSystemTraceAndBehavior(config, trace, lb);
-        requires forall actor :: actor in config.tracked_actors ==> actor in lb[0].states && HostInit(lb[0].states[actor]);
-        requires forall entry :: entry in trace ==>
-                            if entry.actor in config.tracked_actors then entry.action.HostNext? else IsRealAction(entry.action);
+        requires IsValidReductionPlan(config, plan);
+        requires forall entry :: entry in trace ==> IsRealAction(entry.action);
+        requires forall actor :: actor in config.tracked_actors ==>
+                     RestrictTraceToActor(RestrictTraceToTrackedActions(trace), actor) == GetLeafEntriesForest(plan[actor].trees);
         ensures  SystemBehaviorRefinesSpec(lb);
+    {
+        var mb := lemma_RefineToBehaviorWithoutTrackedActorStates(config, trace, lb, {});
+        lemma_ReductionOfBehaviorWithoutTrackedActorStates(config, trace, mb, plan);
+        lemma_SystemSpecRefinementConvolutionExtraPure(lb, mb);
+    }
 
 }
 

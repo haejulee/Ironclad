@@ -1,9 +1,6 @@
-include "Reduction.i.dfy"
 include "ReductionBasic.i.dfy"
 include "RefinementConvolution.i.dfy"
-include "SystemRefinement.i.dfy"
 include "ReductionPlan.i.dfy"
-include "UltimateRefinement.i.dfy"
 include "SystemLemmas.i.dfy"
 include "ReductionPlanLemmas.i.dfy"
 include "ReductionMove.i.dfy"
@@ -16,7 +13,6 @@ module ReductionStepModule {
     import opened RefinementConvolutionModule
     import opened SystemRefinementModule
     import opened ReductionPlanModule
-    import opened UltimateRefinementModule
     import opened SystemLemmasModule
     import opened ReductionPlanLemmasModule
     import opened ReductionMoveModule
