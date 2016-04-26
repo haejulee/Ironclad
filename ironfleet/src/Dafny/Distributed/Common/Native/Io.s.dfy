@@ -12,6 +12,9 @@ class HostEnvironment
     ghost var now:NowState;
     ghost var udp:UdpState;
     ghost var files:FileSystemState;
+    ghost var thread:ThreadState;
+    ghost var shared:SharedState;
+
 
     predicate Valid()
         reads this;
@@ -21,6 +24,8 @@ class HostEnvironment
         && now != null
         && udp != null
         && files != null
+        && thread != null
+        && shared != null
     }
 }
 
@@ -57,6 +62,80 @@ class OkState
     constructor{:axiom} () requires false;
     function{:axiom} ok():bool reads this;
 }
+
+
+//////////////////////////////////////////////////////////////////////////////
+// Local concurrency 
+//////////////////////////////////////////////////////////////////////////////
+
+type Lock
+type Ptr<T>
+type Array<T>
+type Table<T,U>
+
+datatype SharedStateEvent<T> = MakePtrEvent (thread_make_id:int,  ptr_make:Ptr<T>,  initial_value:T)
+                             | ReadPtrEvent (thread_read_id:int,  ptr_read:Ptr<T>,  read_value:T)
+                             | WritePtrEvent(thread_write_id:int, ptr_write:Ptr<T>, write_value:T)
+
+class ThreadState
+{
+    constructor{:axiom} () requires false;
+
+    function{:axiom} ThreadId():int reads this; 
+
+    static method{:axiom} GetThreadId(ghost env:HostEnvironment) returns(id:uint32)
+        requires env != null && env.Valid();
+        ensures  int(id) == env.thread.ThreadId();
+}
+
+class SharedState
+{
+    constructor{:axiom} () requires false;
+    function{:axiom} history():seq<SharedStateEvent> reads this;
+}
+
+class SharedStateIfc
+{
+    predicate IsValueType<T>()
+    predicate {:axiom} ValueTypes()
+        ensures IsValueType<bool>();
+        ensures IsValueType<int>();
+        ensures ValueTypes();
+
+    predicate IsValidPtr<T>(ptr:Ptr<T>)
+    function  Invariant<T>(ptr:Ptr<T>):iset<T>
+
+    method {:axiom} MakePtr<T>(v:T, ghost ptr_invariant:iset<T>, ghost env:HostEnvironment) 
+        returns (ptr:Ptr<T>)
+        requires ValueTypes() && IsValueType<T>();
+        requires v in ptr_invariant;
+        requires env != null && env.Valid();
+        modifies env.shared;
+        ensures  IsValidPtr(ptr);
+        ensures  Invariant(ptr) == ptr_invariant;
+        ensures  env.shared.history() == old(env.shared.history()) + [MakePtrEvent(env.thread.ThreadId(), ptr, v)];
+
+    method {:axiom} ReadPtr<T>(ptr:Ptr<T>, ghost env:HostEnvironment) 
+        returns (v:T)
+        requires IsValidPtr(ptr);
+        requires env != null && env.Valid();
+        modifies env.shared;
+        ensures  v in Invariant(ptr);
+        ensures  env.shared.history() == old(env.shared.history()) + [ReadPtrEvent(env.thread.ThreadId(), ptr, v)];
+    
+    method {:axiom} WritePtr<T>(ptr:Ptr<T>, v:T, ghost env:HostEnvironment) 
+        requires IsValidPtr(ptr);
+        requires v in Invariant(ptr);
+        requires env != null && env.Valid();
+        modifies env.shared;
+        ensures  env.shared.history() == old(env.shared.history()) + [WritePtrEvent(env.thread.ThreadId(), ptr, v)];
+} 
+
+
+
+
+
+
 
 //////////////////////////////////////////////////////////////////////////////
 // Time
