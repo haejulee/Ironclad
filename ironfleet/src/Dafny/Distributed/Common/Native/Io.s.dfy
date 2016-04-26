@@ -82,19 +82,26 @@ function {:axiom} ToU<T>(t:T) : U
 function {:axiom} ToUPtr<T>(t:Ptr<T>) : Ptr<U>
   ensures FromUPtr(ToUPtr(t)) == t;
 
+function {:axiom} ToUArray<T>(t:Array<T>) : Array<U>
+  ensures FromUArray(ToUArray(t)) == t;
+
+
 function {:axiom} FromU<T>(u:U) : T
-  //ensures ToU(FromU<T>(u)) == u;
-
 function {:axiom} FromUPtr<T>(u:Ptr<U>) : Ptr<T>
+function {:axiom} FromUArray<T>(u:Array<U>) : Array<T>
 
 
-datatype SharedStateEvent =    MakePtrEvent (thread_make_ptr_id:int, ptr_make:Ptr<U>,  initial_value:U)
+datatype SharedStateEvent =    MakePtrEvent (thread_make_ptr_id:int, ptr_make:Ptr<U>,  initial_ptr_value:U)
                              | ReadPtrEvent (thread_read_id:int,     ptr_read:Ptr<U>,  read_value:U)
                              | WritePtrEvent(thread_write_id:int,    ptr_write:Ptr<U>, write_value:U)
                              | AssumeEvent  (thread_assume_id:int, assumption:iset<SharedHeap>)
                              | MakeLockEvent(thread_make_lock_id:int, new_lock:Lock)
                              | LockEvent  (thread_lock_id:int,   lock:Lock)
                              | UnlockEvent(thread_unlock_id:int, unlock:Lock)
+                             | MakeArrayEvent (thread_make_arr_id:int, arr_make:Array<U>,  initial_arr_value:U)
+                             | ReadArrayEvent (thread_read_arr_id:int,     arr_read:Array<U>,  read_index:int,  read_arr_value:U)
+                             | WriteArrayEvent(thread_write_arr_id:int,    arr_write:Array<U>, write_index:int, write_arr_value:U)
+
 
 class ThreadState
 {
@@ -151,8 +158,12 @@ class SharedStateIfc
         ensures  forall ref :: ref in old(env.shared.heap()) ==> ref in env.shared.heap();
 
     predicate IsValidPtr<T>(ptr:Ptr<T>)
-    function  Invariant<T>(ptr:Ptr<T>):iset<T>
-    function GetPtr<T>(heap:SharedHeap, ptr:Ptr<T>) : T
+    function  PtrInvariant<T>(ptr:Ptr<T>):iset<T>
+    //function  GetPtr<T>(heap:SharedHeap, ptr:Ptr<T>) : T
+
+    predicate IsValidArray<T>(arr:Array<T>)
+    function  ArrayInvariant<T>(arr:Array<T>):iset<T>
+    function  Length<T>(arr:Array<T>):int
 
     method {:axiom} MakePtr<T>(v:T, ghost ptr_invariant:iset<T>, ghost env:HostEnvironment) 
         returns (ptr:Ptr<T>)
@@ -161,7 +172,7 @@ class SharedStateIfc
         requires env != null && env.Valid();
         modifies env.shared;
         ensures  IsValidPtr(ptr);
-        ensures  Invariant(ptr) == ptr_invariant;
+        ensures  PtrInvariant(ptr) == ptr_invariant;
         ensures  ToU(ptr) !in old(env.shared.heap()) && ToU(ptr) in env.shared.heap();
         ensures  env.shared.history() == old(env.shared.history()) + [MakePtrEvent(env.thread.ThreadId(), ToUPtr(ptr), ToU(v))];
         ensures  forall ref :: ref in old(env.shared.heap()) ==> ref in env.shared.heap();
@@ -171,13 +182,13 @@ class SharedStateIfc
         requires IsValidPtr(ptr);
         requires env != null && env.Valid();
         modifies env.shared;
-        ensures  v in Invariant(ptr);
+        ensures  v in PtrInvariant(ptr);
         ensures  env.shared.history() == old(env.shared.history()) + [ReadPtrEvent(env.thread.ThreadId(), ToUPtr(ptr), ToU(v))];
         ensures  forall ref :: ref in old(env.shared.heap()) ==> ref in env.shared.heap()
     
     method {:axiom} WritePtr<T>(ptr:Ptr<T>, v:T, ghost env:HostEnvironment) 
         requires IsValidPtr(ptr);
-        requires v in Invariant(ptr);
+        requires v in PtrInvariant(ptr);
         requires env != null && env.Valid();
         modifies env.shared;
         ensures  env.shared.history() == old(env.shared.history()) + [WritePtrEvent(env.thread.ThreadId(), ToUPtr(ptr), ToU(v))];
@@ -188,12 +199,60 @@ class SharedStateIfc
         requires IsValidPtr(ptr);
         requires env != null && env.Valid();
         modifies env.shared;
-        ensures  v in Invariant(ptr);
+        ensures  v in PtrInvariant(ptr);
         ensures  ToU(ptr) in env.shared.heap();
         ensures  ToU(v) == env.shared.heap()[ToU(ptr)];
         ensures  env.shared.heap() in assumption;
         ensures  env.shared.history() == old(env.shared.history()) 
                                        + [ReadPtrEvent(env.thread.ThreadId(), ToUPtr(ptr), ToU(v))]
+                                       + [AssumeEvent (env.thread.ThreadId(), assumption)] ;
+        ensures  forall ref :: ref in old(env.shared.heap()) ==> ref in env.shared.heap();
+    
+    method {:axiom} MakeArray<T>(v:array<T>, ghost arr_invariant:iset<T>, ghost env:HostEnvironment) 
+        returns (arr:Array<T>)
+        requires ValueTypes() && IsValueType<T>();
+        requires v != null;
+        requires forall i :: 0 <= i < v.Length ==> v[i] in arr_invariant;
+        requires env != null && env.Valid();
+        modifies env.shared;
+        ensures  IsValidArray(arr);
+        ensures  ArrayInvariant(arr) == arr_invariant;
+        ensures  Length(arr) == v.Length;
+        ensures  ToU(arr) !in old(env.shared.heap()) && ToU(arr) in env.shared.heap();
+        ensures  env.shared.history() == old(env.shared.history()) + [MakeArrayEvent(env.thread.ThreadId(), ToUArray(arr), ToU(v[..]))];
+        ensures  forall ref :: ref in old(env.shared.heap()) ==> ref in env.shared.heap();
+
+    method {:axiom} ReadArray<T>(arr:Array<T>, index:int, ghost env:HostEnvironment) 
+        returns (v:T)
+        requires IsValidArray(arr);
+        requires 0 <= index < Length(arr);
+        requires env != null && env.Valid();
+        modifies env.shared;
+        ensures  v in ArrayInvariant(arr);
+        ensures  env.shared.history() == old(env.shared.history()) + [ReadArrayEvent(env.thread.ThreadId(), ToUArray(arr), index, ToU(v))];
+        ensures  forall ref :: ref in old(env.shared.heap()) ==> ref in env.shared.heap()
+    
+    method {:axiom} WriteArray<T>(arr:Array<T>, index:int, v:T, ghost env:HostEnvironment) 
+        requires IsValidArray(arr);
+        requires 0 <= index < Length(arr);
+        requires v in ArrayInvariant(arr);
+        requires env != null && env.Valid();
+        modifies env.shared;
+        ensures  env.shared.history() == old(env.shared.history()) + [WriteArrayEvent(env.thread.ThreadId(), ToUArray(arr), index, ToU(v))];
+        ensures  forall ref :: ref in old(env.shared.heap()) ==> ref in env.shared.heap();
+    
+    method {:axiom} ReadArrayAssume<T>(arr:Array<T>, index:int, ghost env:HostEnvironment, ghost assumption:iset<SharedHeap>) 
+        returns (v:T)
+        requires IsValidArray(arr);
+        requires 0 <= index < Length(arr);
+        requires env != null && env.Valid();
+        modifies env.shared;
+        ensures  v in ArrayInvariant(arr);
+        ensures  ToU(arr) in env.shared.heap();
+        ensures  ToU(v) == env.shared.heap()[ToU(arr)];
+        ensures  env.shared.heap() in assumption;
+        ensures  env.shared.history() == old(env.shared.history()) 
+                                       + [ReadArrayEvent(env.thread.ThreadId(), ToUArray(arr), index, ToU(v))]
                                        + [AssumeEvent (env.thread.ThreadId(), assumption)] ;
         ensures  forall ref :: ref in old(env.shared.heap()) ==> ref in env.shared.heap();
     
