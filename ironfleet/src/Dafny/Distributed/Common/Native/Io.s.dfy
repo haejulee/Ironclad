@@ -73,9 +73,12 @@ type Ptr<T>
 type Array<T>
 type Table<T,U>
 
+type SharedHeap(==)
+
 datatype SharedStateEvent<T> = MakePtrEvent (thread_make_id:int,  ptr_make:Ptr<T>,  initial_value:T)
                              | ReadPtrEvent (thread_read_id:int,  ptr_read:Ptr<T>,  read_value:T)
                              | WritePtrEvent(thread_write_id:int, ptr_write:Ptr<T>, write_value:T)
+                             | AssumeEvent  (thread_assume_id:int, assumption:iset<SharedHeap>)
 
 class ThreadState
 {
@@ -92,6 +95,7 @@ class SharedState
 {
     constructor{:axiom} () requires false;
     function{:axiom} history():seq<SharedStateEvent> reads this;
+    function{:axiom} heap():SharedHeap reads this;
 }
 
 class SharedStateIfc
@@ -104,6 +108,8 @@ class SharedStateIfc
 
     predicate IsValidPtr<T>(ptr:Ptr<T>)
     function  Invariant<T>(ptr:Ptr<T>):iset<T>
+
+    function GetPtr<T>(heap:SharedHeap, ptr:Ptr<T>) : T
 
     method {:axiom} MakePtr<T>(v:T, ghost ptr_invariant:iset<T>, ghost env:HostEnvironment) 
         returns (ptr:Ptr<T>)
@@ -129,6 +135,19 @@ class SharedStateIfc
         requires env != null && env.Valid();
         modifies env.shared;
         ensures  env.shared.history() == old(env.shared.history()) + [WritePtrEvent(env.thread.ThreadId(), ptr, v)];
+    
+    method {:axiom} ReadPtrAssume<T>(ptr:Ptr<T>, ghost env:HostEnvironment, ghost assumption:iset<SharedHeap>) 
+        returns (v:T)
+        requires IsValidPtr(ptr);
+        requires env != null && env.Valid();
+        modifies env.shared;
+        ensures  v in Invariant(ptr);
+        ensures  v == GetPtr(env.shared.heap(), ptr);
+        ensures  env.shared.heap() in assumption;
+        ensures  env.shared.history() == old(env.shared.history()) 
+                                       + [ReadPtrEvent(env.thread.ThreadId(), ptr, v)]
+                                       + [AssumeEvent (env.thread.ThreadId(), assumption)] ;
+    
 } 
 
 
