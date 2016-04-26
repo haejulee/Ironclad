@@ -264,6 +264,7 @@ class TcpListener
     method{:axiom} GetPort() returns(port:int32)
         requires started;
 
+    //TODO: need to connect the local address with client.LocalEndPoint() somehow
     method{:axiom} AcceptTcpClient(ghost env:HostEnvironment) returns(ok: bool, client:TcpClient)
         requires started;
         requires env != null && env.Valid();
