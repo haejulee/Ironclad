@@ -75,10 +75,13 @@ type Table<T,U>
 
 type SharedHeap(==)
 
-datatype SharedStateEvent<T> = MakePtrEvent (thread_make_id:int,  ptr_make:Ptr<T>,  initial_value:T)
-                             | ReadPtrEvent (thread_read_id:int,  ptr_read:Ptr<T>,  read_value:T)
-                             | WritePtrEvent(thread_write_id:int, ptr_write:Ptr<T>, write_value:T)
+datatype SharedStateEvent<T> = MakePtrEvent (thread_make_ptr_id:int, ptr_make:Ptr<T>,  initial_value:T)
+                             | ReadPtrEvent (thread_read_id:int,     ptr_read:Ptr<T>,  read_value:T)
+                             | WritePtrEvent(thread_write_id:int,    ptr_write:Ptr<T>, write_value:T)
                              | AssumeEvent  (thread_assume_id:int, assumption:iset<SharedHeap>)
+                             | MakeLockEvent(thread_make_lock_id:int, new_lock:Lock)
+                             | LockEvent  (thread_lock_id:int,   lock:Lock)
+                             | UnlockEvent(thread_unlock_id:int, unlock:Lock)
 
 class ThreadState
 {
@@ -106,9 +109,38 @@ class SharedStateIfc
         ensures IsValueType<int>();
         ensures ValueTypes();
 
+    predicate IsValidLock(lock:Lock)           
+
+    /*
+    method {:axiom} MakeLock(ghost env:HostEnvironment) returns (lock:Lock)
+        requires env != null && env.Valid();
+        modifies env.shared;
+        ensures  IsValidLock(lock);
+        ensures  env.shared.history() == old(env.shared.history()) + [MakeLockEvent(env.thread.ThreadId(), lock)];
+
+    method {:axiom} Lock(lock:Lock, ghost env:HostEnvironment)
+        requires IsValidLock(lock);
+        requires env != null && env.Valid();
+        modifies env.shared;
+        ensures  env.shared.history() == old(env.shared.history()) + [LockEvent(env.thread.ThreadId(), lock)];
+
+    method {:axiom} Unlock(lock:Lock, ghost env:HostEnvironment)
+        requires IsValidLock(lock);
+        requires env != null && env.Valid();
+        modifies env.shared;
+        ensures  env.shared.history() == old(env.shared.history()) + [UnlockEvent(env.thread.ThreadId(), lock)];
+    
+    method test()
+    {
+        var ptr0, ptr1;
+        var s0 := [MakePtrEvent(5, ptr0, true)];
+        var s1 := [MakePtrEvent(6, ptr1, 7)];
+        var s2 := s0 + s1;
+    }
+    */
+
     predicate IsValidPtr<T>(ptr:Ptr<T>)
     function  Invariant<T>(ptr:Ptr<T>):iset<T>
-
     function GetPtr<T>(heap:SharedHeap, ptr:Ptr<T>) : T
 
     method {:axiom} MakePtr<T>(v:T, ghost ptr_invariant:iset<T>, ghost env:HostEnvironment) 
