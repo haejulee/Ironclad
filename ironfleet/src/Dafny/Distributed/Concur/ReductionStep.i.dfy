@@ -8,10 +8,8 @@ include "../Common/Collections/Maps.i.dfy"
 
 module ReductionStepModule {
 
-    import opened ReductionModule
     import opened ReductionBasicModule
     import opened RefinementConvolutionModule
-    import opened SystemRefinementModule
     import opened ReductionPlanModule
     import opened SystemLemmasModule
     import opened ReductionPlanLemmasModule
@@ -199,14 +197,15 @@ module ReductionStepModule {
         requires atrace == RestrictTraceToActor(ltrace, actor);
         requires l_indices == GetTraceIndicesForActor(ltrace, actor);
         requires entry.actor == actor;
-        requires atrace == prefix + suffix;
+        requires atrace <= prefix + suffix;
+        requires !(atrace <= prefix);
         requires entry_pos == if |prefix| < |l_indices| then l_indices[|prefix|] else |ltrace|;
         requires |htrace| == |ltrace|+1;
         requires forall i {:trigger htrace[i]} :: 0 <= i <= |ltrace| ==> htrace[i] == (if i < entry_pos then ltrace[i] else if i == entry_pos then entry else ltrace[i-1]);
         requires |hb| == |lb|+1;
         requires forall i {:trigger hb[i]} :: 0 <= i <= |lb| ==> hb[i] == (if i <= entry_pos then lb[i] else lb[i-1]);
         ensures  SystemBehaviorRefinesSystemBehavior(lb, hb);
-        ensures  RestrictTraceToActor(htrace, actor) == prefix + [entry] + suffix;
+        ensures  RestrictTraceToActor(htrace, actor) <= prefix + [entry] + suffix;
         ensures  forall other_actor :: other_actor != actor ==> RestrictTraceToActor(htrace, other_actor) == RestrictTraceToActor(ltrace, other_actor);
     {
         // Prove SystemBehaviorRefinesSystemBehavior(lb, hb)
@@ -225,7 +224,7 @@ module ReductionStepModule {
         assert BehaviorRefinesBehaviorUsingRefinementMap(lb, hb, relation, lh_map);
         assert SystemBehaviorRefinesSystemBehavior(lb, hb);
 
-        // Prove RestrictTraceToActor(htrace, actor) == prefix + [entry] + suffix
+        // Prove RestrictTraceToActor(htrace, actor) <= prefix + [entry] + suffix
 
         assert htrace == ltrace[..entry_pos] + [entry] + ltrace[entry_pos..];
         lemma_TraceIndicesForActor_length(ltrace, actor);
@@ -234,17 +233,17 @@ module ReductionStepModule {
 
         lemma_SplitRestrictTraceToActor(ltrace[..entry_pos], ltrace[entry_pos..], actor);
         assert ltrace == ltrace[..entry_pos] + ltrace[entry_pos..];
-        lemma_IfPairsOfSequencesHaveSameConcatenationAndFirstMatchesThenSecondMatches(
-            prefix,
-            suffix,
+        lemma_IfConcatenationIsPrefixAndFirstsMatchThenSecondsArePrefix(
             RestrictTraceToActor(ltrace[..entry_pos], actor),
-            RestrictTraceToActor(ltrace[entry_pos..], actor));
-        assert suffix == RestrictTraceToActor(ltrace[entry_pos..], actor);
+            RestrictTraceToActor(ltrace[entry_pos..], actor),
+            prefix,
+            suffix);
+        assert RestrictTraceToActor(ltrace[entry_pos..], actor) <= suffix;
 
         lemma_Split3RestrictTraceToActor(ltrace[..entry_pos], [entry], ltrace[entry_pos..], actor);
         assert RestrictTraceToActor([entry], actor) == [entry];
 
-        assert RestrictTraceToActor(htrace, actor) == prefix + [entry] + suffix;
+        assert RestrictTraceToActor(htrace, actor) <= prefix + [entry] + suffix;
 
         // Prove forall other_actor :: other_actor != actor ==> RestrictTraceToActor(htrace, other_actor) == RestrictTraceToActor(ltrace, other_actor);
 
@@ -275,7 +274,7 @@ module ReductionStepModule {
         )
         requires IsValidSystemTraceAndBehavior(config, ltrace, lb);
         requires IsValidActorReductionPlan(aplan);
-        requires RestrictTraceToActor(ltrace, actor) == GetLeafEntriesForest(aplan.trees);
+        requires RestrictTraceToActor(ltrace, actor) <= GetLeafEntriesForest(aplan.trees);
         requires actor in config.tracked_actors;
         requires 0 <= which_tree < |aplan.trees|;
         requires tree == aplan.trees[which_tree];
@@ -289,11 +288,15 @@ module ReductionStepModule {
         ensures  SystemBehaviorRefinesSystemBehavior(lb, hb);
         ensures  IsValidActorReductionPlan(aplan');
         ensures  TreesOnlyForActor(aplan'.trees, actor);
-        ensures  RestrictTraceToActor(htrace, actor) == GetLeafEntriesForest(aplan'.trees);
+        ensures  RestrictTraceToActor(htrace, actor) <= GetLeafEntriesForest(aplan'.trees);
         ensures  forall other_actor :: other_actor != actor ==> RestrictTraceToActor(htrace, other_actor) == RestrictTraceToActor(ltrace, other_actor);
         ensures  CountInnerNodesForest(aplan'.trees) < CountInnerNodesForest(aplan.trees);
     {
         aplan' := lemma_UpdatePlanViaReduction(aplan, which_tree, tree, sub_tree, designator);
+
+        // Prove TreesOnlyForActor(aplan'.trees, actor)
+
+        lemma_ReduceTreeForestPreservesTreesOnlyForActor(aplan.trees, which_tree, designator, aplan'.trees, actor);
 
         var atrace := RestrictTraceToActor(ltrace, actor);
         var l_indices := GetTraceIndicesForActor(ltrace, actor);
@@ -303,13 +306,19 @@ module ReductionStepModule {
         var suffix := GetLeafEntriesForestSuffix(aplan.trees, which_tree, designator);
 
         lemma_ReduceTreeLeavesForest(aplan.trees, which_tree, designator);
-        assert atrace == prefix + sub_tree_trace + suffix;
+        assert atrace <= prefix + sub_tree_trace + suffix;
 
         assert GetLeafEntriesForest(aplan'.trees) == prefix + [sub_tree.reduced_entry] + suffix;
 
         lemma_IfTreeHasNoChildrenThenItHasNoLeafEntries(sub_tree);
         assert |sub_tree_trace| == 0;
-        assert atrace == prefix + suffix;
+        assert atrace <= prefix + suffix;
+
+        if atrace <= prefix {
+            htrace, hb := ltrace, lb;
+            lemma_SystemBehaviorRefinesItself(lb);
+            return;
+        }
 
         var entry := sub_tree.reduced_entry;
         lemma_IfTreeOnlyForActorThenSubtreeIs(tree, designator, actor);
@@ -350,10 +359,6 @@ module ReductionStepModule {
             }
         }
         assert IsValidSystemTraceAndBehavior(config, htrace, hb);
-
-        // Prove TreesOnlyForActor(aplan'.trees, actor)
-
-        lemma_ReduceTreeForestPreservesTreesOnlyForActor(aplan.trees, which_tree, designator, aplan'.trees, actor);
 
         // Call helper lemma to prove remaining needed properties.
 
@@ -712,7 +717,7 @@ module ReductionStepModule {
         )
         requires IsValidSystemTraceAndBehavior(config, ltrace, lb);
         requires IsValidActorReductionPlan(aplan);
-        requires RestrictTraceToActor(ltrace, actor) == GetLeafEntriesForest(aplan.trees);
+        requires RestrictTraceToActor(ltrace, actor) <= GetLeafEntriesForest(aplan.trees);
         requires actor in config.tracked_actors;
         requires 0 <= which_tree < |aplan.trees|;
         requires tree == aplan.trees[which_tree];
@@ -727,7 +732,7 @@ module ReductionStepModule {
         ensures  SystemBehaviorRefinesSystemBehavior(lb, hb);
         ensures  IsValidActorReductionPlan(aplan');
         ensures  TreesOnlyForActor(aplan'.trees, actor);
-        ensures  RestrictTraceToActor(htrace, actor) == GetLeafEntriesForest(aplan'.trees);
+        ensures  RestrictTraceToActor(htrace, actor) <= GetLeafEntriesForest(aplan'.trees);
         ensures  forall other_actor :: other_actor != actor ==> RestrictTraceToActor(htrace, other_actor) == RestrictTraceToActor(ltrace, other_actor);
         ensures  CountInnerNodesForest(aplan'.trees) < CountInnerNodesForest(aplan.trees);
     {
@@ -741,7 +746,7 @@ module ReductionStepModule {
         var suffix := GetLeafEntriesForestSuffix(aplan.trees, which_tree, designator);
 
         lemma_ReduceTreeLeavesForest(aplan.trees, which_tree, designator);
-        assert atrace == prefix + sub_tree_trace + suffix;
+        assume atrace == prefix + sub_tree_trace + suffix;
         lemma_IfAllChildrenAreLeavesThenGetLeafEntriesAreChildren(sub_tree);
         assert |sub_tree_trace| == |sub_tree.children| > 0;
 
@@ -799,7 +804,7 @@ module ReductionStepModule {
         )
         requires IsValidSystemTraceAndBehavior(config, ltrace, lb);
         requires IsValidActorReductionPlan(aplan);
-        requires RestrictTraceToActor(ltrace, actor) == GetLeafEntriesForest(aplan.trees);
+        requires RestrictTraceToActor(ltrace, actor) <= GetLeafEntriesForest(aplan.trees);
         requires actor in config.tracked_actors;
         requires 0 <= which_tree < |aplan.trees|;
         requires tree == aplan.trees[which_tree];
@@ -813,7 +818,7 @@ module ReductionStepModule {
         ensures  SystemBehaviorRefinesSystemBehavior(lb, hb);
         ensures  IsValidActorReductionPlan(aplan');
         ensures  TreesOnlyForActor(aplan'.trees, actor);
-        ensures  RestrictTraceToActor(htrace, actor) == GetLeafEntriesForest(aplan'.trees);
+        ensures  RestrictTraceToActor(htrace, actor) <= GetLeafEntriesForest(aplan'.trees);
         ensures  forall other_actor :: other_actor != actor ==> RestrictTraceToActor(htrace, other_actor) == RestrictTraceToActor(ltrace, other_actor);
         ensures  CountInnerNodesForest(aplan'.trees) < CountInnerNodesForest(aplan.trees);
     {

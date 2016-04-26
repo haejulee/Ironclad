@@ -59,13 +59,13 @@ module MatchTreesToTraceModule {
         requires IsValidReductionPlan(config, plan);
         requires forall entry :: entry in ltrace ==> IsRealAction(entry.action);
         requires forall actor :: actor in config.tracked_actors ==>
-                     RestrictTraceToActor(RestrictTraceToTrackedActions(ltrace), actor) == GetLeafEntriesForest(plan[actor].trees);
+                     RestrictTraceToActor(RestrictTraceToTrackedActions(ltrace), actor) <= GetLeafEntriesForest(plan[actor].trees);
         requires forall ls, actor :: ls in lb && actor in config.tracked_actors ==> actor !in ls.states;
         requires forall entry :: entry in ltrace && entry.actor in config.tracked_actors ==> !entry.action.UpdateLocalState?;
         ensures  SystemBehaviorRefinesSpec(lb);
     {
         forall actor | actor in config.tracked_actors
-            ensures RestrictTraceToActor(ltrace, actor) == GetLeafEntriesForest(plan[actor].trees);
+            ensures RestrictTraceToActor(ltrace, actor) <= GetLeafEntriesForest(plan[actor].trees);
         {
             lemma_IfNoActorStatesOrUpdatesThenRestrictionToActorContainsOnlyTrackedActions(config, ltrace, lb, actor);
             assert RestrictTraceToActor(RestrictTraceToTrackedActions(ltrace), actor) == RestrictTraceToActor(ltrace, actor);

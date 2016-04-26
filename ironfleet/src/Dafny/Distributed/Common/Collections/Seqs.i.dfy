@@ -202,6 +202,7 @@ lemma lemma_FunctionAdds<T,U>(s1:seq<T>, s2:seq<T>, f:seq<T> -> seq<U>, g:T->seq
         calc {
             f(s1) + f(s2);
             g(s1[0]) + f(s1[1..]) + f(s2);
+                { SeqAdditionIsAssociative(g(s1[0]), f(s1[1..]), f(s2)); }
             g(s1[0]) + (f(s1[1..]) + f(s2));
                 { lemma_FunctionAdds(s1[1..], s2, f, g); }
             g(s1[0]) + f(s1[1..] + s2);
@@ -239,6 +240,13 @@ lemma lemma_IfPairsOfSequencesHaveSameConcatenationAndFirstMatchesThenSecondMatc
     requires s1 + s2 == s3 + s4;
     requires s1 == s3;
     ensures  s2 == s4;
+{
+}
+
+lemma lemma_IfConcatenationIsPrefixAndFirstsMatchThenSecondsArePrefix<T>(s1:seq<T>, s2:seq<T>, s3:seq<T>, s4:seq<T>)
+    requires s1 + s2 <= s3 + s4;
+    requires s1 == s3;
+    ensures  s2 <= s4;
 {
 }
 

@@ -1,17 +1,9 @@
-include "Reduction.i.dfy"
 include "SystemLemmas.i.dfy"
-include "RefinementConvolution.i.dfy"
-include "SystemRefinement.i.dfy"
-include "ReductionPlan.i.dfy"
 include "MatchTreesToTrace.i.dfy"
 
 module RemoveUpdatesModule {
 
-    import opened ReductionModule
     import opened SystemLemmasModule
-    import opened RefinementConvolutionModule
-    import opened SystemRefinementModule
-    import opened ReductionPlanModule
     import opened MatchTreesToTraceModule
 
     function RemoveActorStateFromSystemState(ls:SystemState, actor:Actor) : SystemState
@@ -258,7 +250,7 @@ module RemoveUpdatesModule {
         requires IsValidReductionPlan(config, plan);
         requires forall entry :: entry in ltrace ==> IsRealAction(entry.action);
         requires forall actor :: actor in config.tracked_actors ==>
-                     RestrictTraceToActor(RestrictTraceToTrackedActions(ltrace), actor) == GetLeafEntriesForest(plan[actor].trees);
+                     RestrictTraceToActor(RestrictTraceToTrackedActions(ltrace), actor) <= GetLeafEntriesForest(plan[actor].trees);
         requires forall ls, actor :: ls in lb && actor in config.tracked_actors ==> actor !in ls.states;
         ensures  SystemBehaviorRefinesSpec(lb);
     {
@@ -273,7 +265,7 @@ module RemoveUpdatesModule {
         }
 
         forall actor | actor in config.tracked_actors
-            ensures RestrictTraceToActor(RestrictTraceToTrackedActions(htrace), actor) == GetLeafEntriesForest(plan[actor].trees);
+            ensures RestrictTraceToActor(RestrictTraceToTrackedActions(htrace), actor) <= GetLeafEntriesForest(plan[actor].trees);
         {
             lemma_RemoveTrackedActorLocalStateUpdatesMaintainsRestrictTraceToTrackedActions(ltrace, config.tracked_actors);
             assert RestrictTraceToTrackedActions(htrace) == RestrictTraceToTrackedActions(ltrace);

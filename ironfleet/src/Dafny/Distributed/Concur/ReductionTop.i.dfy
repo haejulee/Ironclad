@@ -4,12 +4,7 @@ include "../Common/Collections/Maps.i.dfy"
 
 module ReductionTopModule {
 
-    import opened ReductionModule
-    import opened RefinementConvolutionModule
-    import opened SystemRefinementModule
-    import opened ReductionPlanModule
     import opened AtomicRefinementModule
-    import opened SystemLemmasModule
     import opened ReductionStepModule
     import opened Collections__Maps_i
 
@@ -46,7 +41,7 @@ module ReductionTopModule {
         new_states == old_states[actor := state]
     }
 
-    ghost method {:timeLimitMultiplier 2} BuildHighBehavior(
+    ghost method {:timeLimitMultiplier 3} BuildHighBehavior(
         ltrace:Trace,
         lb:SystemBehavior,
         ab:seq<ActorState>,
@@ -68,7 +63,7 @@ module ReductionTopModule {
                            0 <= i < |indices|-1 && indices[i] < j <= indices[i+1] 
                            ==> ActorStateUpdated(lb[j].states, hb[j].states, actor, ab[i+1]);
         ensures  var indices := GetTraceIndicesForActor(ltrace, actor);     // Final segment
-                 |indices| > 0 ==> forall j :: last(indices) < j < |lb| ==> hb[j].states == lb[j].states[actor := last(ab)];
+                 |indices| > 0 ==> forall j :: last(indices) < j < |lb| ==> hb[j].states == lb[j].states[actor := ab[|indices|]];
     {
         var indices := GetTraceIndicesForActor(ltrace, actor);
         if |indices| == 0 {
@@ -235,7 +230,7 @@ module ReductionTopModule {
         ab_index:int
         )
         requires |lb| == |ltrace| + 1;
-        requires |ab| == |GetTraceIndicesForActor(ltrace, actor)| + 1;
+        requires |ab| >= |GetTraceIndicesForActor(ltrace, actor)| + 1;
         requires |hb| == |lb|;
         requires forall i :: 0 <= i < |hb| ==> hb[i] == lb[i].(states := hb[i].states); // Only the states change
         requires var indices := GetTraceIndicesForActor(ltrace, actor);     // Empty indices case
@@ -248,7 +243,7 @@ module ReductionTopModule {
                            0 <= i < |indices|-1 && indices[i] < j <= indices[i+1] 
                            ==> ActorStateUpdated(lb[j].states, hb[j].states, actor, ab[i+1]);
         requires var indices := GetTraceIndicesForActor(ltrace, actor);     // Final segment
-                 |indices| > 0 ==> forall j :: last(indices) < j < |lb| ==> hb[j].states == lb[j].states[actor := last(ab)];
+                 |indices| > 0 ==> forall j :: last(indices) < j < |lb| ==> hb[j].states == lb[j].states[actor := ab[|indices|]];
         requires 0 <= lb_index < |lb|;
         ensures  0 <= ab_index < |ab|;
         ensures  hb[lb_index].states == lb[lb_index].states[actor := ab[ab_index]];
@@ -267,9 +262,8 @@ module ReductionTopModule {
             assert lb_index !in indices && lb_index < |lb| - 1
                    ==> hb[lb_index].states[actor] == hb[lb_index+1].states[actor];
         } else if lb_index > last(indices) {
-            assert hb[lb_index].states == lb[lb_index].states[actor := last(ab)];
-            ab_index := |ab| - 1;
-            assert last(ab) == ab[ab_index];
+            assert hb[lb_index].states == lb[lb_index].states[actor := ab[|indices|]];
+            ab_index := |indices|;
             assert lb_index !in indices && lb_index < |lb| - 1
                    ==> hb[lb_index].states[actor] == hb[lb_index+1].states[actor];
         } else {
@@ -292,7 +286,7 @@ module ReductionTopModule {
             if |indices| == 0 {
             } else if i <= indices[0] {
             } else if i > last(indices) {
-                assert hb[i].states == lb[i].states[actor := last(ab)];
+                assert hb[i].states == lb[i].states[actor := ab[|indices|]];
             } else {
                 lemma_GetTraceIndicesForActorPartition(ltrace, actor, i);
                 var i_index :| 1 <= i_index < |indices| && indices[i_index-1] < i <= indices[i_index];
@@ -322,7 +316,7 @@ module ReductionTopModule {
         
 
 
-    lemma lemma_UpdatePerformIosToHostNext(
+    lemma {:timeLimitMultiplier 3} lemma_UpdatePerformIosToHostNext(
         config:Config,
         ltrace:Trace,
         lb:SystemBehavior,
@@ -336,7 +330,7 @@ module ReductionTopModule {
         requires IsValidSystemTraceAndBehavior(config, ltrace, lb);
         requires indices == GetTraceIndicesForActor(ltrace, tracked_actor);
         requires IsValidActorReductionPlan(plan);
-        requires |plan.trees| == |indices|;
+        requires |indices| <= |plan.trees|;
         requires forall i :: 0 <= i < |indices| ==>   ltrace[indices[i]].action.PerformIos? 
                                              && ltrace[indices[i]] == GetRootEntry(plan.trees[i]);
         ensures  IsValidSystemTraceAndBehavior(config, htrace, hb);
@@ -350,7 +344,7 @@ module ReductionTopModule {
     {
         var htrace_map := map i | 0 <= i < |lb|-1 :: (if i in indices then Entry(tracked_actor, HostNext(ltrace[i].action.raw_ios)) else ltrace[i]);
         htrace := ConvertMapToSeq(|lb|-1, htrace_map);
-        hb := BuildHighBehavior(ltrace, lb, plan.ab, tracked_actor);
+        hb := BuildHighBehavior(ltrace, lb, plan.ab[..|indices|+1], tracked_actor);
 
         forall actor, i | 0 <= i < |hb| && actor != tracked_actor 
             ensures ActorStateMatchesInSystemStates(lb[i], hb[i], actor);
@@ -361,7 +355,7 @@ module ReductionTopModule {
                 if i <= indices[0] {
                     assert hb[i].states == lb[i].states[tracked_actor := plan.ab[0]];
                 } else if i > last(indices) {
-                    assert hb[i].states == lb[i].states[tracked_actor := last(plan.ab)];
+                    assert hb[i].states == lb[i].states[tracked_actor := plan.ab[|indices|]];
                 } else {
                     lemma_GetTraceIndicesForActorPartition(ltrace, tracked_actor, i);
                     var i_index :| 1 <= i_index < |indices| && indices[i_index-1] < i <= indices[i_index];
@@ -419,6 +413,11 @@ module ReductionTopModule {
                     assert SystemNextEntry(hb[i], hb[i+1], htrace[i]);
                 }
             } else {
+                forall i',j' {:trigger ActorStateUpdated(lb[j'].states, hb[j'].states, tracked_actor, plan.ab[i'+1]) } |
+                           0 <= i' < |indices|-1 && indices[i'] < j' <= indices[i'+1]
+                    ensures ActorStateUpdated(lb[j'].states, hb[j'].states, tracked_actor, plan.ab[i'+1]);
+                {
+                }
                 var ab_index := lemma_HighBehavior_properties(ltrace, lb, plan.ab, tracked_actor, hb, i);
                 var ab_index' := lemma_HighBehavior_properties(ltrace, lb, plan.ab, tracked_actor, hb, i+1);
                 assert tracked_actor in hb[i].states;
@@ -449,7 +448,7 @@ module ReductionTopModule {
                                    && entry in ltrace
                                    && entry.actor == actor ==> entry.action.HostNext?;
         requires forall actor :: actor in config.tracked_actors && actor !in converted_actors ==>
-                            RestrictTraceToActor(ltrace, actor) == GetLeafEntriesForest(plan[actor].trees);
+                            RestrictTraceToActor(ltrace, actor) <= GetLeafEntriesForest(plan[actor].trees);
         requires forall actor, tree :: actor in config.tracked_actors && tree in plan[actor].trees ==> tree.Leaf?;
         requires forall entry :: entry in ltrace && entry.actor !in config.tracked_actors ==> IsRealAction(entry.action);
         requires forall actor :: actor in converted_actors ==> actor in lb[0].states && HostInit(lb[0].states[actor]);
@@ -463,9 +462,9 @@ module ReductionTopModule {
 
         var tracked_actor :| tracked_actor in config.tracked_actors - converted_actors;
         var aplan := plan[tracked_actor];
-        var ab := aplan.ab;
         var atrace := RestrictTraceToActor(ltrace, tracked_actor);
         lemma_IfAllTreesAreLeavesThenGetLeafEntriesForestIsConcatenationOfThoseLeaves(aplan.trees);
+        var ab := aplan.ab[..|atrace|+1];
         assert |ab| == |atrace| + 1;
         forall entry | entry in atrace
             ensures entry.actor == tracked_actor;
@@ -531,7 +530,7 @@ module ReductionTopModule {
         requires IsValidSystemTraceAndBehavior(config, ltrace, lb);
         requires IsValidReductionPlan(config, plan);
         requires forall actor :: actor in config.tracked_actors ==>
-                            RestrictTraceToActor(ltrace, actor) == GetLeafEntriesForest(plan[actor].trees);
+                            RestrictTraceToActor(ltrace, actor) <= GetLeafEntriesForest(plan[actor].trees);
         requires forall entry :: entry in ltrace && entry.actor !in config.tracked_actors ==> IsRealAction(entry.action);
         ensures  SystemBehaviorRefinesSpec(lb);
         decreases CountInnerNodesPlan(plan);

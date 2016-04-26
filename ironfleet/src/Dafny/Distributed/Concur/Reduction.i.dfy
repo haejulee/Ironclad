@@ -503,6 +503,9 @@ module ReductionModule
                     assert trees[index..] == [trees[index]] + trees[index+1..];
                 }
             GetLeafEntriesForest(trees[..index]) + (GetLeafEntriesForest([trees[index]]) + GetLeafEntriesForest(trees[index+1..]));
+                { SeqAdditionIsAssociative(GetLeafEntriesForest(trees[..index]),
+                                           GetLeafEntriesForest([trees[index]]),
+                                           GetLeafEntriesForest(trees[index+1..])); }
             GetLeafEntriesForest(trees[..index]) + GetLeafEntriesForest([trees[index]]) + GetLeafEntriesForest(trees[index+1..]); 
             GetLeafEntriesForest(trees[..index]) + GetLeafEntries(trees[index]) + GetLeafEntriesForest(trees[index+1..]); 
                 { lemma_ReduceTreeLeaves(tree, designator); }
@@ -514,7 +517,7 @@ module ReductionModule
         
     }    
     
-    lemma {:timeLimitMultiplier 4} lemma_ReduceTreeLeavesForestNew(trees:seq<Tree>, index:int, designator:seq<int>)
+    lemma {:timeLimitMultiplier 5} lemma_ReduceTreeLeavesForestNew(trees:seq<Tree>, index:int, designator:seq<int>)
         requires 0 <= index < |trees|;
         requires ReduceTree.requires(trees[index], designator)
         decreases |designator|;
@@ -574,9 +577,21 @@ module ReductionModule
             + GetLeafEntriesSuffix(trees[index], designator) 
             + GetLeafEntriesForest(trees[index+1..]);
 
+                { assert GetLeafEntriesForest(trees[..index]) + GetLeafEntriesPrefix(trees[index], designator) ==
+                         GetLeafEntriesForestPrefix(trees, index, designator); }
+
+              GetLeafEntriesForestPrefix(trees, index, designator) 
+            + [sub_tree.reduced_entry] 
+            + GetLeafEntriesSuffix(trees[index], designator) 
+            + GetLeafEntriesForest(trees[index+1..]);
+
+                { assert GetLeafEntriesSuffix(trees[index], designator) + GetLeafEntriesForest(trees[index+1..]) ==
+                         GetLeafEntriesForestSuffix(trees, index, designator); }
+
               GetLeafEntriesForestPrefix(trees, index, designator) 
             + [sub_tree.reduced_entry] 
             + GetLeafEntriesForestSuffix(trees, index, designator);
+
             prefix + [sub_tree.reduced_entry] + suffix;
         }
         
