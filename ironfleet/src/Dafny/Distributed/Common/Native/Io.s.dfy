@@ -11,6 +11,7 @@ class HostEnvironment
     ghost var ok:OkState;
     ghost var now:NowState;
     ghost var udp:UdpState;
+    ghost var tcp:TcpState;
     ghost var files:FileSystemState;
 
     predicate Valid()
@@ -20,6 +21,7 @@ class HostEnvironment
         && ok != null
         && now != null
         && udp != null
+        && tcp != null
         && files != null
     }
 }
@@ -97,11 +99,22 @@ datatype EndPoint = EndPoint(addr:seq<byte>, port:uint16)
     // UdpPacket_ctor has silly name to ferret out backwards calls
 type UdpPacket = LPacket<EndPoint, seq<byte>>
 type UdpEvent = LIoOp<EndPoint, seq<byte>>
+type TcpEvent = LIoOp<EndPoint, seq<byte>>
+
+datatype FsEvent = FIopOpen(fileName:array<char>) 
+                 | FIopRead(f:seq<char>, bytes:seq<byte>)
+                 | FIopClose(file:seq<char>)
 
 class UdpState
 {
     constructor{:axiom} () requires false;
     function{:axiom} history():seq<UdpEvent> reads this;
+}
+
+class TcpState
+{
+    constructor{:axiom} () requires false;
+    function{:axiom} history():seq<TcpEvent> reads this;
 }
 
 class IPEndPoint
@@ -207,22 +220,32 @@ class UdpClient
 class TcpClient
 {
     ghost var open:bool;
+    ghost var env:HostEnvironment;
+    
+    function{:axiom} LocalEndPoint():EndPoint reads this;
+    function{:axiom} Remote():EndPoint reads this;
 
-    method{:axiom} Read(buffer:array<byte>, offset:int32, size:int32) returns(bytesRead:int32, alive:bool)
+    method{:axiom} Read(buffer:array<byte>, offset:int32, size:int32) returns(ok:bool, bytesRead:int32)
         requires open;
         requires int(offset) + int(size) < 0x80000000;
         requires buffer != null;
         requires 0 <= int(offset) <= int(offset + size) <= buffer.Length;
+        requires env != null && env.Valid();
+        requires env.ok.ok();
         modifies this`open;
-        ensures  alive ==> open && 0 <= bytesRead <= size;
+        ensures  ok ==> open && 0 <= bytesRead <= size;
+        ensures  ok ==> env.tcp.history() == old(env.tcp.history()) + [LIoOpReceive(LPacket(LocalEndPoint(), Remote(), buffer[offset..offset+bytesRead]))];
 
-    method{:axiom} Write(buffer:array<byte>, offset:int32, size:int32) returns(alive:bool)
+    method{:axiom} Write(buffer:array<byte>, offset:int32, size:int32) returns(ok:bool)
         requires open;
         requires int(offset) + int(size) < 0x80000000;
         requires buffer != null;
         requires 0 <= int(offset) <= int(offset + size) <= buffer.Length;
+        requires env != null && env.Valid();
+        requires env.ok.ok();
         modifies this`open;
-        ensures  alive ==> open;
+        ensures  ok ==> open;
+        ensures  ok ==> env.tcp.history() == old(env.tcp.history()) + [LIoOpSend(LPacket(Remote(), LocalEndPoint(), buffer[offset..offset + size]))];
 
     method{:axiom} Close()
         modifies this`open;
@@ -241,11 +264,15 @@ class TcpListener
     method{:axiom} GetPort() returns(port:int32)
         requires started;
 
-    method{:axiom} AcceptTcpClient() returns(client:TcpClient)
+    method{:axiom} AcceptTcpClient(ghost env:HostEnvironment) returns(ok: bool, client:TcpClient)
         requires started;
-        ensures  client != null;
-        ensures  client.open;
-        ensures  fresh(client);
+        requires env != null && env.Valid();
+        ensures  env.ok.ok() == ok;
+        ensures  ok ==>
+                       client != null
+                    && fresh(client)
+                    && client.env == env
+                    && client.open
 }
 
 class MutableSet<T(==)>
@@ -356,6 +383,7 @@ class FileSystemState
     constructor{:axiom} () requires false;
     function{:axiom} state() : map<seq<char>,seq<byte>>   // File system maps file names (sequences of characters) to their contents
         reads this;
+    function{:axiom} history():seq<FsEvent> reads this;
 }
 
 class FileStream
@@ -390,6 +418,8 @@ class FileStream
         ensures  ok ==> f != null && fresh(f) && f.env == env && f.IsOpen() && f.Name() == name[..] &&          // FileStream object is initialized
                         env.files.state() == if name[..] in old(env.files.state()) then old(env.files.state())  // If the file exists, then the file contents are unchanged
                                              else old(env.files.state())[name[..] := []]                        // Otherwise, the file now exists with no content
+        ensures ok ==> env.files.history() == old(env.files.history()) + [FIopOpen(name)];
+
         
     method Close() returns(ok:bool)
         requires env != null && env.Valid();
@@ -400,6 +430,7 @@ class FileStream
         ensures  env == old(env);
         ensures  env.ok.ok() == ok;
         ensures  !IsOpen();
+        ensures ok ==> env.files.history() == old(env.files.history()) + [FIopClose(Name())];
 
     method Read(file_offset:nat32, buffer:array<byte>, start:int32, num_bytes:int32) returns(ok:bool)      
         requires env != null && env.Valid();
@@ -419,6 +450,7 @@ class FileStream
         ensures  Name() == old(Name());
         ensures  ok ==> IsOpen();        
         ensures  ok ==> buffer[..] == buffer[..start] + env.files.state()[Name()][file_offset..int(file_offset)+int(num_bytes)] + buffer[int(start)+int(num_bytes)..];
+        ensures ok ==> env.files.history() == old(env.files.history()) + [FIopRead(Name(), buffer[..])];
             
    method Write(file_offset:nat32, buffer:array<byte>, start:int32, num_bytes:int32) returns(ok:bool)        
         requires env != null && env.Valid();
@@ -445,4 +477,5 @@ class FileStream
 
 static function method{:axiom} CharToUShort(c:char):uint16
 static function method{:axiom} UShortToChar(u:uint16):char
+static function method{:axiom} UInt32ToBytes(u:uint32):array<byte>
 } 

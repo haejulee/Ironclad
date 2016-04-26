@@ -225,30 +225,35 @@ partial class TcpClient
         stream = client.GetStream();
     }
 
-    public void Read(byte[] buffer, int offset, int size, out int bytesRead, out bool alive)
+    public void Remote(out IEndPoint remote)
+    {
+        remote = (IEndPoint)client.Client.RemoteEndPoint;
+    }
+
+    public void Read(byte[] buffer, int offset, int size, out bool ok, out int bytesRead)
     {
         try
         {
             bytesRead = stream.Read(buffer, offset, size);
-            alive = true;
+            ok = true;
         }
         catch (Exception)
         {
             bytesRead = 0;
-            alive = false;
+            ok = false;
         }
     }
 
-    public void Write(byte[] buffer, int offset, int size, out bool alive)
+    public void Write(byte[] buffer, int offset, int size, out bool ok)
     {
         try
         {
             stream.Write(buffer, offset, size);
-            alive = true;
+            ok = true;
         }
         catch (Exception)
         {
-            alive = false;
+            ok = false;
         }
     }
 
@@ -282,9 +287,20 @@ partial class TcpListener
         port = this.port;
     }
 
-    public void AcceptTcpClient(out TcpClient client)
+    public void AcceptTcpClient(out bool ok, out TcpClient client)
     {
-        client = new TcpClient(listener.AcceptTcpClient());
+        try
+        {
+            client = new TcpClient(listener.AcceptTcpClient());
+            ok = true;
+        }
+        catch (Exception e)
+        {
+            client = null;
+            System.Console.Error.WriteLine(e);
+            ok = false;
+        }
+        
     }
 }
 

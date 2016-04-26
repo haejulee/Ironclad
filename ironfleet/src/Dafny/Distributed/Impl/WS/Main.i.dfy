@@ -5,33 +5,7 @@ module Main_i {
     import opened Native__Io_s
     import opened WS__WS_s
     
-     /*method MarshallResponse(response:HTTPResponse) returns (responseArr:array<byte>)
-        requires 1 < |response| < 65536;
-        ensures responseArr != null;
-        ensures responseArr.Length == |response|;
-    {
-        var i := 0;
-        responseArr := new byte[int32(|response|)];
-        
-        while (i < int32(|response|))    
-        {
-            responseArr[i] := byte(CharToUShort(response[i]) % 0x100);
-            i := i + 1;
-        }
-    }
-
-    method CharSeqToCharArray(s:seq<char>)  returns (a:array<char>)
-        ensures a != null;
-    {
-        a := new char[|s|];
-        var i := 0;
-        while (i < |s|)
-        {
-            a[i] := s[i];
-            i := i + 1;
-        }
-        
-    }*/
+    
 
     method ByteSeqToByteArray(s:seq<byte>, a:array<byte>)
         requires a != null;
@@ -48,19 +22,17 @@ module Main_i {
         
     }
 
-
     lemma lemma_ByteIsValid(b:byte)
       ensures 0 <= int(b) < 0x100;
     {
     }
     
-    method BytesArrayToCharArray(b:array<byte>, c:array<char>)
+    method BytesArrayToCharArray(b:array<byte>) returns (c:array<char>)
         requires b != null;
-        requires c != null;
-        requires b.Length == c.Length;
-        requires b.Length > 0;
-        modifies c;
+        ensures c != null;
+        ensures b.Length == c.Length;
     {
+        c := new char[b.Length];
         var i := 0;
         while (i < b.Length)
             invariant i <= b.Length;
@@ -89,13 +61,10 @@ module Main_i {
 
     }
 
-    method ParseRequest(request:array<byte>, len:int32, fileName:array<byte>) returns (b:bool)
+    method ParseRequest(request:array<byte>, len:int32) returns (b:bool, fileName:array<byte>)
         requires request != null;
         requires int(len) <= request.Length;
-        requires fileName != null;
-        requires fileName.Length >= 10;
-        requires fileName.Length >= int(len);
-        modifies fileName;
+        ensures b ==> fileName != null;
     {
         var minRequestLength := 5;
 
@@ -117,22 +86,26 @@ module Main_i {
         while (i < len)
             invariant fileNameLen >= 0;
             invariant 0 <= fileNameLen <= i;
-            invariant 0 <= fileNameLen <= len;
+            invariant i >= minRequestLength;
+            invariant fileNameLen <= i - minRequestLength;
+            invariant 0 <= fileNameLen <= len-minRequestLength;
         {
             // look for the space
             if (request[i] == 0x20) {
-                fileName[fileNameLen] := 0x00;
                 break;
             }
-            fileName[fileNameLen] := request[i]; 
+            
             fileNameLen := fileNameLen + 1;
             i := i + 1;
         }
+        
         assert int(fileNameLen) <= request.Length;
         
         b := true;
+
         // set fileName to index.htm
         if (fileNameLen == 0) {
+            fileName := new byte[10];
             fileName[0] := 0x69;
             fileName[1] := 0x6E;
             fileName[2] := 0x64;
@@ -143,7 +116,16 @@ module Main_i {
             fileName[7] := 0x74;
             fileName[8] := 0x6D;
             fileName[9] := 0x00;
-        } 
+        } else {
+            fileName := new byte[fileNameLen];
+            
+            var j := 0;
+            while (j < fileNameLen)
+            {
+                fileName[j] := request[minRequestLength+j]; 
+                j := j + 1;
+            }
+        }
     }
 
     method StringToBytes(str:seq<char>) returns (bytes:seq<byte>)
@@ -164,9 +146,9 @@ module Main_i {
 
     method FormulateHeader(code:seq<char>, contentLength:uint32)  returns (header:seq<byte>)
         requires |code| <= 15;
-        ensures |header| <= 60;
+        ensures |header| <= 100;
     {
-        var headerTopStr := "HTTP/1.1 " + code + "\nContent-Length:"; 
+        var headerTopStr := "HTTP/1.1 " + code + "\nContent-Type: text/html; charset=utf-8\nContent-Length:"; 
         var contentLengthBytes := Uint32ToBytes(contentLength); 
         var headerTopBytes := StringToBytes(headerTopStr);
         var headerTailBytes := StringToBytes("\n\n");
@@ -177,9 +159,9 @@ module Main_i {
 
     method FormulateResponse(header:seq<byte>, contents:array<byte>) returns (response:array<byte>)
         requires contents != null;
-        requires |header| + contents.Length <= 60+65536
+        requires |header| + contents.Length <= 100+65536
         ensures response != null;
-        ensures response.Length <= 60+65536; //TODO: avoid allocating this buffer
+        ensures response.Length <= 100+65536; 
     {
         var len := |header|;
 
@@ -216,8 +198,6 @@ module Main_i {
         l.Start();
 
         var requestArr := new byte[maxLength];
-        var fileNameBytes := new byte[maxLength];
-        var fileName := new char[maxLength];
         var fileContents := new byte[maxLength];
         
         var ok := true;
@@ -227,19 +207,25 @@ module Main_i {
             decreases *;
             invariant ok ==> l.started;
             invariant ok ==> env != null && env.Valid() && env.ok.ok();
-            //invariant ok ==> Get(env.files, ArrayToSeq(req), ArrayToSeq(res));
+            //invariant ok ==> GetReq(env.files, ArrayToSeq(requestArr), ArrayToSeq(res));
         {
             print ("Waiting for the client request\n");
-            var client := l.AcceptTcpClient();
-            var len, alive := client.Read(requestArr, 0, int32(requestArr.Length));
+            var client, len;
             
-            if (alive) {
-                var b := ParseRequest(requestArr, len, fileNameBytes);
+            ok, client := l.AcceptTcpClient(env);
+
+            if (!ok) {
+                return;
+            }
+            
+            ok, len := client.Read(requestArr, 0, int32(requestArr.Length));
+            
+            if (ok) {
+                var b, fileNameBytes := ParseRequest(requestArr, len);
                 var header;
                 
                 if b {
-                    // TODO: C# ignores null-terminated arrays; modify the native interface to accept length as a parameter
-                    BytesArrayToCharArray(fileNameBytes, fileName);
+                    var fileName := BytesArrayToCharArray(fileNameBytes);
                     var fileExists := FileStream.FileExists(fileName, env);
                     
                     if fileExists {
@@ -269,7 +255,7 @@ module Main_i {
                         header := FormulateHeader("200 OK", uint32(fileLength));
                         res :=  FormulateResponse(header, fileContents);
                         assert client.open;
-                        alive := client.Write(res, 0, int32(res.Length));
+                        ok := client.Write(res, 0, int32(res.Length));
                         ok := f.Close();
                         if (!ok) {
                             return;
@@ -282,7 +268,10 @@ module Main_i {
                         ByteSeqToByteArray(fileContentsTemp, fileContents);
                         res :=  FormulateResponse(header, fileContents);
 
-                        alive := client.Write(res, 0, int32(res.Length));
+                        ok := client.Write(res, 0, int32(res.Length));
+                        if (!ok) {
+                            return;
+                        }
                     }
                 } else {
                     header := FormulateHeader("500 Invalid", 0);
@@ -290,7 +279,10 @@ module Main_i {
                     ByteSeqToByteArray(fileContentsTemp, fileContents);
                     res :=  FormulateResponse(header, fileContents);
 
-                    alive := client.Write(res, 0, int32(res.Length));       
+                    ok := client.Write(res, 0, int32(res.Length));       
+                    if (!ok) {
+                        return;
+                    }
                 }
             }
             client.Close();
