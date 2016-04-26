@@ -68,16 +68,29 @@ class OkState
 // Local concurrency 
 //////////////////////////////////////////////////////////////////////////////
 
+type U(==)
 type Lock
 type Ptr<T>
 type Array<T>
 type Table<T,U>
 
-type SharedHeap(==)
+type SharedHeap = map<U,U>
 
-datatype SharedStateEvent<T> = MakePtrEvent (thread_make_ptr_id:int, ptr_make:Ptr<T>,  initial_value:T)
-                             | ReadPtrEvent (thread_read_id:int,     ptr_read:Ptr<T>,  read_value:T)
-                             | WritePtrEvent(thread_write_id:int,    ptr_write:Ptr<T>, write_value:T)
+function {:axiom} ToU<T>(t:T) : U
+  ensures FromU(ToU(t)) == t;
+
+function {:axiom} ToUPtr<T>(t:Ptr<T>) : Ptr<U>
+  ensures FromUPtr(ToUPtr(t)) == t;
+
+function {:axiom} FromU<T>(u:U) : T
+  //ensures ToU(FromU<T>(u)) == u;
+
+function {:axiom} FromUPtr<T>(u:Ptr<U>) : Ptr<T>
+
+
+datatype SharedStateEvent =    MakePtrEvent (thread_make_ptr_id:int, ptr_make:Ptr<U>,  initial_value:U)
+                             | ReadPtrEvent (thread_read_id:int,     ptr_read:Ptr<U>,  read_value:U)
+                             | WritePtrEvent(thread_write_id:int,    ptr_write:Ptr<U>, write_value:U)
                              | AssumeEvent  (thread_assume_id:int, assumption:iset<SharedHeap>)
                              | MakeLockEvent(thread_make_lock_id:int, new_lock:Lock)
                              | LockEvent  (thread_lock_id:int,   lock:Lock)
@@ -94,15 +107,18 @@ class ThreadState
         ensures  int(id) == env.thread.ThreadId();
 }
 
+
 class SharedState
 {
     constructor{:axiom} () requires false;
-    function{:axiom} history():seq<SharedStateEvent> reads this;
+    function{:axiom} history():seq<SharedStateEvent> reads this;      // TODO: Turn this and UDP history into a single history
     function{:axiom} heap():SharedHeap reads this;
 }
 
 class SharedStateIfc
 {
+    // TODO: Replace this with a built-in type predicate.
+    //       This would allow us to use datatypes and classes
     predicate IsValueType<T>()
     predicate {:axiom} ValueTypes()
         ensures IsValueType<bool>();
@@ -111,33 +127,28 @@ class SharedStateIfc
 
     predicate IsValidLock(lock:Lock)           
 
-    /*
     method {:axiom} MakeLock(ghost env:HostEnvironment) returns (lock:Lock)
         requires env != null && env.Valid();
         modifies env.shared;
         ensures  IsValidLock(lock);
         ensures  env.shared.history() == old(env.shared.history()) + [MakeLockEvent(env.thread.ThreadId(), lock)];
+        ensures  ToU(lock) !in old(env.shared.heap()) && ToU(lock) in env.shared.heap();
+        ensures  forall ref :: ref in old(env.shared.heap()) ==> ref in env.shared.heap();
 
     method {:axiom} Lock(lock:Lock, ghost env:HostEnvironment)
         requires IsValidLock(lock);
         requires env != null && env.Valid();
         modifies env.shared;
         ensures  env.shared.history() == old(env.shared.history()) + [LockEvent(env.thread.ThreadId(), lock)];
+        //ensures  env.shared.heap() == old(env.shared.heap())[ToU(lock) := ToU(true)];
+        ensures  forall ref :: ref in old(env.shared.heap()) ==> ref in env.shared.heap();
 
     method {:axiom} Unlock(lock:Lock, ghost env:HostEnvironment)
         requires IsValidLock(lock);
         requires env != null && env.Valid();
         modifies env.shared;
         ensures  env.shared.history() == old(env.shared.history()) + [UnlockEvent(env.thread.ThreadId(), lock)];
-    
-    method test()
-    {
-        var ptr0, ptr1;
-        var s0 := [MakePtrEvent(5, ptr0, true)];
-        var s1 := [MakePtrEvent(6, ptr1, 7)];
-        var s2 := s0 + s1;
-    }
-    */
+        ensures  forall ref :: ref in old(env.shared.heap()) ==> ref in env.shared.heap();
 
     predicate IsValidPtr<T>(ptr:Ptr<T>)
     function  Invariant<T>(ptr:Ptr<T>):iset<T>
@@ -151,7 +162,9 @@ class SharedStateIfc
         modifies env.shared;
         ensures  IsValidPtr(ptr);
         ensures  Invariant(ptr) == ptr_invariant;
-        ensures  env.shared.history() == old(env.shared.history()) + [MakePtrEvent(env.thread.ThreadId(), ptr, v)];
+        ensures  ToU(ptr) !in old(env.shared.heap()) && ToU(ptr) in env.shared.heap();
+        ensures  env.shared.history() == old(env.shared.history()) + [MakePtrEvent(env.thread.ThreadId(), ToUPtr(ptr), ToU(v))];
+        ensures  forall ref :: ref in old(env.shared.heap()) ==> ref in env.shared.heap();
 
     method {:axiom} ReadPtr<T>(ptr:Ptr<T>, ghost env:HostEnvironment) 
         returns (v:T)
@@ -159,14 +172,16 @@ class SharedStateIfc
         requires env != null && env.Valid();
         modifies env.shared;
         ensures  v in Invariant(ptr);
-        ensures  env.shared.history() == old(env.shared.history()) + [ReadPtrEvent(env.thread.ThreadId(), ptr, v)];
+        ensures  env.shared.history() == old(env.shared.history()) + [ReadPtrEvent(env.thread.ThreadId(), ToUPtr(ptr), ToU(v))];
+        ensures  forall ref :: ref in old(env.shared.heap()) ==> ref in env.shared.heap()
     
     method {:axiom} WritePtr<T>(ptr:Ptr<T>, v:T, ghost env:HostEnvironment) 
         requires IsValidPtr(ptr);
         requires v in Invariant(ptr);
         requires env != null && env.Valid();
         modifies env.shared;
-        ensures  env.shared.history() == old(env.shared.history()) + [WritePtrEvent(env.thread.ThreadId(), ptr, v)];
+        ensures  env.shared.history() == old(env.shared.history()) + [WritePtrEvent(env.thread.ThreadId(), ToUPtr(ptr), ToU(v))];
+        ensures  forall ref :: ref in old(env.shared.heap()) ==> ref in env.shared.heap();
     
     method {:axiom} ReadPtrAssume<T>(ptr:Ptr<T>, ghost env:HostEnvironment, ghost assumption:iset<SharedHeap>) 
         returns (v:T)
@@ -174,11 +189,13 @@ class SharedStateIfc
         requires env != null && env.Valid();
         modifies env.shared;
         ensures  v in Invariant(ptr);
-        ensures  v == GetPtr(env.shared.heap(), ptr);
+        ensures  ToU(ptr) in env.shared.heap();
+        ensures  ToU(v) == env.shared.heap()[ToU(ptr)];
         ensures  env.shared.heap() in assumption;
         ensures  env.shared.history() == old(env.shared.history()) 
-                                       + [ReadPtrEvent(env.thread.ThreadId(), ptr, v)]
+                                       + [ReadPtrEvent(env.thread.ThreadId(), ToUPtr(ptr), ToU(v))]
                                        + [AssumeEvent (env.thread.ThreadId(), assumption)] ;
+        ensures  forall ref :: ref in old(env.shared.heap()) ==> ref in env.shared.heap();
     
 } 
 
