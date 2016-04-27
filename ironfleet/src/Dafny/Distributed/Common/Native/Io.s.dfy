@@ -37,7 +37,6 @@ class HostConstants
 {
     constructor{:axiom} () requires false;
 
-    function{:axiom} LocalAddress():seq<byte> reads this; // REVIEW: Do we need this anymore?  We now allow different UdpClients to have different addresses anyway.
     function{:axiom} CommandLineArgs():seq<seq<uint16>> reads this; // result of C# System.Environment.GetCommandLineArgs(); argument 0 is name of executable
 
     static method{:axiom} NumCommandLineArgs(ghost env:HostEnvironment) returns(n:uint32)
@@ -70,6 +69,28 @@ class OkState
 
 datatype Event = SharedStateEvent(e:SharedStateEvent)
                | UdpEvent(u:UdpEvent) 
+
+datatype Event = // Shared-state events
+                   MakePtrEvent (thread_make_ptr_id:int, ptr_make:Ptr<U>,  initial_ptr_value:U)
+                 | ReadPtrEvent (thread_read_id:int,     ptr_read:Ptr<U>,  read_value:U)
+                 | WritePtrEvent(thread_write_id:int,    ptr_write:Ptr<U>, write_value:U)
+                 | AssumeEvent  (thread_assume_id:int, assumption:iset<SharedHeap>)
+                 | MakeLockEvent(thread_make_lock_id:int, new_lock:Lock)
+                 | LockEvent  (thread_lock_id:int,   lock:Lock)
+                 | UnlockEvent(thread_unlock_id:int, unlock:Lock)
+                 | MakeArrayEvent (thread_make_arr_id:int, arr_make:Array<U>,  initial_arr_value:U)
+                 | ReadArrayEvent (thread_read_arr_id:int,     arr_read:Array<U>,  read_index:int,  read_arr_value:U)
+                 | WriteArrayEvent(thread_write_arr_id:int,    arr_write:Array<U>, write_index:int, write_arr_value:U)
+                 // Time-related event
+                 | ReadClockEvent(time:int)
+                 // UDP events
+                 | UdpTimeoutReceiveEvent()
+                 | UdpReceiveEvent(r:UdpPacket)
+                 | UdpSendEvent(s:UdpPacket)
+                 // TCP events
+                 | TcpTimeoutReceiveEvent()
+                 | TcpReceiveEvent(received_bytes:UdpPacket)
+                 | TcpSendEvent(sent_bytes:UdpPacket)
 
 class Events 
 {
