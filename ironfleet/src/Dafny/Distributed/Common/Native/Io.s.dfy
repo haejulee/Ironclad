@@ -272,7 +272,7 @@ class SharedStateIfc
         modifies env.events;
         ensures  v in ArrayInvariant(arr);
         ensures  ToU(arr) in env.shared.heap();
-        ensures  ToU(v) == env.shared.heap()[ToU(arr)];
+        ensures  exists s:seq<T> :: env.shared.heap()[ToU(arr)] == ToU(s) && |s| == Length(arr) && v == s[index];
         ensures  env.shared.heap() in assumption;
         ensures  env.events.history() == old(env.events.history()) 
                                        + [SharedStateEvent(ReadArrayEvent(env.thread.ThreadId(), ToUArray(arr), index, ToU(v)))]
