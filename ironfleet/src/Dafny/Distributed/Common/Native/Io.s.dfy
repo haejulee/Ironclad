@@ -14,6 +14,7 @@ class HostEnvironment
     ghost var files:FileSystemState;
     ghost var thread:ThreadState;
     ghost var shared:SharedState;
+    ghost var connections:ConnectionState;
 
 
     predicate Valid()
@@ -26,6 +27,7 @@ class HostEnvironment
         && files != null
         && thread != null
         && shared != null
+        && connections != null
     }
 }
 
@@ -38,6 +40,8 @@ class HostConstants
     constructor{:axiom} () requires false;
 
     function{:axiom} CommandLineArgs():seq<seq<uint16>> reads this; // result of C# System.Environment.GetCommandLineArgs(); argument 0 is name of executable
+    function{:axiom} LocalAddress():seq<byte> reads this;
+        ensures |LocalAddress()| == 4;
 
     static method{:axiom} NumCommandLineArgs(ghost env:HostEnvironment) returns(n:uint32)
         requires env != null && env.Valid();
@@ -68,26 +72,29 @@ class OkState
 //////////////////////////////////////////////////////////////////////////////
 
 datatype Event = // Shared-state events
-                   MakePtrEvent   (thread_make_ptr_id:int,  ptr_make:Ptr<U>,    initial_ptr_value:U)
-                 | ReadPtrEvent   (thread_read_id:int,      ptr_read:Ptr<U>,    read_value:U)
-                 | WritePtrEvent  (thread_write_id:int,     ptr_write:Ptr<U>,   write_value:U)
-                 | AssumeEvent    (thread_assume_id:int,    assumption:iset<SharedHeap>)
-                 | MakeLockEvent  (thread_make_lock_id:int, new_lock:Lock)
-                 | LockEvent      (thread_lock_id:int,      lock:Lock)
-                 | UnlockEvent    (thread_unlock_id:int,    unlock:Lock)
-                 | MakeArrayEvent (thread_make_arr_id:int,  arr_make:Array<U>,  initial_arr_value:U, arr_len:int)
-                 | ReadArrayEvent (thread_read_arr_id:int,  arr_read:Array<U>,  read_index:int,      read_arr_value:U)
-                 | WriteArrayEvent(thread_write_arr_id:int, arr_write:Array<U>, write_index:int,     write_arr_value:U)
+                   MakePtrEvent           (ptr_make:Ptr<U>,    initial_ptr_value:U)
+                 | ReadPtrEvent           (ptr_read:Ptr<U>,    read_value:U)
+                 | WritePtrEvent          (ptr_write:Ptr<U>,   write_value:U)
+                 | AssumeEvent            (assumption:iset<SharedHeap>)
+                 | MakeLockEvent          (new_lock:Lock)
+                 | LockEvent              (lock:Lock)
+                 | UnlockEvent            (unlock:Lock)
+                 | MakeArrayEvent         (arr_make:Array<U>,  initial_arr_value:U, arr_len:int)
+                 | ReadArrayEvent         (arr_read:Array<U>,  read_index:int,      read_arr_value:U)
+                 | WriteArrayEvent        (arr_write:Array<U>, write_index:int,     write_arr_value:U)
                  // Read-clock event
-                 | ReadClockEvent(time:int)
+                 | ReadClockEvent         (time:int)
                  // UDP events
-                 | UdpTimeoutReceiveEvent()
-                 | UdpReceiveEvent(r:Packet)
-                 | UdpSendEvent(s:Packet)
-                 // TCP events - broken
-                 | TcpTimeoutReceiveEvent()
-                 | TcpReceiveEvent(received_bytes:Packet)
-                 | TcpSendEvent(sent_bytes:Packet)
+                 | UdpTimeoutReceiveEvent ()
+                 | UdpReceiveEvent        (r:Packet)
+                 | UdpSendEvent           (s:Packet)
+                 // TCP events
+                 | TcpConnectEvent        (connect_conn:int,   connect_ep:EndPoint)
+                 | TcpAcceptEvent         (accept_conn:int,    accept_ep:EndPoint)
+                 | TcpTimeoutReceiveEvent (timeout_conn:int)
+                 | TcpReceiveEvent        (receive_conn:int,   received_bytes:seq<byte>)
+                 | TcpSendEvent           (send_conn:int,      sent_bytes:seq<byte>)
+                 | TcpClose               (close_conn:int)
                  // File-system events - broken
                  | FIopOpenEvent(fileName:array<char>) 
                  | FIopReadEvent(f:seq<char>, bytes:seq<byte>)
@@ -124,6 +131,8 @@ function {:axiom} ToUPtr<T>(t:Ptr<T>) : Ptr<U>
 function {:axiom} ToUArray<T>(t:Array<T>) : Array<U>
   ensures FromUArray(ToUArray(t)) == t;
 
+datatype Connection = Connection(connector:EndPoint, acceptor:EndPoint)
+type Connections = map<int, Connection>
 
 class ThreadState
 {
@@ -141,6 +150,12 @@ class SharedState
 {
     constructor{:axiom} () requires false;
     function{:axiom} heap():SharedHeap reads this;
+}
+
+class ConnectionState
+{
+    constructor{:axiom} () requires false;
+    function{:axiom} connections():Connections reads this;
 }
 
 // TODO: Replace this with a built-in type predicate.
@@ -168,7 +183,7 @@ class SharedStateIfc
         modifies env.shared;
         modifies env.events;
         ensures  IsValidLock(lock);
-        ensures  env.events.history() == old(env.events.history()) + [MakeLockEvent(env.thread.ThreadId(), lock)];
+        ensures  env.events.history() == old(env.events.history()) + [MakeLockEvent(lock)];
         ensures  ToU(lock) !in old(env.shared.heap()) && ToU(lock) in env.shared.heap();
         ensures  forall ref :: ref in old(env.shared.heap()) ==> ref in env.shared.heap();
 
@@ -177,7 +192,7 @@ class SharedStateIfc
         requires env != null && env.Valid();
         modifies env.shared;
         modifies env.events;
-        ensures  env.events.history() == old(env.events.history()) + [LockEvent(env.thread.ThreadId(), lock)];
+        ensures  env.events.history() == old(env.events.history()) + [LockEvent(lock)];
         ensures  forall ref :: ref in old(env.shared.heap()) ==> ref in env.shared.heap();
 
     static method {:axiom} Unlock(lock:Lock, ghost env:HostEnvironment)
@@ -185,7 +200,7 @@ class SharedStateIfc
         requires env != null && env.Valid();
         modifies env.shared;
         modifies env.events;
-        ensures  env.events.history() == old(env.events.history()) + [UnlockEvent(env.thread.ThreadId(), lock)];
+        ensures  env.events.history() == old(env.events.history()) + [UnlockEvent(lock)];
         ensures  forall ref :: ref in old(env.shared.heap()) ==> ref in env.shared.heap();
 
     static method {:axiom} MakePtr<T>(v:T, ghost ptr_invariant:iset<T>, ghost env:HostEnvironment) 
@@ -198,7 +213,7 @@ class SharedStateIfc
         ensures  IsValidPtr(ptr);
         ensures  PtrInvariant(ptr) == ptr_invariant;
         ensures  ToU(ptr) !in old(env.shared.heap()) && ToU(ptr) in env.shared.heap();
-        ensures  env.events.history() == old(env.events.history()) + [MakePtrEvent(env.thread.ThreadId(), ToUPtr(ptr), ToU(v))];
+        ensures  env.events.history() == old(env.events.history()) + [MakePtrEvent(ToUPtr(ptr), ToU(v))];
         ensures  forall ref :: ref in old(env.shared.heap()) ==> ref in env.shared.heap();
 
     static method {:axiom} ReadPtr<T>(ptr:Ptr<T>, ghost env:HostEnvironment) 
@@ -208,7 +223,7 @@ class SharedStateIfc
 //        modifies env.shared;
         modifies env.events;
         ensures  v in PtrInvariant(ptr);
-        ensures  env.events.history() == old(env.events.history()) + [ReadPtrEvent(env.thread.ThreadId(), ToUPtr(ptr), ToU(v))];
+        ensures  env.events.history() == old(env.events.history()) + [ReadPtrEvent(ToUPtr(ptr), ToU(v))];
 //        ensures  forall ref :: ref in old(env.shared.heap()) ==> ref in env.shared.heap()
     
     static method {:axiom} WritePtr<T>(ptr:Ptr<T>, v:T, ghost env:HostEnvironment) 
@@ -217,7 +232,7 @@ class SharedStateIfc
         requires env != null && env.Valid();
         modifies env.shared;
         modifies env.events;
-        ensures  env.events.history() == old(env.events.history()) + [WritePtrEvent(env.thread.ThreadId(), ToUPtr(ptr), ToU(v))];
+        ensures  env.events.history() == old(env.events.history()) + [WritePtrEvent(ToUPtr(ptr), ToU(v))];
         ensures  forall ref :: ref in old(env.shared.heap()) ==> ref in env.shared.heap();
    
     static method {:axiom} ReadPtrAssume<T>(ptr:Ptr<T>, ghost assumption:iset<SharedHeap>, ghost env:HostEnvironment) 
@@ -231,8 +246,8 @@ class SharedStateIfc
         ensures  ToU(v) == env.shared.heap()[ToU(ptr)];
         ensures  env.shared.heap() in assumption;
         ensures  env.events.history() == old(env.events.history()) 
-                                       + [ReadPtrEvent(env.thread.ThreadId(), ToUPtr(ptr), ToU(v))]
-                                       + [AssumeEvent (env.thread.ThreadId(), assumption)] ;
+                                       + [ReadPtrEvent(ToUPtr(ptr), ToU(v))]
+                                       + [AssumeEvent (assumption)] ;
         ensures  forall ref :: ref in old(env.shared.heap()) ==> ref in env.shared.heap();
     
     static method {:axiom} MakeArray<T>(v:T, len:int, ghost arr_invariant:iset<T>, ghost env:HostEnvironment) 
@@ -246,7 +261,7 @@ class SharedStateIfc
         ensures  ArrayInvariant(arr) == arr_invariant;
         ensures  Length(arr) == len;
         ensures  ToU(arr) !in old(env.shared.heap()) && ToU(arr) in env.shared.heap();
-        ensures  env.events.history() == old(env.events.history()) + [MakeArrayEvent(env.thread.ThreadId(), ToUArray(arr), ToU(v), len)];
+        ensures  env.events.history() == old(env.events.history()) + [MakeArrayEvent(ToUArray(arr), ToU(v), len)];
         ensures  forall ref :: ref in old(env.shared.heap()) ==> ref in env.shared.heap();
 
     static method {:axiom} ReadArray<T>(arr:Array<T>, index:int, ghost env:HostEnvironment) 
@@ -257,7 +272,7 @@ class SharedStateIfc
 //        modifies env.shared;
         modifies env.events;
         ensures  v in ArrayInvariant(arr);
-        ensures  env.events.history() == old(env.events.history()) + [ReadArrayEvent(env.thread.ThreadId(), ToUArray(arr), index, ToU(v))];
+        ensures  env.events.history() == old(env.events.history()) + [ReadArrayEvent(ToUArray(arr), index, ToU(v))];
 //        ensures  forall ref :: ref in old(env.shared.heap()) ==> ref in env.shared.heap();
     
     static method {:axiom} WriteArray<T>(arr:Array<T>, index:int, v:T, ghost env:HostEnvironment) 
@@ -267,7 +282,7 @@ class SharedStateIfc
         requires env != null && env.Valid();
         modifies env.shared;
         modifies env.events;
-        ensures  env.events.history() == old(env.events.history()) + [WriteArrayEvent(env.thread.ThreadId(), ToUArray(arr), index, ToU(v))];
+        ensures  env.events.history() == old(env.events.history()) + [WriteArrayEvent(ToUArray(arr), index, ToU(v))];
         ensures  forall ref :: ref in old(env.shared.heap()) ==> ref in env.shared.heap();
     
     static method {:axiom} ReadArrayAssume<T>(arr:Array<T>, index:int, ghost assumption:iset<SharedHeap>, ghost env:HostEnvironment)
@@ -282,8 +297,8 @@ class SharedStateIfc
         ensures  exists s:seq<T> :: env.shared.heap()[ToU(arr)] == ToU(s) && |s| == Length(arr) && v == s[index];
         ensures  env.shared.heap() in assumption;
         ensures  env.events.history() == old(env.events.history()) 
-                                       + [ReadArrayEvent(env.thread.ThreadId(), ToUArray(arr), index, ToU(v))]
-                                       + [AssumeEvent   (env.thread.ThreadId(), assumption)] ;
+                                       + [ReadArrayEvent(ToUArray(arr), index, ToU(v))]
+                                       + [AssumeEvent   (assumption)] ;
         ensures  forall ref :: ref in old(env.shared.heap()) ==> ref in env.shared.heap();
 } 
 
@@ -321,18 +336,30 @@ class Time
 datatype EndPoint = EndPoint(addr:seq<byte>, port:uint16)
 datatype Packet = Packet(dst:EndPoint, src:EndPoint, msg:seq<byte>)
 
-predicate ValidPhysicalAddress(endPoint:EndPoint)
+predicate ValidPhysicalAddress(addr:seq<byte>)
 {
-       |endPoint.addr| == 4
-    && 0 <= endPoint.port <= 65535
+    |addr| == 4
+}
+
+predicate ValidPhysicalPort(port:uint16)
+{
+    0 <= port <= 65535
+}
+    
+predicate ValidPhysicalEndpoint(endPoint:EndPoint)
+{
+       ValidPhysicalAddress(endPoint.addr)
+    && ValidPhysicalPort(endPoint.port)
 }
 
 predicate ValidPhysicalPacket(p:Packet)
 {
-       ValidPhysicalAddress(p.src)
-    && ValidPhysicalAddress(p.dst)
+       ValidPhysicalEndpoint(p.src)
+    && ValidPhysicalEndpoint(p.dst)
     && |p.msg| < 0x1_0000_0000_0000_0000
 }
+
+// This class represents a C# IPEndPoint object:
 
 class IPEndPoint
 {
@@ -373,6 +400,8 @@ class UdpClient
         requires env != null && env.Valid();
         requires env.ok.ok();
         requires localEP != null;
+        requires localEP.Address() == env.constants.LocalAddress();
+        requires ValidPhysicalPort(localEP.Port());
         modifies env.ok;
         ensures  env.ok.ok() == ok;
         ensures  ok ==>
@@ -390,6 +419,7 @@ class UdpClient
         modifies env.ok;
         ensures  env == old(env);
         ensures  env.ok.ok() == ok;
+        ensures  !this.IsOpen();
 
     method{:axiom} Receive(timeLimit:int32) returns(ok:bool, timedOut:bool, remote:IPEndPoint, buffer:array<byte>)
         requires env != null && env.Valid();
@@ -409,10 +439,11 @@ class UdpClient
         ensures  ok ==> IsOpen();
         ensures  ok ==> timedOut  ==> env.events.history() == old(env.events.history()) + [UdpTimeoutReceiveEvent()];
         ensures  ok ==> !timedOut ==>
-            remote != null
+               remote != null
             && buffer != null
             && fresh(remote)
             && fresh(buffer)
+            && ValidPhysicalEndpoint(remote.EP())
             && env.events.history() == old(env.events.history()) +
                 [UdpReceiveEvent(Packet(LocalEndPoint(), remote.EP(), buffer[..]))]
             && buffer.Length < 0x1_0000_0000_0000_0000;
@@ -422,6 +453,7 @@ class UdpClient
         requires env.ok.ok();
         requires IsOpen();
         requires remote != null;
+        requires ValidPhysicalEndpoint(remote.EP());
         requires buffer != null;
         requires buffer.Length <= MaxPacketSize();
         modifies this;
@@ -432,7 +464,6 @@ class UdpClient
         ensures  LocalEndPoint() == old(LocalEndPoint());
         ensures  ok ==> IsOpen();
         ensures  ok ==> env.events.history() == old(env.events.history()) + [UdpSendEvent(Packet(remote.EP(), LocalEndPoint(), buffer[..]))];
-
 }
 
 class TcpClient
@@ -442,6 +473,33 @@ class TcpClient
     function{:axiom} Open():bool reads this;
     function{:axiom} LocalEndPoint():EndPoint reads this;
     function{:axiom} Remote():EndPoint reads this;
+    function{:axiom} Id():int reads this;
+
+    static method{:axiom} Connect(localEP:IPEndPoint, remote:IPEndPoint, ghost env:HostEnvironment)
+        returns (ok:bool, tcp:TcpClient)
+        requires env != null && env.Valid();
+        requires env.ok.ok();
+        requires localEP != null;
+        requires localEP.Address() == env.constants.LocalAddress();
+        requires ValidPhysicalPort(localEP.Port());
+        requires remote != null;
+        requires ValidPhysicalEndpoint(remote.EP());
+        modifies env.ok;
+        modifies env.connections;
+        modifies env.events;
+        ensures  env == old(env);
+        ensures  env.ok.ok() == ok;
+        ensures  forall id :: id in old(env.connections.connections()) ==> id in env.connections.connections();
+        ensures  ok ==>   tcp != null
+                       && fresh(tcp)
+                       && tcp.env == env
+                       && tcp.Open()
+                       && tcp.LocalEndPoint() == localEP.EP()
+                       && tcp.Remote() == remote.EP()
+                       && tcp.Id() !in old(env.connections.connections())
+                       && tcp.Id() in env.connections.connections()
+                       && env.connections.connections()[tcp.Id()] == Connection(tcp.LocalEndPoint(), tcp.Remote())
+                       && env.events.history() == old(env.events.history()) + [TcpConnectEvent(tcp.Id(), remote.EP())]
 
     method{:axiom} Read(buffer:array<byte>, offset:int32, size:int32) returns(ok:bool, bytesRead:int32)
         requires this.Open();
@@ -456,7 +514,7 @@ class TcpClient
         ensures  env == old(env);
         ensures  env.ok.ok() == ok;
         ensures  ok ==> this.Open() && 0 <= bytesRead <= size;
-        ensures  ok ==> env.events.history() == old(env.events.history()) + [TcpReceiveEvent(Packet(LocalEndPoint(), Remote(), buffer[offset..offset+bytesRead]))];
+        ensures  ok ==> env.events.history() == old(env.events.history()) + [TcpReceiveEvent(this.Id(), buffer[offset..offset+bytesRead])];
 
     method{:axiom} Write(buffer:array<byte>, offset:int32, size:int32) returns(ok:bool)
         requires this.Open();
@@ -471,7 +529,7 @@ class TcpClient
         ensures  env == old(env);
         ensures  env.ok.ok() == ok;
         ensures  ok ==> this.Open();
-        ensures  ok ==> env.events.history() == old(env.events.history()) + [TcpSendEvent(Packet(Remote(), LocalEndPoint(), buffer[offset..offset + size]))];
+        ensures  ok ==> env.events.history() == old(env.events.history()) + [TcpSendEvent(this.Id(), buffer[offset..offset + size])];
 
     method{:axiom} Close()
         requires this.Open();
@@ -481,27 +539,44 @@ class TcpClient
 
 class TcpListener
 {
-    ghost var started:bool;
+    ghost var env:HostEnvironment;
 
-    constructor{:axiom} New(port:int32)
+    function{:axiom} LocalEndPoint():EndPoint reads this;
 
-    method{:axiom} Start()
-        modifies this`started;
-        ensures  started;
-
-    method{:axiom} GetPort() returns(port:int32)
-        requires started;
-
-    //TODO: need to connect the local address with client.LocalEndPoint() somehow
-    method{:axiom} AcceptTcpClient(ghost env:HostEnvironment) returns(ok: bool, client:TcpClient)
-        requires started;
+    static method{:axiom} Construct(localEP:IPEndPoint, ghost env:HostEnvironment)
+        returns (ok:bool, listener:TcpListener)
         requires env != null && env.Valid();
+        requires env.ok.ok();
+        requires localEP != null;
+        requires localEP.Address() == env.constants.LocalAddress();
+        requires ValidPhysicalPort(localEP.Port());
+        modifies env.ok;
+        ensures  env == old(env);
         ensures  env.ok.ok() == ok;
-        ensures  ok ==>
-                       client != null
-                    && fresh(client)
-                    && client.env == env
-                    && client.Open()
+
+    method{:axiom} Accept(ghost env:HostEnvironment)
+        returns (ok:bool, remote:IPEndPoint, tcp:TcpClient)
+        requires env != null && env.Valid();
+        requires env.ok.ok();
+        modifies env.ok;
+        modifies env.connections;
+        modifies env.events;
+        ensures  env == old(env);
+        ensures  env.ok.ok() == ok;
+        ensures  forall id :: id in old(env.connections.connections()) ==> id in env.connections.connections();
+        ensures  ok ==>   tcp != null
+                       && remote != null
+                       && fresh(tcp)
+                       && fresh(remote)
+                       && tcp.env == env
+                       && tcp.Open()
+                       && tcp.LocalEndPoint() == this.LocalEndPoint()
+                       && ValidPhysicalEndpoint(remote.EP())
+                       && tcp.Remote() == remote.EP()
+                       && env.events.history() == old(env.events.history()) + [TcpAcceptEvent(tcp.Id(), remote.EP())]
+                       && tcp.Id() !in old(env.connections.connections())
+                       && tcp.Id() in env.connections.connections()
+                       && env.connections.connections()[tcp.Id()] == Connection(tcp.LocalEndPoint(), remote.EP());
 }
 
 class MutableSet<T(==)>
