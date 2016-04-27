@@ -891,7 +891,7 @@ module ReductionStepModule {
         lemma_SystemSystemRefinementConvolutionPure(lb, mb, hb);
     }
 
-    lemma {:timeLimitMultiplier 2} lemma_ApplyReductionWithChildrenAtEndIncludingPivotHelper(
+    lemma {:timeLimitMultiplier 3} lemma_ApplyReductionWithChildrenAtEndIncludingPivotHelper(
         ltrace:Trace,
         actor:Actor,
         aplan:ActorReductionPlan,

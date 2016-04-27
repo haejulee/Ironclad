@@ -467,7 +467,7 @@ module ReductionModule
         }
     }
 
-    lemma {:timeLimitMultiplier 3} lemma_ReduceTreeLeavesForestOld(trees:seq<Tree>, index:int, designator:seq<int>)
+    lemma {:timeLimitMultiplier 4} lemma_ReduceTreeLeavesForestOld(trees:seq<Tree>, index:int, designator:seq<int>)
         requires 0 <= index < |trees|;
         requires ReduceTree.requires(trees[index], designator)
         decreases |designator|;
@@ -517,7 +517,7 @@ module ReductionModule
         
     }    
     
-    lemma {:timeLimitMultiplier 5} lemma_ReduceTreeLeavesForestNew(trees:seq<Tree>, index:int, designator:seq<int>)
+    lemma {:timeLimitMultiplier 6} lemma_ReduceTreeLeavesForestNew(trees:seq<Tree>, index:int, designator:seq<int>)
         requires 0 <= index < |trees|;
         requires ReduceTree.requires(trees[index], designator)
         decreases |designator|;

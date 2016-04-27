@@ -321,7 +321,7 @@ module ReductionMoveModule
         lemma_TraceIndicesForActorConverse(trace', actor, indices');
     }
 
-    lemma {:timeLimitMultiplier 3} lemma_MoveTraceElementLeftProperties(
+    lemma {:timeLimitMultiplier 4} lemma_MoveTraceElementLeftProperties(
         trace:Trace,
         trace':Trace,
         actor:Actor,
