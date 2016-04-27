@@ -681,7 +681,7 @@ module ActorTraces
         lemma_IfNoEntriesAreFromActorThenRestrictTraceToActorIsEmpty(trace[1..], actor);
     }
 
-    lemma lemma_TraceIndicesForActorConverse(
+    lemma {:timeLimitMultiplier 2} lemma_TraceIndicesForActorConverse(
         trace:Trace,
         actor:Actor,
         indices:seq<int>
@@ -722,10 +722,16 @@ module ActorTraces
                 ensures indices[j] <= indices_actual[j];
             {
                 if i < j < |indices| {
+                    assert indices[j] <= indices_actual[j];
                 }
                 else if indices[i] > indices_actual[i] {
                     lemma_InterveningTraceIndicesFromDifferentActor(trace, actor, indices_actual, i, indices[i]);
                     assert false;
+                }
+                else {
+                    assert i == j;
+                    assert indices[i] <= indices_actual[i];
+                    assert indices[j] <= indices_actual[j];
                 }
             }
             i := i - 1;

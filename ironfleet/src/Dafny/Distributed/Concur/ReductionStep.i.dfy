@@ -53,7 +53,7 @@ module ReductionStepModule {
         requires 0 <= left_index <= right_index < |atrace|;
         requires tree.Inner?;
         requires forall c :: c in tree.children ==> c.Leaf?;
-        requires |tree.children| == right_index - left_index + 1;
+        requires right_index - left_index + 1 == |tree.children|;
         requires GetLeafEntries(tree) == atrace[left_index .. right_index + 1];
         ensures  forall i {:trigger atrace[i]} :: left_index <= i <= right_index ==> atrace[i] == tree.children[i - left_index].entry;
         ensures  forall i {:trigger atrace[i]} :: left_index <= i < left_index + tree.pivot_index ==> EntryIsRightMover(atrace[i]);
@@ -233,7 +233,7 @@ module ReductionStepModule {
 
         lemma_SplitRestrictTraceToActor(ltrace[..entry_pos], ltrace[entry_pos..], actor);
         assert ltrace == ltrace[..entry_pos] + ltrace[entry_pos..];
-        lemma_IfConcatenationIsPrefixAndFirstsMatchThenSecondsArePrefix(
+        lemma_IfConcatenationIsPrefixAndFirstsMatchThenSecondIsPrefix(
             RestrictTraceToActor(ltrace[..entry_pos], actor),
             RestrictTraceToActor(ltrace[entry_pos..], actor),
             prefix,
@@ -493,7 +493,7 @@ module ReductionStepModule {
         requires sub_tree.reduced_entry == entry;
         requires forall c :: c in sub_tree.children ==> c.Leaf?;
         requires sub_tree_trace == GetLeafEntries(sub_tree);
-        requires atrace == prefix + sub_tree_trace + suffix;
+        requires atrace <= prefix + sub_tree_trace + suffix;
         requires 0 <= left_index_to_move <= right_index_to_move < |l_indices|;
         requires GetLeafEntries(sub_tree) == atrace[left_index_to_move .. right_index_to_move + 1];
         requires left_index_to_move == |prefix|;
@@ -620,7 +620,7 @@ module ReductionStepModule {
         requires forall c :: c in sub_tree.children ==> c.Leaf?;
         requires sub_tree_trace == GetLeafEntries(sub_tree);
         requires TreeOnlyForActor(sub_tree, actor);
-        requires atrace == prefix + sub_tree_trace + suffix;
+        requires atrace <= prefix + sub_tree_trace + suffix;
         requires 0 <= left_index_to_move <= right_index_to_move < |l_indices|;
         requires GetLeafEntries(sub_tree) == atrace[left_index_to_move .. right_index_to_move + 1];
         requires left_index_to_move == |prefix|;
@@ -635,10 +635,10 @@ module ReductionStepModule {
         requires forall i {:trigger hb[i]} :: 0 <= i < |hb| ==> hb[i] == (if i <= first_replaced_entry_pos then mb[i] else mb[i+|sub_tree_trace|-1]);
         requires |sub_tree.children| == last_replaced_entry_pos - first_replaced_entry_pos + 1;
         requires forall i {:trigger mtrace[i]} :: first_replaced_entry_pos <= i <= last_replaced_entry_pos ==> mtrace[i] == sub_tree.children[i - first_replaced_entry_pos].entry;
-        ensures  RestrictTraceToActor(htrace, actor) == prefix + [entry] + suffix;
+        ensures  RestrictTraceToActor(htrace, actor) <= prefix + [entry] + suffix;
         ensures  forall other_actor :: other_actor != actor ==> RestrictTraceToActor(htrace, other_actor) == RestrictTraceToActor(mtrace, other_actor);
     {
-        // Prove RestrictTraceToActor(htrace, actor) == prefix + [entry] + suffix
+        // Prove RestrictTraceToActor(htrace, actor) <= prefix + [entry] + suffix
 
         assert htrace == mtrace[..first_replaced_entry_pos] + [entry] + mtrace[last_replaced_entry_pos+1..];
         lemma_TraceIndicesForActor_length(mtrace, actor);
@@ -672,19 +672,19 @@ module ReductionStepModule {
         }
         lemma_IfAllEntriesAreFromActorThenRestrictTraceToActorIsIdentity(sub_tree_trace, actor);
 
-        lemma_IfTripletsOfSequencesHaveSameConcatenationAndFirstTwoMatchThenLastMatches(
-            prefix,
-            sub_tree_trace,
-            suffix,
+        lemma_IfConcatenationIsPrefixAndFirstsAndSecondsMatchThenThirdIsPrefix(
             RestrictTraceToActor(mtrace[..first_replaced_entry_pos], actor),
             RestrictTraceToActor(mtrace[first_replaced_entry_pos..last_replaced_entry_pos+1], actor),
-            RestrictTraceToActor(mtrace[last_replaced_entry_pos+1..], actor));
-        assert suffix == RestrictTraceToActor(mtrace[last_replaced_entry_pos+1..], actor);
+            RestrictTraceToActor(mtrace[last_replaced_entry_pos+1..], actor),
+            prefix,
+            sub_tree_trace,
+            suffix);
+        assert RestrictTraceToActor(mtrace[last_replaced_entry_pos+1..], actor) <= suffix;
 
         lemma_Split3RestrictTraceToActor(mtrace[..first_replaced_entry_pos], [entry], mtrace[last_replaced_entry_pos+1..], actor);
         assert RestrictTraceToActor([entry], actor) == [entry];
 
-        assert RestrictTraceToActor(htrace, actor) == prefix + [entry] + suffix;
+        assert RestrictTraceToActor(htrace, actor) <= prefix + [entry] + suffix;
 
         // Prove forall other_actor :: other_actor != actor ==> RestrictTraceToActor(htrace, other_actor) == RestrictTraceToActor(mtrace, other_actor);
 
@@ -698,6 +698,578 @@ module ReductionStepModule {
             lemma_IfNoEntriesAreFromActorThenRestrictTraceToActorIsEmpty(sub_tree_trace, other_actor);
             assert RestrictTraceToActor(mtrace[first_replaced_entry_pos..last_replaced_entry_pos+1], other_actor) == [];
         }
+    }
+
+    lemma lemma_ApplyReductionWithChildrenHelper4(
+        config:Config,
+        mtrace:Trace,
+        mb:SystemBehavior,
+        actor:Actor,
+        atrace:seq<Entry>,
+        m_indices:seq<int>,
+        sub_tree:Tree,
+        prefix:seq<Entry>,
+        sub_tree_trace:seq<Entry>,
+        suffix:seq<Entry>,
+        left_index_to_move:int,
+        htrace:Trace,
+        hb:SystemBehavior
+        )
+        requires IsValidSystemTraceAndBehavior(config, mtrace, mb);
+        requires actor in config.tracked_actors;
+        requires atrace == RestrictTraceToActor(mtrace, actor);
+        requires m_indices == GetTraceIndicesForActor(mtrace, actor);
+        requires |atrace| == |m_indices|;
+        requires TreeValid(sub_tree);
+        requires sub_tree.Inner?;
+        requires forall c :: c in sub_tree.children ==> c.Leaf?;
+        requires sub_tree_trace == GetLeafEntries(sub_tree);
+        requires atrace <= prefix + sub_tree_trace + suffix;
+        requires left_index_to_move == |prefix|;
+        requires 0 <= left_index_to_move < |m_indices|;
+        requires atrace[left_index_to_move..] <= GetLeafEntries(sub_tree);
+        requires left_index_to_move == |prefix|;
+        requires htrace == mtrace[..|mtrace| - (|atrace| - |prefix|)];
+        requires hb == mb[..|mb| - (|atrace| - |prefix|)];
+        requires |sub_tree.children| == |GetLeafEntries(sub_tree)|;
+        requires forall i {:trigger GetLeafEntries(sub_tree)[i]}{:trigger sub_tree.children[i]} ::
+                      0 <= i < |sub_tree.children| ==> GetLeafEntries(sub_tree)[i] == sub_tree.children[i].entry;
+        requires forall i {:trigger m_indices[i]} :: left_index_to_move <= i < |atrace| ==> m_indices[i] == |mtrace| - |atrace| + i;
+        ensures  RestrictTraceToActor(htrace, actor) == prefix;
+        ensures  forall other_actor :: other_actor != actor ==> RestrictTraceToActor(htrace, other_actor) == RestrictTraceToActor(mtrace, other_actor);
+    {
+        // Prove RestrictTraceToActor(htrace, actor) == prefix
+
+        var piece2 := mtrace[|mtrace| - (|atrace| - |prefix|)..];
+        lemma_SplitRestrictTraceToActor(htrace, piece2, actor);
+
+        forall entry | entry in piece2
+            ensures entry.actor == actor;
+        {
+            var i :| 0 <= i < |piece2| && piece2[i] == entry;
+            var j := i + |prefix|;
+            calc {
+                piece2[i];
+                mtrace[i + |mtrace| - |atrace| + |prefix|];
+                    { assert m_indices[j] == |mtrace| - |atrace| + j; }
+                mtrace[m_indices[j]];
+                    { lemma_CorrespondenceBetweenGetTraceIndicesAndRestrictTraces(mtrace, actor); }
+                atrace[j];
+            }
+            assert entry in atrace;
+        }
+
+        assert mtrace == htrace + piece2;
+        lemma_IfAllEntriesAreFromActorThenRestrictTraceToActorIsIdentity(piece2, actor);
+        assert RestrictTraceToActor(htrace, actor) == prefix;
+
+        // Prove forall other_actor :: other_actor != actor ==> RestrictTraceToActor(htrace, other_actor) == RestrictTraceToActor(mtrace, other_actor);
+
+        forall other_actor | other_actor != actor
+            ensures RestrictTraceToActor(htrace, other_actor) == RestrictTraceToActor(mtrace, other_actor);
+        {
+            lemma_SplitRestrictTraceToActor(htrace, piece2, other_actor);
+            lemma_IfNoEntriesAreFromActorThenRestrictTraceToActorIsEmpty(piece2, other_actor);
+        }
+    }
+
+    lemma {:timeLimitMultiplier 2} lemma_ApplyReductionWithChildrenAtEndBeforePivot(
+        config:Config,
+        ltrace:Trace,
+        lb:SystemBehavior,
+        actor:Actor,
+        aplan:ActorReductionPlan,
+        which_tree:int,
+        tree:Tree,
+        sub_tree:Tree,
+        designator:seq<int>,
+        atrace:seq<Entry>,
+        prefix:seq<Entry>,
+        sub_tree_trace:seq<Entry>,
+        suffix:seq<Entry>,
+        aplan':ActorReductionPlan
+        ) returns (
+        htrace:Trace,
+        hb:SystemBehavior
+        )
+        requires IsValidSystemTraceAndBehavior(config, ltrace, lb);
+        requires IsValidActorReductionPlan(aplan);
+        requires actor in config.tracked_actors;
+        requires 0 <= which_tree < |aplan.trees|;
+        requires tree == aplan.trees[which_tree];
+        requires TreesOnlyForActor(aplan.trees, actor);
+        requires ValidTreeDesignator(designator, tree);
+        requires LookupTreeDesignator(designator, tree) == sub_tree;
+        requires TreeValid(sub_tree);
+        requires sub_tree.Inner?;
+        requires |sub_tree.children| > 0;
+        requires forall c :: c in sub_tree.children ==> c.Leaf?;
+        requires atrace == RestrictTraceToActor(ltrace, actor);
+        requires prefix == GetLeafEntriesForestPrefix(aplan.trees, which_tree, designator);
+        requires sub_tree_trace == GetLeafEntries(sub_tree);
+        requires suffix == GetLeafEntriesForestSuffix(aplan.trees, which_tree, designator);
+        requires aplan' == aplan.(trees := ReduceTreeForest(aplan.trees, which_tree, designator));
+        requires GetLeafEntriesForest(aplan'.trees) == prefix + [sub_tree.reduced_entry] + suffix;
+        requires |sub_tree.children| == |GetLeafEntries(sub_tree)|;
+        requires forall i {:trigger GetLeafEntries(sub_tree)[i]}{:trigger sub_tree.children[i]} ::
+                      0 <= i < |sub_tree.children| ==> GetLeafEntries(sub_tree)[i] == sub_tree.children[i].entry;
+        requires atrace <= prefix + sub_tree_trace;
+        requires |prefix| < |atrace| <= |prefix| + sub_tree.pivot_index;
+        ensures  IsValidSystemTraceAndBehavior(config, htrace, hb);
+        ensures  SystemBehaviorRefinesSystemBehavior(lb, hb);
+        ensures  RestrictTraceToActor(htrace, actor) <= GetLeafEntriesForest(aplan'.trees);
+        ensures  forall other_actor :: other_actor != actor ==> RestrictTraceToActor(htrace, other_actor) == RestrictTraceToActor(ltrace, other_actor);
+    {
+        var l_indices := GetTraceIndicesForActor(ltrace, actor);
+
+        var left_index_to_move := |prefix|;
+        var pivot_index := |prefix| + sub_tree.pivot_index;
+        var right_index_to_move := |atrace| - 1;
+        assert left_index_to_move <= right_index_to_move < pivot_index;
+        lemma_TraceIndicesForActor_length(ltrace, actor);
+
+        forall i {:trigger EntryIsRightMover(atrace[i])} | |prefix| <= i < |atrace|
+            ensures EntryIsRightMover(atrace[i]);
+        {
+            var j := i - |prefix|;
+            assert 0 <= j < sub_tree.pivot_index;
+            assert EntryIsRightMover(GetRootEntry(sub_tree.children[j]));
+            assert atrace[i] == GetLeafEntries(sub_tree)[j] == sub_tree.children[j].entry == GetRootEntry(sub_tree.children[j]);
+        }
+
+        var m_indices, mtrace, mb := lemma_MoveActionsForActorToEnd(config, ltrace, lb, actor, atrace, l_indices, |prefix|, |atrace|);
+
+        htrace := mtrace[..|mtrace| - (|atrace| - |prefix|)];
+        hb := mb[..|mb| - (|atrace| - |prefix|)];
+
+        lemma_ApplyReductionWithChildrenHelper4(config, mtrace, mb, actor, atrace, m_indices, sub_tree, prefix, sub_tree_trace, suffix, left_index_to_move, htrace, hb);
+
+        var relation := GetSystemSystemRefinementRelation();
+        var mh_map := ConvertMapToSeq(|mb|, map i | 0 <= i < |mb| ::
+                                                    if i < |hb| then RefinementRange(i, i) else RefinementRange(|hb| - 1, |hb| - 1));
+
+        forall i, j {:trigger RefinementPair(mb[i], hb[j]) in relation} |
+            0 <= i < |mb| && mh_map[i].first <= j <= mh_map[i].last
+            ensures RefinementPair(mb[i], hb[j]) in relation;
+        {
+            if i < |hb| {
+                assert j == i;
+                assert hb[j] == hb[i] == mb[i];
+                lemma_SystemStateCorrespondsToItself(mb[i]);
+            }
+            else {
+                assert j == |hb| - 1;
+                var mini_trace := mtrace[j..i];
+                var mini_behavior := mb[j..i+1];
+
+                forall k | 0 <= k < |mini_trace|
+                    ensures SystemNextEntry(mini_behavior[k], mini_behavior[k+1], mini_trace[k]);
+                {
+                    assert SystemNextEntry(mb[k + j], mb[k + j + 1], mtrace[k + j]);
+                }
+
+                forall mini_entry | mini_entry in mini_trace
+                    ensures EntryIsRightMover(mini_entry);
+                {
+                    var k :| 0 <= k < |mini_trace| && mini_entry == mini_trace[k];
+                    assert m_indices[|prefix|+k] == |mtrace| - |atrace| + |prefix| + k;
+                    calc {
+                        mtrace[m_indices[|prefix|+k]];
+                            { lemma_CorrespondenceBetweenGetTraceIndicesAndRestrictTraces(mtrace, actor); }
+                        atrace[|prefix|+k];
+                    }
+                    assert mini_entry == mtrace[k + j] == sub_tree.children[k].entry;
+                    assert k < sub_tree.pivot_index;
+                    assert EntryIsRightMover(GetRootEntry(sub_tree.children[k]));
+                }
+                
+                lemma_SequenceOfRightMoversCausesSystemCorrespondence(mini_trace, mini_behavior);
+            }
+        }
+
+        assert BehaviorRefinesBehaviorUsingRefinementMap(mb, hb, relation, mh_map);
+        lemma_SystemSystemRefinementConvolutionPure(lb, mb, hb);
+    }
+
+    lemma {:timeLimitMultiplier 2} lemma_ApplyReductionWithChildrenAtEndIncludingPivotHelper(
+        ltrace:Trace,
+        actor:Actor,
+        aplan:ActorReductionPlan,
+        which_tree:int,
+        tree:Tree,
+        sub_tree:Tree,
+        designator:seq<int>,
+        atrace:seq<Entry>,
+        prefix:seq<Entry>,
+        sub_tree_trace:seq<Entry>,
+        suffix:seq<Entry>,
+        l_indices:seq<int>,
+        pivot_index:int,
+        left_index_to_move:int,
+        right_index_to_move:int,
+        m_indices:seq<int>,
+        mtrace:Trace,
+        first_entry_pos:int,
+        last_entry_pos:int,
+        xtrace:Trace
+        ) returns (
+        atrace':seq<Entry>
+        )
+        requires IsValidActorReductionPlan(aplan);
+        requires 0 <= which_tree < |aplan.trees|;
+        requires tree == aplan.trees[which_tree];
+        requires TreesOnlyForActor(aplan.trees, actor);
+        requires ValidTreeDesignator(designator, tree);
+        requires LookupTreeDesignator(designator, tree) == sub_tree;
+        requires TreeValid(sub_tree);
+        requires sub_tree.Inner?;
+        requires |sub_tree.children| > 0;
+        requires forall c :: c in sub_tree.children ==> c.Leaf?;
+        requires atrace == RestrictTraceToActor(ltrace, actor);
+        requires prefix == GetLeafEntriesForestPrefix(aplan.trees, which_tree, designator);
+        requires sub_tree_trace == GetLeafEntries(sub_tree);
+        requires suffix == GetLeafEntriesForestSuffix(aplan.trees, which_tree, designator);
+        requires |sub_tree.children| == |GetLeafEntries(sub_tree)|;
+        requires forall i {:trigger GetLeafEntries(sub_tree)[i]}{:trigger sub_tree.children[i]} ::
+                      0 <= i < |sub_tree.children| ==> GetLeafEntries(sub_tree)[i] == sub_tree.children[i].entry;
+        requires atrace <= prefix + sub_tree_trace;
+        requires |atrace| > |prefix| + sub_tree.pivot_index;
+
+        requires TreeOnlyForActor(sub_tree, actor);
+        requires l_indices == GetTraceIndicesForActor(ltrace, actor);
+        requires left_index_to_move == |prefix|;
+        requires pivot_index == |prefix| + sub_tree.pivot_index;
+        requires right_index_to_move == |atrace| - 1;
+        requires forall i {:trigger atrace[i]} :: left_index_to_move <= i <= right_index_to_move ==> atrace[i] == sub_tree.children[i - left_index_to_move].entry;
+        requires forall any_actor :: RestrictTraceToActor(ltrace, any_actor) == RestrictTraceToActor(mtrace, any_actor);
+        requires m_indices == GetTraceIndicesForActor(mtrace, actor);
+        requires |m_indices| == |l_indices| == |atrace|;
+        requires m_indices[pivot_index] == l_indices[pivot_index];
+        requires forall i {:trigger m_indices[i]} :: left_index_to_move <= i <= right_index_to_move ==> i - pivot_index == m_indices[i] - m_indices[pivot_index];
+
+        requires first_entry_pos == m_indices[left_index_to_move];
+        requires last_entry_pos == m_indices[right_index_to_move];
+        requires forall i :: first_entry_pos <= i <= last_entry_pos ==> mtrace[i] == GetRootEntry(sub_tree.children[i - first_entry_pos]);
+        requires xtrace == mtrace[..last_entry_pos+1] + GetRootEntries(sub_tree.children[last_entry_pos - first_entry_pos + 1..]) + mtrace[last_entry_pos+1..];
+
+        ensures  forall other_actor :: other_actor != actor ==> RestrictTraceToActor(xtrace, other_actor) == RestrictTraceToActor(ltrace, other_actor);
+        ensures  atrace' == RestrictTraceToActor(xtrace, actor) == prefix + sub_tree_trace;
+    {
+        var piece2 := GetRootEntries(sub_tree.children[last_entry_pos - first_entry_pos + 1..]);
+        assert xtrace == mtrace[..last_entry_pos+1] + piece2 + mtrace[last_entry_pos+1..];
+
+        forall other_actor | other_actor != actor
+            ensures RestrictTraceToActor(xtrace, other_actor) == RestrictTraceToActor(ltrace, other_actor);
+        {
+            lemma_Split3RestrictTraceToActor(mtrace[..last_entry_pos+1], piece2, mtrace[last_entry_pos+1..], other_actor);
+            forall other_entry | other_entry in piece2
+                ensures other_entry.actor != other_actor;
+            {
+                var i :| 0 <= i < |piece2| && piece2[i] == other_entry;
+                assert other_entry == sub_tree.children[i + last_entry_pos - first_entry_pos + 1].entry;
+                assert TreeOnlyForActor(sub_tree.children[i + last_entry_pos - first_entry_pos + 1], actor);
+                assert other_entry.actor == actor;
+            }
+            lemma_IfNoEntriesAreFromActorThenRestrictTraceToActorIsEmpty(piece2, other_actor);
+            assert mtrace == mtrace[..last_entry_pos+1] + mtrace[last_entry_pos+1..];
+            lemma_SplitRestrictTraceToActor(mtrace[..last_entry_pos+1], mtrace[last_entry_pos+1..], other_actor);
+            assert RestrictTraceToActor(xtrace, other_actor) == RestrictTraceToActor(mtrace, other_actor);
+            assert RestrictTraceToActor(mtrace, other_actor) == RestrictTraceToActor(ltrace, other_actor);
+        }
+
+        atrace' := RestrictTraceToActor(xtrace, actor);
+
+        forall entry | entry in sub_tree_trace
+            ensures entry.actor == actor;
+        {
+            var i :| 0 <= i < |sub_tree_trace| && sub_tree_trace[i] == entry;
+            assert entry == sub_tree.children[i].entry;
+            assert TreeOnlyForActor(sub_tree.children[i], actor);
+        }
+
+        var sub_tree_trace_alt := mtrace[first_entry_pos..last_entry_pos+1] + piece2;
+        assert |sub_tree_trace_alt| == |sub_tree_trace|;
+        forall i | 0 <= i < |sub_tree_trace|
+            ensures sub_tree_trace_alt[i] == sub_tree_trace[i];
+        {
+            if i < last_entry_pos - first_entry_pos + 1 {
+                var j := i + first_entry_pos;
+                    
+                var k := j - m_indices[pivot_index] + pivot_index;
+                calc {
+                    sub_tree_trace_alt[i];
+                    mtrace[j];
+                    mtrace[m_indices[k]];
+                        { lemma_CorrespondenceBetweenGetTraceIndicesAndRestrictTraces(mtrace, actor); }
+                    atrace[k];
+                    sub_tree.children[k - left_index_to_move].entry;
+                    sub_tree.children[j - first_entry_pos].entry;
+                    GetRootEntry(sub_tree.children[j - first_entry_pos]);
+                    GetRootEntry(sub_tree.children[i]);
+                    sub_tree.children[i].entry;
+                    sub_tree_trace[i];
+                }
+            }
+            else {
+                var j := i - (last_entry_pos - first_entry_pos + 1);
+                calc {
+                    sub_tree_trace_alt[i];
+                    piece2[j];
+                    GetRootEntries(sub_tree.children[last_entry_pos - first_entry_pos + 1..])[j];
+                    GetRootEntry(sub_tree.children[last_entry_pos - first_entry_pos + 1..][j]);
+                        { lemma_ElementFromSequenceSuffix(sub_tree.children, sub_tree.children[last_entry_pos - first_entry_pos + 1..],
+                                                          last_entry_pos - first_entry_pos + 1, last_entry_pos - first_entry_pos + 1 + j); }
+                    GetRootEntry(sub_tree.children[last_entry_pos - first_entry_pos + 1 + j]);
+                    GetRootEntry(sub_tree.children[i]);
+                    sub_tree.children[i].entry;
+                    sub_tree_trace[i];
+                }
+            }
+        }
+        assert sub_tree_trace == sub_tree_trace_alt;
+
+        calc {
+            atrace';
+
+            {
+                assert xtrace == mtrace[..first_entry_pos] + mtrace[first_entry_pos..last_entry_pos+1] + piece2 +
+                                 mtrace[last_entry_pos+1..];
+                lemma_Split4RestrictTraceToActor(mtrace[..first_entry_pos], mtrace[first_entry_pos..last_entry_pos+1], piece2,
+                                                 mtrace[last_entry_pos+1..], actor);
+            }
+
+            RestrictTraceToActor(mtrace[..first_entry_pos], actor) +
+            RestrictTraceToActor(mtrace[first_entry_pos..last_entry_pos+1], actor) +
+            RestrictTraceToActor(piece2, actor) +
+            RestrictTraceToActor(mtrace[last_entry_pos+1..], actor);
+
+            {
+                lemma_RestrictTraceToActorSeqSliceTake(mtrace, actor, first_entry_pos, left_index_to_move);
+                assert RestrictTraceToActor(mtrace[..first_entry_pos], actor) == RestrictTraceToActor(mtrace, actor)[..left_index_to_move]
+                                                                              == prefix;
+            }
+
+            prefix +
+            RestrictTraceToActor(mtrace[first_entry_pos..last_entry_pos+1], actor) +
+            RestrictTraceToActor(piece2, actor) +
+            RestrictTraceToActor(mtrace[last_entry_pos+1..], actor);
+
+            {
+                lemma_IfNoEntriesAreFromActorThenRestrictTraceToActorIsEmpty(mtrace[last_entry_pos+1..], actor);
+            }
+
+            prefix +
+            RestrictTraceToActor(mtrace[first_entry_pos..last_entry_pos+1], actor) +
+            RestrictTraceToActor(piece2, actor);
+
+            {
+                SeqAdditionIsAssociative(prefix, RestrictTraceToActor(mtrace[first_entry_pos..last_entry_pos+1], actor),
+                                         RestrictTraceToActor(piece2, actor));
+            }
+
+            prefix +
+            (RestrictTraceToActor(mtrace[first_entry_pos..last_entry_pos+1], actor) +
+             RestrictTraceToActor(piece2, actor));
+
+            {
+                lemma_SplitRestrictTraceToActor(mtrace[first_entry_pos..last_entry_pos+1], piece2, actor);
+            }
+
+            prefix +
+            RestrictTraceToActor(mtrace[first_entry_pos..last_entry_pos+1] + piece2, actor);
+
+            {
+                assert mtrace[first_entry_pos..last_entry_pos+1] + piece2 == sub_tree_trace_alt == sub_tree_trace;
+            }
+
+            prefix +
+            RestrictTraceToActor(sub_tree_trace, actor);
+
+            {
+                lemma_IfAllEntriesAreFromActorThenRestrictTraceToActorIsIdentity(sub_tree_trace, actor);
+            }
+
+            prefix + sub_tree_trace;
+        }
+    }
+
+    lemma lemma_ApplyReductionWithChildrenAtEndIncludingPivot(
+        config:Config,
+        ltrace:Trace,
+        lb:SystemBehavior,
+        actor:Actor,
+        aplan:ActorReductionPlan,
+        which_tree:int,
+        tree:Tree,
+        sub_tree:Tree,
+        designator:seq<int>,
+        atrace:seq<Entry>,
+        prefix:seq<Entry>,
+        sub_tree_trace:seq<Entry>,
+        suffix:seq<Entry>,
+        aplan':ActorReductionPlan
+        ) returns (
+        htrace:Trace,
+        hb:SystemBehavior
+        )
+        requires IsValidSystemTraceAndBehavior(config, ltrace, lb);
+        requires IsValidActorReductionPlan(aplan);
+        requires actor in config.tracked_actors;
+        requires 0 <= which_tree < |aplan.trees|;
+        requires tree == aplan.trees[which_tree];
+        requires TreesOnlyForActor(aplan.trees, actor);
+        requires ValidTreeDesignator(designator, tree);
+        requires LookupTreeDesignator(designator, tree) == sub_tree;
+        requires TreeValid(sub_tree);
+        requires sub_tree.Inner?;
+        requires |sub_tree.children| > 0;
+        requires forall c :: c in sub_tree.children ==> c.Leaf?;
+        requires atrace == RestrictTraceToActor(ltrace, actor);
+        requires prefix == GetLeafEntriesForestPrefix(aplan.trees, which_tree, designator);
+        requires sub_tree_trace == GetLeafEntries(sub_tree);
+        requires suffix == GetLeafEntriesForestSuffix(aplan.trees, which_tree, designator);
+        requires aplan' == aplan.(trees := ReduceTreeForest(aplan.trees, which_tree, designator));
+        requires GetLeafEntriesForest(aplan'.trees) == prefix + [sub_tree.reduced_entry] + suffix;
+        requires |sub_tree.children| == |GetLeafEntries(sub_tree)|;
+        requires forall i {:trigger GetLeafEntries(sub_tree)[i]}{:trigger sub_tree.children[i]} ::
+                      0 <= i < |sub_tree.children| ==> GetLeafEntries(sub_tree)[i] == sub_tree.children[i].entry;
+        requires atrace <= prefix + sub_tree_trace;
+        requires |atrace| > |prefix| + sub_tree.pivot_index;
+        ensures  IsValidSystemTraceAndBehavior(config, htrace, hb);
+        ensures  SystemBehaviorRefinesSystemBehavior(lb, hb);
+        ensures  RestrictTraceToActor(htrace, actor) <= GetLeafEntriesForest(aplan'.trees);
+        ensures  forall other_actor :: other_actor != actor ==> RestrictTraceToActor(htrace, other_actor) == RestrictTraceToActor(ltrace, other_actor);
+    {
+        var l_indices := GetTraceIndicesForActor(ltrace, actor);
+        var entry := sub_tree.reduced_entry;
+        lemma_IfTreeOnlyForActorThenSubtreeIs(tree, designator, actor);
+        assert entry.actor == actor;
+
+        var left_index_to_move := |prefix|;
+        var pivot_index := |prefix| + sub_tree.pivot_index;
+        var right_index_to_move := |atrace| - 1;
+        lemma_TraceIndicesForActor_length(ltrace, actor);
+
+        forall i | left_index_to_move <= i <= right_index_to_move
+            ensures atrace[i] == sub_tree.children[i - left_index_to_move].entry;
+            ensures i < left_index_to_move + sub_tree.pivot_index ==> EntryIsRightMover(atrace[i]);
+            ensures left_index_to_move + sub_tree.pivot_index < i ==> EntryIsLeftMover(atrace[i]);
+        {
+            var relative_index := i - left_index_to_move;
+            assert sub_tree.children[relative_index].Leaf?;
+            assert atrace[i] == GetLeafEntries(sub_tree)[relative_index];
+            lemma_IfAllChildrenAreLeavesThenGetLeafEntriesAreChildren(sub_tree);
+            assert atrace[i] == GetRootEntry(sub_tree.children[relative_index]);
+            assert atrace[i] == sub_tree.children[relative_index].entry;
+            assert relative_index < sub_tree.pivot_index ==> EntryIsRightMover(GetRootEntry(sub_tree.children[relative_index]));
+            assert sub_tree.pivot_index < relative_index ==> EntryIsLeftMover(GetRootEntry(sub_tree.children[relative_index]));
+        }
+
+        var m_indices, mtrace, mb := lemma_MakeActionsForActorAdjacent(config, ltrace, lb, actor, atrace, l_indices, pivot_index, left_index_to_move, right_index_to_move, pivot_index, pivot_index);
+
+        var first_entry_pos := m_indices[left_index_to_move];
+        var last_entry_pos := m_indices[right_index_to_move];
+        forall i {:trigger mtrace[i]} | first_entry_pos <= i <= last_entry_pos
+            ensures mtrace[i] == GetRootEntry(sub_tree.children[i - first_entry_pos]);
+        {
+            var j := i - m_indices[pivot_index] + pivot_index;
+            calc {
+                mtrace[i];
+                mtrace[m_indices[j]];
+                    { lemma_CorrespondenceBetweenGetTraceIndicesAndRestrictTraces(mtrace, actor); }
+                atrace[j];
+                sub_tree.children[j - left_index_to_move].entry;
+                sub_tree.children[i - first_entry_pos].entry;
+                GetRootEntry(sub_tree.children[i - first_entry_pos]);
+            }
+        }
+
+        var xtrace, xb := lemma_ExtendTraceGivenLeftMoversAlwaysEnabled(config, mtrace, mb, actor, sub_tree, first_entry_pos, last_entry_pos);
+        lemma_SystemSystemRefinementConvolutionPure(lb, mb, xb);
+
+        var atrace' := lemma_ApplyReductionWithChildrenAtEndIncludingPivotHelper(ltrace, actor, aplan, which_tree, tree, sub_tree, designator, atrace, prefix, sub_tree_trace, suffix, l_indices, pivot_index, left_index_to_move, right_index_to_move, m_indices, mtrace, first_entry_pos, last_entry_pos, xtrace);
+
+        htrace, hb := lemma_ApplyReductionWithChildrenInMiddle(config, xtrace, xb, actor, aplan, which_tree, tree, sub_tree, designator, atrace', prefix, sub_tree_trace, suffix, aplan');
+        lemma_SystemSystemRefinementConvolutionPure(lb, xb, hb);
+    }
+
+    lemma lemma_ApplyReductionWithChildrenInMiddle(
+        config:Config,
+        ltrace:Trace,
+        lb:SystemBehavior,
+        actor:Actor,
+        aplan:ActorReductionPlan,
+        which_tree:int,
+        tree:Tree,
+        sub_tree:Tree,
+        designator:seq<int>,
+        atrace:seq<Entry>,
+        prefix:seq<Entry>,
+        sub_tree_trace:seq<Entry>,
+        suffix:seq<Entry>,
+        aplan':ActorReductionPlan
+        ) returns (
+        htrace:Trace,
+        hb:SystemBehavior
+        )
+        requires IsValidSystemTraceAndBehavior(config, ltrace, lb);
+        requires IsValidActorReductionPlan(aplan);
+        requires actor in config.tracked_actors;
+        requires 0 <= which_tree < |aplan.trees|;
+        requires tree == aplan.trees[which_tree];
+        requires TreesOnlyForActor(aplan.trees, actor);
+        requires ValidTreeDesignator(designator, tree);
+        requires LookupTreeDesignator(designator, tree) == sub_tree;
+        requires TreeValid(sub_tree);
+        requires sub_tree.Inner?;
+        requires |sub_tree.children| > 0;
+        requires forall c :: c in sub_tree.children ==> c.Leaf?;
+        requires atrace == RestrictTraceToActor(ltrace, actor);
+        requires prefix == GetLeafEntriesForestPrefix(aplan.trees, which_tree, designator);
+        requires sub_tree_trace == GetLeafEntries(sub_tree);
+        requires suffix == GetLeafEntriesForestSuffix(aplan.trees, which_tree, designator);
+        requires aplan' == aplan.(trees := ReduceTreeForest(aplan.trees, which_tree, designator));
+        requires GetLeafEntriesForest(aplan'.trees) == prefix + [sub_tree.reduced_entry] + suffix;
+        requires |sub_tree.children| == |GetLeafEntries(sub_tree)|;
+        requires forall i {:trigger GetLeafEntries(sub_tree)[i]}{:trigger sub_tree.children[i]} ::
+                      0 <= i < |sub_tree.children| ==> GetLeafEntries(sub_tree)[i] == sub_tree.children[i].entry;
+        requires atrace <= prefix + sub_tree_trace + suffix;
+        requires |atrace| >= |prefix| + |sub_tree_trace|;
+        ensures  IsValidSystemTraceAndBehavior(config, htrace, hb);
+        ensures  SystemBehaviorRefinesSystemBehavior(lb, hb);
+        ensures  RestrictTraceToActor(htrace, actor) <= GetLeafEntriesForest(aplan'.trees);
+        ensures  forall other_actor :: other_actor != actor ==> RestrictTraceToActor(htrace, other_actor) == RestrictTraceToActor(ltrace, other_actor);
+    {
+        var l_indices := GetTraceIndicesForActor(ltrace, actor);
+        var entry := sub_tree.reduced_entry;
+        lemma_IfTreeOnlyForActorThenSubtreeIs(tree, designator, actor);
+        assert entry.actor == actor;
+
+        var left_index_to_move := |prefix|;
+        var pivot_index := |prefix| + sub_tree.pivot_index;
+        var right_index_to_move := |prefix| + |sub_tree_trace| - 1;
+        lemma_TraceIndicesForActor_length(ltrace, actor);
+
+        lemma_RelationshipBetweenActorTraceAndTreeChildren(ltrace, actor, atrace, sub_tree, left_index_to_move, right_index_to_move);
+
+        var m_indices, mtrace, mb := lemma_MakeActionsForActorAdjacent(config, ltrace, lb, actor, atrace, l_indices, pivot_index, |prefix|, |prefix| + |sub_tree_trace| - 1, pivot_index, pivot_index);
+
+        var first_replaced_entry_pos := m_indices[left_index_to_move];
+        var last_replaced_entry_pos := m_indices[right_index_to_move];
+        var trace_map := map i | 0 <= i <= |mtrace| - |sub_tree_trace| :: if i < first_replaced_entry_pos then mtrace[i] else if i == first_replaced_entry_pos then entry else mtrace[i+|sub_tree_trace|-1];
+        htrace := ConvertMapToSeq(|mtrace| - |sub_tree_trace| + 1, trace_map);
+        var behavior_map := map i | 0 <= i <= |mb| - |sub_tree_trace| :: if i <= first_replaced_entry_pos then mb[i] else mb[i+|sub_tree_trace|-1];
+        hb := ConvertMapToSeq(|mb| - |sub_tree_trace| + 1, behavior_map);
+
+        // Prove IsValidSystemTraceAndBehavior(config, htrace, hb)
+
+        lemma_ApplyReductionWithChildrenHelper1(config, mtrace, mb, htrace, hb, actor, atrace, sub_tree, sub_tree_trace, left_index_to_move, right_index_to_move, first_replaced_entry_pos, last_replaced_entry_pos, pivot_index, m_indices, entry);
+        assert IsValidSystemTraceAndBehavior(config, htrace, hb);
+
+        // Call helper lemmas to prove remaining needed properties.
+        lemma_ApplyReductionWithChildrenHelper2(config, mtrace, mb, actor, entry, atrace, m_indices, sub_tree, prefix, sub_tree_trace, suffix, left_index_to_move, right_index_to_move, first_replaced_entry_pos, last_replaced_entry_pos, htrace, hb);
+        lemma_ApplyReductionWithChildrenHelper3(config, mtrace, mb, actor, entry, atrace, m_indices, sub_tree, prefix, sub_tree_trace, suffix, left_index_to_move, right_index_to_move, first_replaced_entry_pos, last_replaced_entry_pos, htrace, hb);
+        lemma_SystemSystemRefinementConvolutionPure(lb, mb, hb);
     }
 
     lemma lemma_ApplyReductionWithChildren(
@@ -738,53 +1310,38 @@ module ReductionStepModule {
     {
         aplan' := lemma_UpdatePlanViaReduction(aplan, which_tree, tree, sub_tree, designator);
 
+        // Prove TreesOnlyForActor(aplan'.trees, actor)
+
+        lemma_ReduceTreeForestPreservesTreesOnlyForActor(aplan.trees, which_tree, designator, aplan'.trees, actor);
+
         var atrace := RestrictTraceToActor(ltrace, actor);
-        var l_indices := GetTraceIndicesForActor(ltrace, actor);
 
         var prefix := GetLeafEntriesForestPrefix(aplan.trees, which_tree, designator);
         var sub_tree_trace := GetLeafEntries(sub_tree);
         var suffix := GetLeafEntriesForestSuffix(aplan.trees, which_tree, designator);
 
         lemma_ReduceTreeLeavesForest(aplan.trees, which_tree, designator);
-        assume atrace == prefix + sub_tree_trace + suffix;
+
+        assert atrace <= prefix + sub_tree_trace + suffix;
+
         lemma_IfAllChildrenAreLeavesThenGetLeafEntriesAreChildren(sub_tree);
         assert |sub_tree_trace| == |sub_tree.children| > 0;
 
         assert GetLeafEntriesForest(aplan'.trees) == prefix + [sub_tree.reduced_entry] + suffix;
 
-        var entry := sub_tree.reduced_entry;
-        lemma_IfTreeOnlyForActorThenSubtreeIs(tree, designator, actor);
-        assert entry.actor == actor;
-
-        var left_index_to_move := |prefix|;
-        var pivot_index := |prefix| + sub_tree.pivot_index;
-        var right_index_to_move := |prefix| + |sub_tree_trace| - 1;
-        lemma_TraceIndicesForActor_length(ltrace, actor);
-
-        lemma_RelationshipBetweenActorTraceAndTreeChildren(ltrace, actor, atrace, sub_tree, left_index_to_move, right_index_to_move);
-
-        var m_indices, mtrace, mb := lemma_MakeActionsForActorAdjacent(config, ltrace, lb, actor, atrace, l_indices, pivot_index, |prefix|, |prefix| + |sub_tree_trace| - 1, pivot_index, pivot_index);
-
-        var first_replaced_entry_pos := m_indices[left_index_to_move];
-        var last_replaced_entry_pos := m_indices[right_index_to_move];
-        var trace_map := map i | 0 <= i <= |mtrace| - |sub_tree_trace| :: if i < first_replaced_entry_pos then mtrace[i] else if i == first_replaced_entry_pos then entry else mtrace[i+|sub_tree_trace|-1];
-        htrace := ConvertMapToSeq(|mtrace| - |sub_tree_trace| + 1, trace_map);
-        var behavior_map := map i | 0 <= i <= |mb| - |sub_tree_trace| :: if i <= first_replaced_entry_pos then mb[i] else mb[i+|sub_tree_trace|-1];
-        hb := ConvertMapToSeq(|mb| - |sub_tree_trace| + 1, behavior_map);
-
-        // Prove IsValidSystemTraceAndBehavior(config, htrace, hb)
-
-        lemma_ApplyReductionWithChildrenHelper1(config, mtrace, mb, htrace, hb, actor, atrace, sub_tree, sub_tree_trace, left_index_to_move, right_index_to_move, first_replaced_entry_pos, last_replaced_entry_pos, pivot_index, m_indices, entry);
-        assert IsValidSystemTraceAndBehavior(config, htrace, hb);
-
-        // Prove TreesOnlyForActor(aplan'.trees, actor)
-
-        lemma_ReduceTreeForestPreservesTreesOnlyForActor(aplan.trees, which_tree, designator, aplan'.trees, actor);
-
-        // Call helper lemmas to prove remaining needed properties.
-        lemma_ApplyReductionWithChildrenHelper2(config, mtrace, mb, actor, entry, atrace, m_indices, sub_tree, prefix, sub_tree_trace, suffix, left_index_to_move, right_index_to_move, first_replaced_entry_pos, last_replaced_entry_pos, htrace, hb);
-        lemma_ApplyReductionWithChildrenHelper3(config, mtrace, mb, actor, entry, atrace, m_indices, sub_tree, prefix, sub_tree_trace, suffix, left_index_to_move, right_index_to_move, first_replaced_entry_pos, last_replaced_entry_pos, htrace, hb);
-        lemma_SystemSystemRefinementConvolutionPure(lb, mb, hb);
+        if |atrace| <= |prefix| {
+            htrace, hb := ltrace, lb;
+            lemma_SystemBehaviorRefinesItself(lb);
+        }
+        else if |atrace| <= |prefix| + sub_tree.pivot_index {
+            htrace, hb := lemma_ApplyReductionWithChildrenAtEndBeforePivot(config, ltrace, lb, actor, aplan, which_tree, tree, sub_tree, designator, atrace, prefix, sub_tree_trace, suffix, aplan');
+        }
+        else if |atrace| < |prefix| + |sub_tree_trace| {
+            htrace, hb := lemma_ApplyReductionWithChildrenAtEndIncludingPivot(config, ltrace, lb, actor, aplan, which_tree, tree, sub_tree, designator, atrace, prefix, sub_tree_trace, suffix, aplan');
+        }
+        else {
+            htrace, hb := lemma_ApplyReductionWithChildrenInMiddle(config, ltrace, lb, actor, aplan, which_tree, tree, sub_tree, designator, atrace, prefix, sub_tree_trace, suffix, aplan');
+        }
     }
 
     lemma lemma_ApplyOneReduction(
