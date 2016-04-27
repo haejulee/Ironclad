@@ -8,7 +8,7 @@ include "../../Services/WS/AbstractService.s.dfy"
 include "../Common/NodeIdentity.i.dfy"
 
 module WS__Host_i {
-import opened Protocol_Parameters_i 
+import opened WS_Parameters_i 
 import opened WS__Environment_i
 import opened Collections__Sets_i
 import opened Logic__Option_i

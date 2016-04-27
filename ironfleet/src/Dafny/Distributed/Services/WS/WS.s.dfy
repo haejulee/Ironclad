@@ -4,51 +4,63 @@ module WS__WS_s {
 
 import opened Native__Io_s
 
-type HTTPRequest = seq<char>
-type HTTPResponse = seq<char>
+type HTTPRequest = string
+type HTTPResponse = string
 
 predicate SpecInit()
 {
     true
 }
 
-function GetProtocolVersion() : string
+function method GetProtocolVersion() : string
 {
     "HTTP/1.1"
 }
 
-function GetHTTPCode(responseCase:string) : string
+function method GetHTTPCode(responseCase:string) : string
 {
     if responseCase == "OK" then "200"
     else if responseCase == "Not Found" then "400"
     else "404"
 }
 
-function LineBreaks() : string
+function method LineBreaks() : string
 {
     "\n\r\n\r"
+}
+
+predicate IsValidFilePathInHTTPReq(req:HTTPRequest, filePath:seq<char>)
+{
+    |filePath| > 1 && (req == "GET /" + filePath + " " + GetProtocolVersion())
 }
 
 // supports only a very primitive request format at the moment
 predicate IsValidHTTPReq(req:HTTPRequest)
 {
-    exists filePath :: |filePath| > 1 && (req == "GET " + filePath + " " + GetProtocolVersion())
+    exists filePath :: IsValidFilePathInHTTPReq(req, filePath)
 }
 
-function BytesToString(b:seq<byte>) : seq<char>
+function method BytesToString(b:seq<byte>) : seq<char>
 
-function StringToBytes(arr:seq<char>) : seq<byte>
+function method StringToBytes(arr:seq<char>) : seq<byte>
 
 // TODO: need to set other headers
-predicate Get(fs:FileSystemState, req:HTTPRequest, res:HTTPResponse)
+predicate GetSeq(fs:FileSystemState, req:HTTPRequest, res:HTTPResponse)
     requires fs != null;
+    reads fs;
 {
-       fs != null
-    && if IsValidHTTPReq(req) then
-        (exists filePath :: |filePath| > 1 
-                         && (req == "GET " + filePath + " " + GetProtocolVersion()) 
-                         && (res == if fs.file_exists(filePath[1..]) then (GetProtocolVersion() + " " + GetHTTPCode("OK") + LineBreaks() + BytesToString(fs.contents(filePath[1..]))) else GetProtocolVersion() + " " + GetHTTPCode("Not Found")))
-       else
-        res == GetProtocolVersion() + " " + GetHTTPCode("Invalid")
+    if (IsValidHTTPReq(req)) then
+        var filePath :| IsValidFilePathInHTTPReq(req, filePath);
+        res == if filePath in fs.state() then 
+                    var header := GetProtocolVersion() + " " + GetHTTPCode("OK") + LineBreaks();
+                    var content := BytesToString(fs.state()[filePath]);
+                    header + content
+               else 
+                    var header := GetProtocolVersion() + " " + GetHTTPCode("Not Found");
+                    header
+    else
+        var header := GetProtocolVersion() + " " + GetHTTPCode("Invalid");
+        res == header
 }
+
 }

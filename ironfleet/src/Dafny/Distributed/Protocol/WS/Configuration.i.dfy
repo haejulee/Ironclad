@@ -3,15 +3,14 @@ include "Parameters.i.dfy"
 
 module WS__Configuration_i {
 import opened WS__Host_i
-import opened Protocol_Parameters_i 
+import opened WS_Parameters_i 
 
 datatype WSConfiguration = WSConfiguration(
     clientIds:seq<NodeIdentity>,
     hostIds:seq<NodeIdentity>,
-    rootIdentity:NodeIdentity,
     params:Parameters)
 
-predicate WFSHTConfiguration(c:WSConfiguration)
+predicate WFWSConfiguration(c:WSConfiguration)
 {
        0 < |c.hostIds|
 }

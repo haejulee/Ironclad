@@ -2,16 +2,16 @@ include "../WS/Host.i.dfy"
 include "Environment.i.dfy"
 include "../../Common/Collections/Sets.i.dfy"
 
-module LiveWS__BoundedClock_i {
+module WS__BoundedClock_i {
 
 datatype BoundedClock = BoundedClock(min:int, max:int)
 }
 
-module LiveWS__Scheduler_i {
+module WS__Scheduler_i {
 import opened WS__Host_i
 import opened WS__Environment_i
 import opened Collections__Sets_i
-import opened LiveWS__BoundedClock_i
+import opened WS__BoundedClock_i
 
 function {:opaque} ExtractSentPacketsFromIos(ios:seq<LWSIo>) : seq<LWSPacket>
     ensures forall p :: p in ExtractSentPacketsFromIos(ios) <==> LIoOpSend(p) in ios;
@@ -34,9 +34,9 @@ function LHost_NumActions() : int
 datatype LScheduler = LScheduler(host:Host, nextActionIndex:int)
 
 
-predicate LScheduler_Init(s:LScheduler, me:NodeIdentity, rootIdentity:NodeIdentity, hostIds:seq<NodeIdentity>, params:Parameters)
+predicate LScheduler_Init(s:LScheduler, fs:FileSystemState, me:NodeIdentity, hostIds:seq<NodeIdentity>, params:Parameters)
 {
-       Host_Init(s.host, me, hostIds, params)
+       Host_Init(s.host, fs, me, hostIds, params)
     && s.nextActionIndex == 0
 }
 

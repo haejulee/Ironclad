@@ -225,30 +225,35 @@ partial class TcpClient
         stream = client.GetStream();
     }
 
-    public void Read(byte[] buffer, int offset, int size, out int bytesRead, out bool alive)
+    public void Remote(out IEndPoint remote)
+    {
+        remote = (IEndPoint)client.Client.RemoteEndPoint;
+    }
+
+    public void Read(byte[] buffer, int offset, int size, out bool ok, out int bytesRead)
     {
         try
         {
             bytesRead = stream.Read(buffer, offset, size);
-            alive = true;
+            ok = true;
         }
         catch (Exception)
         {
             bytesRead = 0;
-            alive = false;
+            ok = false;
         }
     }
 
-    public void Write(byte[] buffer, int offset, int size, out bool alive)
+    public void Write(byte[] buffer, int offset, int size, out bool ok)
     {
         try
         {
             stream.Write(buffer, offset, size);
-            alive = true;
+            ok = true;
         }
         catch (Exception)
         {
-            alive = false;
+            ok = false;
         }
     }
 
@@ -262,12 +267,14 @@ partial class TcpClient
 partial class TcpListener
 {
     internal NTcpListener listener;
+    internal int port;
 
     public TcpListener() { }
 
-    public void New()
+    public void New(int port)
     {
-        listener = new NTcpListener(new IPEndPoint(IPAddress.Any, 0));
+        this.port = port;
+        listener = new NTcpListener(port);
     }
 
     public void Start()
@@ -277,12 +284,23 @@ partial class TcpListener
 
     public void GetPort(out int port)
     {
-        port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        port = this.port;
     }
 
-    public void AcceptTcpClient(out TcpClient client)
+    public void AcceptTcpClient(out bool ok, out TcpClient client)
     {
-        client = new TcpClient(listener.AcceptTcpClient());
+        try
+        {
+            client = new TcpClient(listener.AcceptTcpClient());
+            ok = true;
+        }
+        catch (Exception e)
+        {
+            client = null;
+            System.Console.Error.WriteLine(e);
+            ok = false;
+        }
+        
     }
 }
 
@@ -290,6 +308,35 @@ public partial class FileStream
 {
     internal FStream fstream;
     internal FileStream(FStream fstream) { this.fstream = fstream; }
+
+    public static void FileExists(char[] name, out bool result)
+    {
+        result = System.IO.File.Exists(new string(name));
+    }
+
+    public static void FileLength(char[] name, out bool success, out int len)
+    {
+        len = 42;
+        try
+        {
+            System.IO.FileInfo fi = new System.IO.FileInfo(new string(name));
+            if (fi.Length < System.Int32.MaxValue)  // We only support small files
+            {
+                len = (int)fi.Length;
+                success = true;
+            }
+            else
+            {
+                success = false;
+            }
+
+        }
+        catch (Exception e)
+        {
+            System.Console.Error.WriteLine(e);
+            success = false;
+        }
+    }
 
     public static void Open(char[] name, out bool ok, out FileStream f)
     {
@@ -320,12 +367,12 @@ public partial class FileStream
         }
     }
 
-    public void Read(int fileOffset, byte[] buffer, int start, int end, out bool ok)
+    public void Read(int file_offset, byte[] buffer, int start, int num_bytes, out bool ok)
     {
         try
         {
-            fstream.Seek(fileOffset, System.IO.SeekOrigin.Begin);
-            fstream.Read(buffer, start, end - start);
+            fstream.Seek(file_offset, System.IO.SeekOrigin.Begin);
+            fstream.Read(buffer, start, num_bytes);
             ok = true;
         }
         catch (Exception e)
@@ -335,26 +382,12 @@ public partial class FileStream
         }
     }
 
-    public void Write(int fileOffset, byte[] buffer, int start, int end, out bool ok)
+    public void Write(int file_offset, byte[] buffer, int start, int num_bytes, out bool ok)
     {
         try
         {
-            fstream.Seek(fileOffset, System.IO.SeekOrigin.Begin);
-            fstream.Write(buffer, start, end - start);
-            ok = true;
-        }
-        catch (Exception e)
-        {
-            System.Console.Error.WriteLine(e);
-            ok = false;
-        }
-    }
-
-    public void Flush(out bool ok)
-    {
-        try
-        {
-            fstream.Flush();
+            fstream.Seek(file_offset, System.IO.SeekOrigin.Begin);
+            fstream.Write(buffer, start, num_bytes);
             ok = true;
         }
         catch (Exception e)
@@ -364,7 +397,6 @@ public partial class FileStream
         }
     }
 }
-
 public partial class Time
 {
     static Stopwatch watch;

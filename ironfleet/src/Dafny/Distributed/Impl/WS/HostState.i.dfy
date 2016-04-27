@@ -4,7 +4,7 @@ include "../../Common/Logic/Option.i.dfy"
 include "CMessage.i.dfy"
 include "PacketParsing.i.dfy"
 
-module SHT__HostState_i {
+module WS__HostState_i {
 import opened WS__Host_i
 import opened Logic__Option_i
 import opened WS__ConstantsState_i

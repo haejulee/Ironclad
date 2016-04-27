@@ -2,7 +2,7 @@ include "../../Protocol/WS/Parameters.i.dfy"
 include "../../Common/Native/NativeTypes.s.dfy"
 
 module Impl_Parameters_i {
-import opened Protocol_Parameters_i
+import opened WS_Parameters_i
 import opened Native__NativeTypes_s
 
 datatype CParameters = CParameters(max_seqno:uint64)
