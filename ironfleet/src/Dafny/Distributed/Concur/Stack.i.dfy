@@ -16,6 +16,7 @@ module Stack {
      && SharedStateIfc.PtrInvariant(s.count) == iset i | i >= 0
      && SharedStateIfc.Length(s.buffers) == s.buffers_len
      && SharedStateIfc.ArrayInvariant(s.buffers) == iset j | j >= 0
+     && |s.s| <= s.buffers_len
 
     }
 
@@ -32,11 +33,30 @@ module Stack {
     predicate StackPush(s:Stack, s':Stack, b:Buffer, count:int, thread_id:int, events:seq<Event>)
     {
         s'.s == s.s + [b]
-     && events == [ SharedStateEvent(LockEvent  (thread_id, s.lock)),
-                    SharedStateEvent(ReadPtrEvent(thread_id, ToUPtr(s.count), ToU(count))),
-                    SharedStateEvent(WritePtrEvent(thread_id, ToUPtr(s.count), ToU(count+1))),
+     && events == [ SharedStateEvent(LockEvent      (thread_id, s.lock)),
+                    SharedStateEvent(ReadPtrEvent   (thread_id, ToUPtr(s.count), ToU(count))),
+                    SharedStateEvent(WritePtrEvent  (thread_id, ToUPtr(s.count), ToU(count+1))),
                     SharedStateEvent(WriteArrayEvent(thread_id, ToUArray(s.buffers), count, ToU(b))),
-                    SharedStateEvent(UnlockEvent(thread_id, s.lock)) ]
+                    SharedStateEvent(UnlockEvent    (thread_id, s.lock)) ]
+    }
+
+    predicate StackPop(s:Stack, s':Stack, b:Buffer, count:int, thread_id:int, events:seq<Event>)
+    {
+        |s.s| > 0
+     && s'.s == s.s[..|s.s|-1] 
+     && events == [ SharedStateEvent(LockEvent      (thread_id, s.lock)),
+                    SharedStateEvent(ReadPtrEvent   (thread_id, ToUPtr(s.count), ToU(count))),
+                    SharedStateEvent(WritePtrEvent  (thread_id, ToUPtr(s.count), ToU(count+1))),
+                    SharedStateEvent(WriteArrayEvent(thread_id, ToUArray(s.buffers), count, ToU(b))),
+                    SharedStateEvent(UnlockEvent    (thread_id, s.lock)) ]
+    }
+
+    predicate StackNoOp(s:Stack, s':Stack, count:int, thread_id:int, events:seq<Event>)
+    {
+        s == s'
+     && events == [ SharedStateEvent(LockEvent   (thread_id, s.lock)),
+                    SharedStateEvent(ReadPtrEvent(thread_id, ToUPtr(s.count), ToU(count))),
+                    SharedStateEvent(UnlockEvent (thread_id, s.lock)) ] 
     }
 
     method MakeStack(ghost env:HostEnvironment, ghost stack_invariant:StackInvariant) returns (s:Stack, ghost events:seq<Event>)
@@ -84,15 +104,13 @@ module Stack {
     }
 
     method PushStack(s:Stack, v:Buffer, ghost env:HostEnvironment) returns (s':Stack, ok:bool, ghost count:int, ghost events:seq<Event>)
-        requires env != null && env.Valid();
         requires IsValidStack(s);
         requires v in SharedStateIfc.ArrayInvariant(s.buffers); 
+        requires env != null && env.Valid();
         modifies env.shared;
         modifies env.events;
         ensures  if ok then StackPush(s, s', v, count, env.thread.ThreadId(), events) 
-                 else s == s' && events == [ SharedStateEvent(LockEvent  (env.thread.ThreadId(), s.lock)),
-                                             SharedStateEvent(ReadPtrEvent(env.thread.ThreadId(), ToUPtr(s.count), ToU(count))),
-                                             SharedStateEvent(UnlockEvent(env.thread.ThreadId(), s.lock)) ] ;
+                 else StackNoOp(s, s', count, env.thread.ThreadId(), events);
         ensures  env.events.history() == old(env.events.history()) + events;
     {
         ghost var thread_id := env.thread.ThreadId();
@@ -126,31 +144,43 @@ module Stack {
         SharedStateIfc.Unlock(s.lock, env);
     }
 
-    /*
-    method PopStack(s:Stack) returns (s':Stack, v:Buffer, ok:bool, ghost events:seq<Event>)
+    method PopStack(s:Stack, ghost env:HostEnvironment) returns (s':Stack, v:Buffer, ok:bool, ghost count:int, ghost events:seq<Event>)
+        requires IsValidStack(s);
         requires env != null && env.Valid();
-        requires s.s == Refinement(s);
-        ensures  ok ==> StackInvariant(v);
-        ensures  if ok then Pop(s, s', events) else s == s';
-        ensures  !ok ==> s.s == [];
-        ensures  s'.s == Refinement(s');
+        modifies env.shared;
+        modifies env.events;
+        ensures  ok ==> v in SharedStateIfc.ArrayInvariant(s.buffers); 
+        ensures  if ok then StackPop(s, s', v, count, env.thread.ThreadId(), events) 
+                 else s.s == [] && StackNoOp(s, s', count, env.thread.ThreadId(), events);
         ensures  env.events.history() == old(env.events.history()) + events;
     {
-        events := [];
+        ghost var thread_id := env.thread.ThreadId();
 
         SharedStateIfc.Lock(s.lock, env);
 
-        var count := ReadPtr(s.count, env);
+        assert SharedStateIfc.IsValidPtr(s.count);   // TODO: Why is this necessary!?
+        var count_impl := SharedStateIfc.ReadPtr(s.count, env);
+        count := count_impl;
 
-        if count > 0 {
-            SharedStateIfc.WritePtr(s.count, count - 1, env);
-            v := SharedStateIfc.ReadArray(s.buffers, count, v, env);
+        if count_impl > 0 {
+            SharedStateIfc.WritePtr(s.count, count_impl - 1, env);
+            assert SharedStateIfc.IsValidArray(s.buffers);   // TODO: Why is this necessary!?
+            assert SharedStateIfc.Length(s.buffers) == s.buffers_len;  // TODO: Why is this necessary!?
+            v := SharedStateIfc.ReadArray(s.buffers, count_impl, env);
             ok := true;
+            events := [ SharedStateEvent(LockEvent  (thread_id, s.lock)),
+                        SharedStateEvent(ReadPtrEvent(thread_id, ToUPtr(s.count), ToU(count))),
+                        SharedStateEvent(WritePtrEvent(thread_id, ToUPtr(s.count), ToU(count-1))),
+                        SharedStateEvent(ReadArrayEvent(thread_id, ToUArray(s.buffers), count, ToU(v))),
+                        SharedStateEvent(UnlockEvent(thread_id, s.lock)) ];
+            s' := s'.(s := s.s[..|s.s|-1]); 
         } else {
             ok := false;
+            events := [ SharedStateEvent(LockEvent  (thread_id, s.lock)),
+                        SharedStateEvent(ReadPtrEvent(thread_id, ToUPtr(s.count), ToU(count))),
+                        SharedStateEvent(UnlockEvent(thread_id, s.lock)) ];
         }
 
         SharedStateIfc.Unlock(s.lock, env);
     }
-    */
 }
