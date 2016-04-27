@@ -7,6 +7,8 @@ import opened Environment_s
 
 class HostEnvironment
 {
+    constructor{:axiom} () requires false;
+
     ghost var constants:HostConstants;
     ghost var ok:OkState;
     ghost var events:Events;
@@ -67,30 +69,31 @@ class OkState
 // Event traces
 //////////////////////////////////////////////////////////////////////////////
 
-datatype Event = SharedStateEvent(e:SharedStateEvent)
-               | UdpEvent(u:UdpEvent) 
-
 datatype Event = // Shared-state events
-                   MakePtrEvent (thread_make_ptr_id:int, ptr_make:Ptr<U>,  initial_ptr_value:U)
-                 | ReadPtrEvent (thread_read_id:int,     ptr_read:Ptr<U>,  read_value:U)
-                 | WritePtrEvent(thread_write_id:int,    ptr_write:Ptr<U>, write_value:U)
-                 | AssumeEvent  (thread_assume_id:int, assumption:iset<SharedHeap>)
-                 | MakeLockEvent(thread_make_lock_id:int, new_lock:Lock)
-                 | LockEvent  (thread_lock_id:int,   lock:Lock)
-                 | UnlockEvent(thread_unlock_id:int, unlock:Lock)
-                 | MakeArrayEvent (thread_make_arr_id:int, arr_make:Array<U>,  initial_arr_value:U)
-                 | ReadArrayEvent (thread_read_arr_id:int,     arr_read:Array<U>,  read_index:int,  read_arr_value:U)
-                 | WriteArrayEvent(thread_write_arr_id:int,    arr_write:Array<U>, write_index:int, write_arr_value:U)
-                 // Time-related event
+                   MakePtrEvent   (thread_make_ptr_id:int,  ptr_make:Ptr<U>,    initial_ptr_value:U)
+                 | ReadPtrEvent   (thread_read_id:int,      ptr_read:Ptr<U>,    read_value:U)
+                 | WritePtrEvent  (thread_write_id:int,     ptr_write:Ptr<U>,   write_value:U)
+                 | AssumeEvent    (thread_assume_id:int,    assumption:iset<SharedHeap>)
+                 | MakeLockEvent  (thread_make_lock_id:int, new_lock:Lock)
+                 | LockEvent      (thread_lock_id:int,      lock:Lock)
+                 | UnlockEvent    (thread_unlock_id:int,    unlock:Lock)
+                 | MakeArrayEvent (thread_make_arr_id:int,  arr_make:Array<U>,  initial_arr_value:U, arr_len:int)
+                 | ReadArrayEvent (thread_read_arr_id:int,  arr_read:Array<U>,  read_index:int,      read_arr_value:U)
+                 | WriteArrayEvent(thread_write_arr_id:int, arr_write:Array<U>, write_index:int,     write_arr_value:U)
+                 // Read-clock event
                  | ReadClockEvent(time:int)
                  // UDP events
                  | UdpTimeoutReceiveEvent()
-                 | UdpReceiveEvent(r:UdpPacket)
-                 | UdpSendEvent(s:UdpPacket)
-                 // TCP events
+                 | UdpReceiveEvent(r:Packet)
+                 | UdpSendEvent(s:Packet)
+                 // TCP events - broken
                  | TcpTimeoutReceiveEvent()
-                 | TcpReceiveEvent(received_bytes:UdpPacket)
-                 | TcpSendEvent(sent_bytes:UdpPacket)
+                 | TcpReceiveEvent(received_bytes:Packet)
+                 | TcpSendEvent(sent_bytes:Packet)
+                 // File-system events - broken
+                 | FIopOpenEvent(fileName:array<char>) 
+                 | FIopReadEvent(f:seq<char>, bytes:seq<byte>)
+                 | FIopCloseEvent(file:seq<char>)
 
 class Events 
 {
@@ -106,9 +109,13 @@ type U(==)
 type Lock
 type Ptr<T>
 type Array<T>
-type Table<T,U>
+type Table<A,B>
 
 type SharedHeap = map<U,U>
+
+function {:axiom} FromU<T>(u:U) : T
+function {:axiom} FromUPtr<T>(u:Ptr<U>) : Ptr<T>
+function {:axiom} FromUArray<T>(u:Array<U>) : Array<T>
 
 function {:axiom} ToU<T>(t:T) : U
   ensures FromU(ToU(t)) == t;
@@ -120,28 +127,11 @@ function {:axiom} ToUArray<T>(t:Array<T>) : Array<U>
   ensures FromUArray(ToUArray(t)) == t;
 
 
-function {:axiom} FromU<T>(u:U) : T
-function {:axiom} FromUPtr<T>(u:Ptr<U>) : Ptr<T>
-function {:axiom} FromUArray<T>(u:Array<U>) : Array<T>
-
-
-datatype SharedStateEvent =    MakePtrEvent (thread_make_ptr_id:int, ptr_make:Ptr<U>,  initial_ptr_value:U)
-                             | ReadPtrEvent (thread_read_id:int,     ptr_read:Ptr<U>,  read_value:U)
-                             | WritePtrEvent(thread_write_id:int,    ptr_write:Ptr<U>, write_value:U)
-                             | AssumeEvent  (thread_assume_id:int, assumption:iset<SharedHeap>)
-                             | MakeLockEvent(thread_make_lock_id:int, new_lock:Lock)
-                             | LockEvent  (thread_lock_id:int,   lock:Lock)
-                             | UnlockEvent(thread_unlock_id:int, unlock:Lock)
-                             | MakeArrayEvent (thread_make_arr_id:int, arr_make:Array<U>,  initial_arr_value:U)
-                             | ReadArrayEvent (thread_read_arr_id:int,     arr_read:Array<U>,  read_index:int,  read_arr_value:U)
-                             | WriteArrayEvent(thread_write_arr_id:int,    arr_write:Array<U>, write_index:int, write_arr_value:U)
-
-
 class ThreadState
 {
     constructor{:axiom} () requires false;
 
-    function{:axiom} ThreadId():int reads this; 
+    function{:axiom} ThreadId():int reads this;
 
     static method{:axiom} GetThreadId(ghost env:HostEnvironment) returns(id:uint32)
         requires env != null && env.Valid();
@@ -180,7 +170,7 @@ class SharedStateIfc
         modifies env.shared;
         modifies env.events;
         ensures  IsValidLock(lock);
-        ensures  env.events.history() == old(env.events.history()) + [SharedStateEvent(MakeLockEvent(env.thread.ThreadId(), lock))];
+        ensures  env.events.history() == old(env.events.history()) + [MakeLockEvent(env.thread.ThreadId(), lock)];
         ensures  ToU(lock) !in old(env.shared.heap()) && ToU(lock) in env.shared.heap();
         ensures  forall ref :: ref in old(env.shared.heap()) ==> ref in env.shared.heap();
 
@@ -189,8 +179,7 @@ class SharedStateIfc
         requires env != null && env.Valid();
         modifies env.shared;
         modifies env.events;
-        ensures  env.events.history() == old(env.events.history()) + [SharedStateEvent(LockEvent(env.thread.ThreadId(), lock))];
-        //ensures  env.shared.heap() == old(env.shared.heap())[ToU(lock) := ToU(true)];
+        ensures  env.events.history() == old(env.events.history()) + [LockEvent(env.thread.ThreadId(), lock)];
         ensures  forall ref :: ref in old(env.shared.heap()) ==> ref in env.shared.heap();
 
     static method {:axiom} Unlock(lock:Lock, ghost env:HostEnvironment)
@@ -198,7 +187,7 @@ class SharedStateIfc
         requires env != null && env.Valid();
         modifies env.shared;
         modifies env.events;
-        ensures  env.events.history() == old(env.events.history()) + [SharedStateEvent(UnlockEvent(env.thread.ThreadId(), lock))];
+        ensures  env.events.history() == old(env.events.history()) + [UnlockEvent(env.thread.ThreadId(), lock)];
         ensures  forall ref :: ref in old(env.shared.heap()) ==> ref in env.shared.heap();
 
     static method {:axiom} MakePtr<T>(v:T, ghost ptr_invariant:iset<T>, ghost env:HostEnvironment) 
@@ -211,18 +200,18 @@ class SharedStateIfc
         ensures  IsValidPtr(ptr);
         ensures  PtrInvariant(ptr) == ptr_invariant;
         ensures  ToU(ptr) !in old(env.shared.heap()) && ToU(ptr) in env.shared.heap();
-        ensures  env.events.history() == old(env.events.history()) + [SharedStateEvent(MakePtrEvent(env.thread.ThreadId(), ToUPtr(ptr), ToU(v)))];
+        ensures  env.events.history() == old(env.events.history()) + [MakePtrEvent(env.thread.ThreadId(), ToUPtr(ptr), ToU(v))];
         ensures  forall ref :: ref in old(env.shared.heap()) ==> ref in env.shared.heap();
 
     static method {:axiom} ReadPtr<T>(ptr:Ptr<T>, ghost env:HostEnvironment) 
         returns (v:T)
         requires IsValidPtr(ptr);
         requires env != null && env.Valid();
-        modifies env.shared;
+//        modifies env.shared;
         modifies env.events;
         ensures  v in PtrInvariant(ptr);
-        ensures  env.events.history() == old(env.events.history()) + [SharedStateEvent(ReadPtrEvent(env.thread.ThreadId(), ToUPtr(ptr), ToU(v)))];
-        ensures  forall ref :: ref in old(env.shared.heap()) ==> ref in env.shared.heap()
+        ensures  env.events.history() == old(env.events.history()) + [ReadPtrEvent(env.thread.ThreadId(), ToUPtr(ptr), ToU(v))];
+//        ensures  forall ref :: ref in old(env.shared.heap()) ==> ref in env.shared.heap()
     
     static method {:axiom} WritePtr<T>(ptr:Ptr<T>, v:T, ghost env:HostEnvironment) 
         requires IsValidPtr(ptr);
@@ -230,10 +219,10 @@ class SharedStateIfc
         requires env != null && env.Valid();
         modifies env.shared;
         modifies env.events;
-        ensures  env.events.history() == old(env.events.history()) + [SharedStateEvent(WritePtrEvent(env.thread.ThreadId(), ToUPtr(ptr), ToU(v)))];
+        ensures  env.events.history() == old(env.events.history()) + [WritePtrEvent(env.thread.ThreadId(), ToUPtr(ptr), ToU(v))];
         ensures  forall ref :: ref in old(env.shared.heap()) ==> ref in env.shared.heap();
    
-    static method {:axiom} ReadPtrAssume<T>(ptr:Ptr<T>, ghost env:HostEnvironment, ghost assumption:iset<SharedHeap>) 
+    static method {:axiom} ReadPtrAssume<T>(ptr:Ptr<T>, ghost assumption:iset<SharedHeap>, ghost env:HostEnvironment) 
         returns (v:T)
         requires IsValidPtr(ptr);
         requires env != null && env.Valid();
@@ -244,23 +233,22 @@ class SharedStateIfc
         ensures  ToU(v) == env.shared.heap()[ToU(ptr)];
         ensures  env.shared.heap() in assumption;
         ensures  env.events.history() == old(env.events.history()) 
-                                       + [SharedStateEvent(ReadPtrEvent(env.thread.ThreadId(), ToUPtr(ptr), ToU(v)))]
-                                       + [SharedStateEvent(AssumeEvent (env.thread.ThreadId(), assumption))] ;
+                                       + [ReadPtrEvent(env.thread.ThreadId(), ToUPtr(ptr), ToU(v))]
+                                       + [AssumeEvent (env.thread.ThreadId(), assumption)] ;
         ensures  forall ref :: ref in old(env.shared.heap()) ==> ref in env.shared.heap();
     
-    static method {:axiom} MakeArray<T>(v:array<T>, ghost arr_invariant:iset<T>, ghost env:HostEnvironment) 
+    static method {:axiom} MakeArray<T>(v:T, len:int, ghost arr_invariant:iset<T>, ghost env:HostEnvironment) 
         returns (arr:Array<T>)
         requires ValueTypes() && IsValueType<T>();
-        requires v != null;
-        requires forall i :: 0 <= i < v.Length ==> v[i] in arr_invariant;
+        requires v in arr_invariant;
         requires env != null && env.Valid();
         modifies env.shared;
         modifies env.events;
         ensures  IsValidArray(arr);
         ensures  ArrayInvariant(arr) == arr_invariant;
-        ensures  Length(arr) == v.Length;
+        ensures  Length(arr) == len;
         ensures  ToU(arr) !in old(env.shared.heap()) && ToU(arr) in env.shared.heap();
-        ensures  env.events.history() == old(env.events.history()) + [SharedStateEvent(MakeArrayEvent(env.thread.ThreadId(), ToUArray(arr), ToU(v[..])))];
+        ensures  env.events.history() == old(env.events.history()) + [MakeArrayEvent(env.thread.ThreadId(), ToUArray(arr), ToU(v), len)];
         ensures  forall ref :: ref in old(env.shared.heap()) ==> ref in env.shared.heap();
 
     static method {:axiom} ReadArray<T>(arr:Array<T>, index:int, ghost env:HostEnvironment) 
@@ -268,11 +256,11 @@ class SharedStateIfc
         requires IsValidArray(arr);
         requires 0 <= index < Length(arr);
         requires env != null && env.Valid();
-        modifies env.shared;
+//        modifies env.shared;
         modifies env.events;
         ensures  v in ArrayInvariant(arr);
-        ensures  env.events.history() == old(env.events.history()) + [SharedStateEvent(ReadArrayEvent(env.thread.ThreadId(), ToUArray(arr), index, ToU(v)))];
-        ensures  forall ref :: ref in old(env.shared.heap()) ==> ref in env.shared.heap()
+        ensures  env.events.history() == old(env.events.history()) + [ReadArrayEvent(env.thread.ThreadId(), ToUArray(arr), index, ToU(v))];
+//        ensures  forall ref :: ref in old(env.shared.heap()) ==> ref in env.shared.heap();
     
     static method {:axiom} WriteArray<T>(arr:Array<T>, index:int, v:T, ghost env:HostEnvironment) 
         requires IsValidArray(arr);
@@ -281,10 +269,10 @@ class SharedStateIfc
         requires env != null && env.Valid();
         modifies env.shared;
         modifies env.events;
-        ensures  env.events.history() == old(env.events.history()) + [SharedStateEvent(WriteArrayEvent(env.thread.ThreadId(), ToUArray(arr), index, ToU(v)))];
+        ensures  env.events.history() == old(env.events.history()) + [WriteArrayEvent(env.thread.ThreadId(), ToUArray(arr), index, ToU(v))];
         ensures  forall ref :: ref in old(env.shared.heap()) ==> ref in env.shared.heap();
     
-    static method {:axiom} ReadArrayAssume<T>(arr:Array<T>, index:int, ghost env:HostEnvironment, ghost assumption:iset<SharedHeap>) 
+    static method {:axiom} ReadArrayAssume<T>(arr:Array<T>, index:int, ghost assumption:iset<SharedHeap>, ghost env:HostEnvironment)
         returns (v:T)
         requires IsValidArray(arr);
         requires 0 <= index < Length(arr);
@@ -296,8 +284,8 @@ class SharedStateIfc
         ensures  exists s:seq<T> :: env.shared.heap()[ToU(arr)] == ToU(s) && |s| == Length(arr) && v == s[index];
         ensures  env.shared.heap() in assumption;
         ensures  env.events.history() == old(env.events.history()) 
-                                       + [SharedStateEvent(ReadArrayEvent(env.thread.ThreadId(), ToUArray(arr), index, ToU(v)))]
-                                       + [SharedStateEvent(AssumeEvent   (env.thread.ThreadId(), assumption))] ;
+                                       + [ReadArrayEvent(env.thread.ThreadId(), ToUArray(arr), index, ToU(v))]
+                                       + [AssumeEvent   (env.thread.ThreadId(), assumption)] ;
         ensures  forall ref :: ref in old(env.shared.heap()) ==> ref in env.shared.heap();
 } 
 
@@ -313,10 +301,6 @@ class NowState
     function{:axiom} now():int reads this;
 }
 
-// maximum assumed time taken by any non-waiting code (in milliseconds)
-function{:axiom} realTimeBound():int
-predicate AdvanceTime(oldTime:int, newTime:int, delay:int) { oldTime <= newTime < oldTime + delay + realTimeBound() }
-
 class Time
 {
     static method{:axiom} GetTime(ghost env:HostEnvironment) returns(t:uint64)
@@ -324,8 +308,8 @@ class Time
         modifies env.now; // To avoid contradiction, GetTime must advance time, because successive calls to GetTime can return different values
         modifies env.events;
         ensures  int(t) == env.now.now();
-        ensures  AdvanceTime(old(env.now.now()), env.now.now(), 0);
-        ensures  env.events.history() == old(env.events.history()) + [UdpEvent(LIoOpReadClock(int(t)))];
+        ensures  env.now.now() >= old(env.now.now());
+        ensures  env.events.history() == old(env.events.history()) + [ReadClockEvent(int(t))];
 
     // Used for performance debugging
     static method{:axiom} GetDebugTimeTicks() returns(t:uint64)
@@ -337,14 +321,20 @@ class Time
 //////////////////////////////////////////////////////////////////////////////
 
 datatype EndPoint = EndPoint(addr:seq<byte>, port:uint16)
-    // UdpPacket_ctor has silly name to ferret out backwards calls
-type UdpPacket = LPacket<EndPoint, seq<byte>>
-type UdpEvent = LIoOp<EndPoint, seq<byte>>
-type TcpEvent = LIoOp<EndPoint, seq<byte>>
+datatype Packet = Packet(dst:EndPoint, src:EndPoint, msg:seq<byte>)
 
-datatype FsEvent = FIopOpen(fileName:array<char>) 
-                 | FIopRead(f:seq<char>, bytes:seq<byte>)
-                 | FIopClose(file:seq<char>)
+predicate ValidPhysicalAddress(endPoint:EndPoint)
+{
+       |endPoint.addr| == 4
+    && 0 <= endPoint.port <= 65535
+}
+
+predicate ValidPhysicalPacket(p:Packet)
+{
+       ValidPhysicalAddress(p.src)
+    && ValidPhysicalAddress(p.dst)
+    && |p.msg| < 0x1_0000_0000_0000_0000
+}
 
 class IPEndPoint
 {
@@ -415,17 +405,18 @@ class UdpClient
         modifies env.events;
         ensures  env == old(env);
         ensures  env.ok.ok() == ok;
-        ensures  AdvanceTime(old(env.now.now()), env.now.now(), int(timeLimit));
+// Jay doesn't believe this is true.  The OS isn't obligated to respect the time limit.
+//        ensures  old(env.now.now()) <= env.now.now() <= old(env.now.now()) + int(timeLimit);
         ensures  LocalEndPoint() == old(LocalEndPoint());
         ensures  ok ==> IsOpen();
-        ensures  ok ==> timedOut  ==> env.events.history() == old(env.events.history()) + [UdpEvent(LIoOpTimeoutReceive())];
+        ensures  ok ==> timedOut  ==> env.events.history() == old(env.events.history()) + [UdpTimeoutReceiveEvent()];
         ensures  ok ==> !timedOut ==>
             remote != null
             && buffer != null
             && fresh(remote)
             && fresh(buffer)
             && env.events.history() == old(env.events.history()) +
-                [UdpEvent(LIoOpReceive(LPacket(LocalEndPoint(), remote.EP(), buffer[..])))]
+                [UdpReceiveEvent(Packet(LocalEndPoint(), remote.EP(), buffer[..]))]
             && buffer.Length < 0x1_0000_0000_0000_0000;
 
     method{:axiom} Send(remote:IPEndPoint, buffer:array<byte>) returns(ok:bool)
@@ -442,42 +433,52 @@ class UdpClient
         ensures  env.ok.ok() == ok;
         ensures  LocalEndPoint() == old(LocalEndPoint());
         ensures  ok ==> IsOpen();
-        ensures  ok ==> env.events.history() == old(env.events.history()) + [UdpEvent(LIoOpSend(LPacket(remote.EP(), LocalEndPoint(), buffer[..])))];
+        ensures  ok ==> env.events.history() == old(env.events.history()) + [UdpSendEvent(Packet(remote.EP(), LocalEndPoint(), buffer[..]))];
 
 }
 
 class TcpClient
 {
-    ghost var open:bool;
     ghost var env:HostEnvironment;
-    
+
+    function{:axiom} Open():bool reads this;
     function{:axiom} LocalEndPoint():EndPoint reads this;
     function{:axiom} Remote():EndPoint reads this;
 
     method{:axiom} Read(buffer:array<byte>, offset:int32, size:int32) returns(ok:bool, bytesRead:int32)
-        requires open;
+        requires this.Open();
         requires int(offset) + int(size) < 0x80000000;
         requires buffer != null;
         requires 0 <= int(offset) <= int(offset + size) <= buffer.Length;
         requires env != null && env.Valid();
         requires env.ok.ok();
-        modifies this`open;
-        ensures  ok ==> open && 0 <= bytesRead <= size;
-        ensures  ok ==> env.tcp.history() == old(env.tcp.history()) + [LIoOpReceive(LPacket(LocalEndPoint(), Remote(), buffer[offset..offset+bytesRead]))];
+        modifies this;
+        modifies env.ok;
+        modifies env.events;
+        ensures  env == old(env);
+        ensures  env.ok.ok() == ok;
+        ensures  ok ==> this.Open() && 0 <= bytesRead <= size;
+        ensures  ok ==> env.events.history() == old(env.events.history()) + [TcpReceiveEvent(Packet(LocalEndPoint(), Remote(), buffer[offset..offset+bytesRead]))];
 
     method{:axiom} Write(buffer:array<byte>, offset:int32, size:int32) returns(ok:bool)
-        requires open;
+        requires this.Open();
         requires int(offset) + int(size) < 0x80000000;
         requires buffer != null;
         requires 0 <= int(offset) <= int(offset + size) <= buffer.Length;
         requires env != null && env.Valid();
         requires env.ok.ok();
-        modifies this`open;
-        ensures  ok ==> open;
-        ensures  ok ==> env.tcp.history() == old(env.tcp.history()) + [LIoOpSend(LPacket(Remote(), LocalEndPoint(), buffer[offset..offset + size]))];
+        modifies this;
+        modifies env.ok;
+        modifies env.events;
+        ensures  env == old(env);
+        ensures  env.ok.ok() == ok;
+        ensures  ok ==> this.Open();
+        ensures  ok ==> env.events.history() == old(env.events.history()) + [TcpSendEvent(Packet(Remote(), LocalEndPoint(), buffer[offset..offset + size]))];
 
     method{:axiom} Close()
-        modifies this`open;
+        requires this.Open();
+        modifies this;
+        ensures  !this.Open();
 }
 
 class TcpListener
@@ -502,7 +503,7 @@ class TcpListener
                        client != null
                     && fresh(client)
                     && client.env == env
-                    && client.open
+                    && client.Open()
 }
 
 class MutableSet<T(==)>
@@ -613,7 +614,6 @@ class FileSystemState
     constructor{:axiom} () requires false;
     function{:axiom} state() : map<seq<char>,seq<byte>>   // File system maps file names (sequences of characters) to their contents
         reads this;
-    function{:axiom} history():seq<FsEvent> reads this;
 }
 
 class FileStream
@@ -644,11 +644,12 @@ class FileStream
         requires name != null;
         modifies env.ok;
         modifies env.files;
+        modifies env.events;
         ensures  env.ok.ok() == ok;        
         ensures  ok ==> f != null && fresh(f) && f.env == env && f.IsOpen() && f.Name() == name[..] &&          // FileStream object is initialized
                         env.files.state() == if name[..] in old(env.files.state()) then old(env.files.state())  // If the file exists, then the file contents are unchanged
                                              else old(env.files.state())[name[..] := []]                        // Otherwise, the file now exists with no content
-        ensures ok ==> env.files.history() == old(env.files.history()) + [FIopOpen(name)];
+        ensures ok ==> env.events.history() == old(env.events.history()) + [FIopOpenEvent(name)];
 
         
     method Close() returns(ok:bool)
@@ -657,10 +658,11 @@ class FileStream
         requires IsOpen();
         modifies this;
         modifies env.ok;
+        modifies env.events;
         ensures  env == old(env);
         ensures  env.ok.ok() == ok;
         ensures  !IsOpen();
-        ensures ok ==> env.files.history() == old(env.files.history()) + [FIopClose(Name())];
+        ensures ok ==> env.events.history() == old(env.events.history()) + [FIopCloseEvent(Name())];
 
     method Read(file_offset:nat32, buffer:array<byte>, start:int32, num_bytes:int32) returns(ok:bool)      
         requires env != null && env.Valid();
@@ -673,6 +675,7 @@ class FileStream
         modifies this;
         modifies env.ok;
         modifies env.files;
+        modifies env.events;
         modifies buffer;
         ensures  env == old(env);
         ensures  env.ok.ok() == ok;
@@ -680,7 +683,7 @@ class FileStream
         ensures  Name() == old(Name());
         ensures  ok ==> IsOpen();        
         ensures  ok ==> buffer[..] == buffer[..start] + env.files.state()[Name()][file_offset..int(file_offset)+int(num_bytes)] + buffer[int(start)+int(num_bytes)..];
-        ensures ok ==> env.files.history() == old(env.files.history()) + [FIopRead(Name(), buffer[..])];
+        ensures ok ==> env.events.history() == old(env.events.history()) + [FIopReadEvent(Name(), buffer[..])];
             
    method Write(file_offset:nat32, buffer:array<byte>, start:int32, num_bytes:int32) returns(ok:bool)        
         requires env != null && env.Valid();
