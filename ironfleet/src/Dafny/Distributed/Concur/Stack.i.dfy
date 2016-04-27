@@ -10,12 +10,12 @@ module Stack {
 
     predicate IsValidStack(s:Stack)
     {
-        SharedStateIfc.IsValidLock(s.lock)
-     && SharedStateIfc.IsValidPtr(s.count)
-     && SharedStateIfc.IsValidArray(s.buffers)
-     && SharedStateIfc.PtrInvariant(s.count) == iset i | i >= 0
-     && SharedStateIfc.Length(s.buffers) == s.buffers_len
-     && SharedStateIfc.ArrayInvariant(s.buffers) == iset j | j >= 0
+        IsValidLock(s.lock)
+     && IsValidPtr(s.count)
+     && IsValidArray(s.buffers)
+     && PtrInvariant(s.count) == iset i | i >= 0
+     && Length(s.buffers) == s.buffers_len
+     && ArrayInvariant(s.buffers) == iset j | j >= 0
      && |s.s| <= s.buffers_len
 
     }
@@ -105,7 +105,7 @@ module Stack {
 
     method PushStack(s:Stack, v:Buffer, ghost env:HostEnvironment) returns (s':Stack, ok:bool, ghost count:int, ghost events:seq<Event>)
         requires IsValidStack(s);
-        requires v in SharedStateIfc.ArrayInvariant(s.buffers); 
+        requires v in ArrayInvariant(s.buffers); 
         requires env != null && env.Valid();
         modifies env.shared;
         modifies env.events;
@@ -117,15 +117,15 @@ module Stack {
 
         SharedStateIfc.Lock(s.lock, env);
 
-        assert SharedStateIfc.IsValidPtr(s.count);   // TODO: Why is this necessary!?
+        //assert SharedStateIfc.IsValidPtr(s.count);   // TODO: Why is this necessary!?
         var the_count := SharedStateIfc.ReadPtr(s.count, env);
         count := the_count;
         s' := s;
         if the_count < s.buffers_len {
             SharedStateIfc.WritePtr(s.count, the_count + 1, env);
-            assert SharedStateIfc.IsValidArray(s.buffers);   // TODO: Why is this necessary!?
-            assert SharedStateIfc.Length(s.buffers) == s.buffers_len;  // TODO: Why is this necessary!?
-            assert v in SharedStateIfc.ArrayInvariant(s.buffers);      // TODO: Why is this necessary!?
+            //assert SharedStateIfc.IsValidArray(s.buffers);   // TODO: Why is this necessary!?
+            //assert SharedStateIfc.Length(s.buffers) == s.buffers_len;  // TODO: Why is this necessary!?
+            //assert v in SharedStateIfc.ArrayInvariant(s.buffers);      // TODO: Why is this necessary!?
             SharedStateIfc.WriteArray(s.buffers, the_count, v, env);
             ok := true;
             s' := s'.(s := s.s + [v]);
@@ -149,7 +149,7 @@ module Stack {
         requires env != null && env.Valid();
         modifies env.shared;
         modifies env.events;
-        ensures  ok ==> v in SharedStateIfc.ArrayInvariant(s.buffers); 
+        ensures  ok ==> v in ArrayInvariant(s.buffers); 
         ensures  if ok then StackPop(s, s', v, count, env.thread.ThreadId(), events) 
                  else s.s == [] && StackNoOp(s, s', count, env.thread.ThreadId(), events);
         ensures  env.events.history() == old(env.events.history()) + events;
@@ -158,14 +158,14 @@ module Stack {
 
         SharedStateIfc.Lock(s.lock, env);
 
-        assert SharedStateIfc.IsValidPtr(s.count);   // TODO: Why is this necessary!?
+        //assert SharedStateIfc.IsValidPtr(s.count);   // TODO: Why is this necessary!?
         var count_impl := SharedStateIfc.ReadPtr(s.count, env);
         count := count_impl;
 
         if count_impl > 0 {
             SharedStateIfc.WritePtr(s.count, count_impl - 1, env);
-            assert SharedStateIfc.IsValidArray(s.buffers);   // TODO: Why is this necessary!?
-            assert SharedStateIfc.Length(s.buffers) == s.buffers_len;  // TODO: Why is this necessary!?
+            //assert SharedStateIfc.IsValidArray(s.buffers);   // TODO: Why is this necessary!?
+            //assert SharedStateIfc.Length(s.buffers) == s.buffers_len;  // TODO: Why is this necessary!?
             v := SharedStateIfc.ReadArray(s.buffers, count_impl, env);
             ok := true;
             events := [ SharedStateEvent(LockEvent  (thread_id, s.lock)),

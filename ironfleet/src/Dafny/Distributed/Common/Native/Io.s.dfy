@@ -134,18 +134,26 @@ class SharedState
     function{:axiom} heap():SharedHeap reads this;
 }
 
+// TODO: Replace this with a built-in type predicate.
+//       This would allow us to use datatypes and classes
+predicate IsValueType<T>()
+predicate {:axiom} ValueTypes()
+    ensures IsValueType<bool>();
+    ensures IsValueType<int>();
+    ensures ValueTypes();
+
+predicate IsValidLock(lock:Lock)           
+
+predicate IsValidPtr<T>(ptr:Ptr<T>)
+function  PtrInvariant<T>(ptr:Ptr<T>):iset<T>
+//function  GetPtr<T>(heap:SharedHeap, ptr:Ptr<T>) : T
+
+predicate IsValidArray<T>(arr:Array<T>)
+function  ArrayInvariant<T>(arr:Array<T>):iset<T>
+function  Length<T>(arr:Array<T>):int
+
 class SharedStateIfc
 {
-    // TODO: Replace this with a built-in type predicate.
-    //       This would allow us to use datatypes and classes
-    static predicate IsValueType<T>()
-    static predicate {:axiom} ValueTypes()
-        ensures IsValueType<bool>();
-        ensures IsValueType<int>();
-        ensures ValueTypes();
-
-    static predicate IsValidLock(lock:Lock)           
-
     static method {:axiom} MakeLock(ghost env:HostEnvironment) returns (lock:Lock)
         requires env != null && env.Valid();
         modifies env.shared;
@@ -171,14 +179,6 @@ class SharedStateIfc
         modifies env.events;
         ensures  env.events.history() == old(env.events.history()) + [SharedStateEvent(UnlockEvent(env.thread.ThreadId(), lock))];
         ensures  forall ref :: ref in old(env.shared.heap()) ==> ref in env.shared.heap();
-
-    static predicate IsValidPtr<T>(ptr:Ptr<T>)
-    static function  PtrInvariant<T>(ptr:Ptr<T>):iset<T>
-    //function  GetPtr<T>(heap:SharedHeap, ptr:Ptr<T>) : T
-
-    static predicate IsValidArray<T>(arr:Array<T>)
-    static function  ArrayInvariant<T>(arr:Array<T>):iset<T>
-    static function  Length<T>(arr:Array<T>):int
 
     static method {:axiom} MakePtr<T>(v:T, ghost ptr_invariant:iset<T>, ghost env:HostEnvironment) 
         returns (ptr:Ptr<T>)
@@ -278,7 +278,6 @@ class SharedStateIfc
                                        + [SharedStateEvent(ReadArrayEvent(env.thread.ThreadId(), ToUArray(arr), index, ToU(v)))]
                                        + [SharedStateEvent(AssumeEvent   (env.thread.ThreadId(), assumption))] ;
         ensures  forall ref :: ref in old(env.shared.heap()) ==> ref in env.shared.heap();
-    
 } 
 
 //////////////////////////////////////////////////////////////////////////////
