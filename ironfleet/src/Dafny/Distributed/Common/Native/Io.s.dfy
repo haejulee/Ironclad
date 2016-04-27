@@ -1,9 +1,7 @@
 include "NativeTypes.s.dfy"
-include "../Framework/Environment.s.dfy"
 
 module Native__Io_s {
 import opened Native__NativeTypes_s
-import opened Environment_s
 
 class HostEnvironment
 {
