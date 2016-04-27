@@ -13,7 +13,7 @@ module Stack {
         IsValidLock(s.lock)
      && IsValidPtr(s.count)
      && IsValidArray(s.buffers)
-     && PtrInvariant(s.count) == iset i | i >= 0
+     && PtrInvariant(s.count) == iset i | 0 <= i <= s.buffers_len
      && Length(s.buffers) == s.buffers_len
      && ArrayInvariant(s.buffers) == iset j | j >= 0
      && |s.s| <= s.buffers_len
@@ -46,8 +46,8 @@ module Stack {
      && s'.s == s.s[..|s.s|-1] 
      && events == [ SharedStateEvent(LockEvent      (thread_id, s.lock)),
                     SharedStateEvent(ReadPtrEvent   (thread_id, ToUPtr(s.count), ToU(count))),
-                    SharedStateEvent(WritePtrEvent  (thread_id, ToUPtr(s.count), ToU(count+1))),
-                    SharedStateEvent(WriteArrayEvent(thread_id, ToUArray(s.buffers), count, ToU(b))),
+                    SharedStateEvent(WritePtrEvent  (thread_id, ToUPtr(s.count), ToU(count-1))),
+                    SharedStateEvent(ReadArrayEvent (thread_id, ToUArray(s.buffers), count-1, ToU(b))),
                     SharedStateEvent(UnlockEvent    (thread_id, s.lock)) ]
     }
 
@@ -80,7 +80,7 @@ module Stack {
 //        ghost var event := env.events.history();
 //        assert event == old(env.events.history()) +  [ SharedStateEvent(MakeLockEvent(thread_id, lock)) ];
 
-        var count := SharedStateIfc.MakePtr(0, iset i | i >= 0, env);
+        var count := SharedStateIfc.MakePtr(0, iset i | 0 <= i <= 3, env);
         assert ToU(count) in env.shared.heap();
 
 //        ghost var event' := env.events.history();
@@ -117,15 +117,15 @@ module Stack {
 
         SharedStateIfc.Lock(s.lock, env);
 
-        //assert SharedStateIfc.IsValidPtr(s.count);   // TODO: Why is this necessary!?
+        assert IsValidPtr(s.count);   // TODO: Why is this necessary!?
         var the_count := SharedStateIfc.ReadPtr(s.count, env);
         count := the_count;
         s' := s;
         if the_count < s.buffers_len {
             SharedStateIfc.WritePtr(s.count, the_count + 1, env);
-            //assert SharedStateIfc.IsValidArray(s.buffers);   // TODO: Why is this necessary!?
-            //assert SharedStateIfc.Length(s.buffers) == s.buffers_len;  // TODO: Why is this necessary!?
-            //assert v in SharedStateIfc.ArrayInvariant(s.buffers);      // TODO: Why is this necessary!?
+            assert IsValidArray(s.buffers);   // TODO: Why is this necessary!?
+            assert Length(s.buffers) == s.buffers_len;  // TODO: Why is this necessary!?
+            assert v in ArrayInvariant(s.buffers);      // TODO: Why is this necessary!?
             SharedStateIfc.WriteArray(s.buffers, the_count, v, env);
             ok := true;
             s' := s'.(s := s.s + [v]);
@@ -158,20 +158,20 @@ module Stack {
 
         SharedStateIfc.Lock(s.lock, env);
 
-        //assert SharedStateIfc.IsValidPtr(s.count);   // TODO: Why is this necessary!?
+        assert IsValidPtr(s.count);   // TODO: Why is this necessary!?
         var count_impl := SharedStateIfc.ReadPtr(s.count, env);
         count := count_impl;
 
         if count_impl > 0 {
             SharedStateIfc.WritePtr(s.count, count_impl - 1, env);
-            //assert SharedStateIfc.IsValidArray(s.buffers);   // TODO: Why is this necessary!?
-            //assert SharedStateIfc.Length(s.buffers) == s.buffers_len;  // TODO: Why is this necessary!?
-            v := SharedStateIfc.ReadArray(s.buffers, count_impl, env);
+            assert IsValidArray(s.buffers);   // TODO: Why is this necessary!?
+            assert Length(s.buffers) == s.buffers_len;  // TODO: Why is this necessary!?
+            v := SharedStateIfc.ReadArray(s.buffers, count_impl-1, env);
             ok := true;
             events := [ SharedStateEvent(LockEvent  (thread_id, s.lock)),
                         SharedStateEvent(ReadPtrEvent(thread_id, ToUPtr(s.count), ToU(count))),
                         SharedStateEvent(WritePtrEvent(thread_id, ToUPtr(s.count), ToU(count-1))),
-                        SharedStateEvent(ReadArrayEvent(thread_id, ToUArray(s.buffers), count, ToU(v))),
+                        SharedStateEvent(ReadArrayEvent(thread_id, ToUArray(s.buffers), count-1, ToU(v))),
                         SharedStateEvent(UnlockEvent(thread_id, s.lock)) ];
             s' := s'.(s := s.s[..|s.s|-1]); 
         } else {
@@ -179,6 +179,7 @@ module Stack {
             events := [ SharedStateEvent(LockEvent  (thread_id, s.lock)),
                         SharedStateEvent(ReadPtrEvent(thread_id, ToUPtr(s.count), ToU(count))),
                         SharedStateEvent(UnlockEvent(thread_id, s.lock)) ];
+            s' := s;
         }
 
         SharedStateIfc.Unlock(s.lock, env);
