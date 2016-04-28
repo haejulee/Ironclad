@@ -94,7 +94,7 @@ datatype Event = // Shared-state events
                  | TcpTimeoutReceiveEvent (timeout_conn:int,   timeout_by_connector:bool)
                  | TcpReceiveEvent        (receive_conn:int,   receive_by_connector:bool,  received_bytes:seq<byte>)
                  | TcpSendEvent           (send_conn:int,      send_by_connector:bool,     sent_bytes:seq<byte>)
-                 | TcpClose               (close_conn:int,     close_by_connector:bool)
+                 | TcpCloseEvent          (close_conn:int,     close_by_connector:bool)
                  // File-system events - broken
                  | FIopOpenEvent(fileName:array<char>) 
                  | FIopReadEvent(f:seq<char>, bytes:seq<byte>)
@@ -526,7 +526,7 @@ class TcpClient
         ensures  this.Id() == old(this.Id());
         ensures  this.AmIConnector() == old(this.AmIConnector());
         ensures  !this.Open();
-        ensures  env.events.history() == old(env.events.history()) + [TcpClose(this.Id(), this.AmIConnector())];
+        ensures  env.events.history() == old(env.events.history()) + [TcpCloseEvent(this.Id(), this.AmIConnector())];
 }
 
 class TcpListener

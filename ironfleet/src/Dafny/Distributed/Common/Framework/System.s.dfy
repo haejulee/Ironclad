@@ -331,7 +331,7 @@ module SystemModule {
             case TcpTimeoutReceiveEvent(id, by_connector) => SystemNextTcpTimeoutReceive(ls, ls', actor, id, by_connector)
             case TcpReceiveEvent(id, by_connector, r) => SystemNextTcpReceive(ls, ls', actor, id, by_connector, r)
             case TcpSendEvent(id, by_connector, s) => SystemNextTcpSend(ls, ls', actor, id, by_connector, s)
-            case TcpClose(id, by_connector) => SystemNextTcpClose(ls, ls', actor, id, by_connector)
+            case TcpCloseEvent(id, by_connector) => SystemNextTcpClose(ls, ls', actor, id, by_connector)
             case FIopOpenEvent(f) => SystemNextStutter(ls, ls')                 // TODO - fill in
             case FIopReadEvent(f, bytes) => SystemNextStutter(ls, ls')          // TODO - fill in
             case FIopCloseEvent(f) => SystemNextStutter(ls, ls')                // TODO - fill in
