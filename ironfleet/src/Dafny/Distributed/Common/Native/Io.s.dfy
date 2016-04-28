@@ -13,9 +13,7 @@ class HostEnvironment
     ghost var now:NowState;
     ghost var files:FileSystemState;
     ghost var thread:ThreadState;
-    ghost var shared:SharedState;
     ghost var locks:LockState;
-    ghost var connections:ConnectionState;
 
 
     predicate Valid()
@@ -27,9 +25,7 @@ class HostEnvironment
         && now != null
         && files != null
         && thread != null
-        && shared != null
         && locks != null
-        && connections != null
     }
 }
 
@@ -144,22 +140,10 @@ class ThreadState
         ensures  int(id) == env.thread.ThreadId();
 }
 
-class SharedState
-{
-    constructor{:axiom} () requires false;
-    function{:axiom} heapdomain():set<U> reads this;
-}
-
 class LockState
 {
     constructor{:axiom} () requires false;
     function{:axiom} lock_states():map<Lock, bool> reads this;
-}
-
-class ConnectionState
-{
-    constructor{:axiom} () requires false;
-    function{:axiom} connection_ids():set<int> reads this;
 }
 
 // TODO: Replace this with a built-in type predicate.
@@ -211,12 +195,9 @@ class SharedStateIfc
         requires ValueTypes() && IsValueType<T>();
         requires v in ptr_invariant;
         requires env != null && env.Valid();
-        modifies env.shared;
         modifies env.events;
         ensures  IsValidPtr(ptr);
         ensures  PtrInvariant(ptr) == ptr_invariant;
-        ensures  ToU(ptr) !in old(env.shared.heapdomain()) && ToU(ptr) in env.shared.heapdomain();
-        ensures  forall ref :: ref in old(env.shared.heapdomain()) ==> ref in env.shared.heapdomain();
         ensures  env.events.history() == old(env.events.history()) + [MakePtrEvent(ToUPtr(ptr), ToU(v))];
 
     static method {:axiom} ReadPtr<T>(ptr:Ptr<T>, ghost env:HostEnvironment) 
@@ -253,13 +234,10 @@ class SharedStateIfc
         requires v in arr_invariant;
         requires len >= 0;
         requires env != null && env.Valid();
-        modifies env.shared;
         modifies env.events;
         ensures  IsValidArray(arr);
         ensures  ArrayInvariant(arr) == arr_invariant;
         ensures  Length(arr) == len;
-        ensures  ToU(arr) !in old(env.shared.heapdomain()) && ToU(arr) in env.shared.heapdomain();
-        ensures  forall ref :: ref in old(env.shared.heapdomain()) ==> ref in env.shared.heapdomain();
         ensures  env.events.history() == old(env.events.history()) + [MakeArrayEvent(ToUArray(arr), len, ToU(v))];
 
     static method {:axiom} ReadArray<T>(arr:Array<T>, index:int, ghost env:HostEnvironment) 
@@ -478,11 +456,9 @@ class TcpClient
         requires remote != null;
         requires ValidPhysicalEndpoint(remote.EP());
         modifies env.ok;
-        modifies env.connections;
         modifies env.events;
         ensures  env == old(env);
         ensures  env.ok.ok() == ok;
-        ensures  forall id :: id in old(env.connections.connection_ids()) ==> id in env.connections.connection_ids();
         ensures  ok && success ==>
                         tcp != null
                      && fresh(tcp)
@@ -490,8 +466,6 @@ class TcpClient
                      && tcp.Open()
                      && tcp.LocalEndPoint() == localEP.EP()
                      && tcp.Remote() == remote.EP()
-                     && tcp.Id() !in old(env.connections.connection_ids())
-                     && tcp.Id() in env.connections.connection_ids()
                      && tcp.AmIConnector()
                      && env.events.history() == old(env.events.history()) + [TcpConnectEvent(tcp.Id(), remote.EP())];
         ensures  ok && !success ==> env.events.history() == old(env.events.history());
@@ -558,11 +532,9 @@ class TcpListener
         requires env != null && env.Valid();
         requires env.ok.ok();
         modifies env.ok;
-        modifies env.connections;
         modifies env.events;
         ensures  env == old(env);
         ensures  env.ok.ok() == ok;
-        ensures  forall id :: id in old(env.connections.connection_ids()) ==> id in env.connections.connection_ids();
         ensures  ok && success ==>
                         tcp != null
                      && remote != null
@@ -573,8 +545,6 @@ class TcpListener
                      && tcp.LocalEndPoint() == this.LocalEndPoint()
                      && ValidPhysicalEndpoint(remote.EP())
                      && tcp.Remote() == remote.EP()
-                     && tcp.Id() !in old(env.connections.connection_ids())
-                     && tcp.Id() in env.connections.connection_ids()
                      && !tcp.AmIConnector()
                      && env.events.history() == old(env.events.history()) + [TcpAcceptEvent(tcp.Id(), remote.EP())];
         ensures  ok && !success ==> env.events.history() == old(env.events.history());
