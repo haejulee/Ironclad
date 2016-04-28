@@ -72,14 +72,14 @@ class OkState
 //////////////////////////////////////////////////////////////////////////////
 
 datatype Event = // Shared-state events
-                   MakePtrEvent           (ptr_make:Ptr<U>,    initial_ptr_value:U)
-                 | ReadPtrEvent           (ptr_read:Ptr<U>,    read_value:U)
-                 | WritePtrEvent          (ptr_write:Ptr<U>,   write_value:U)
-                 | AssumeEvent            (assumption:iset<SharedHeap>)
-                 | MakeLockEvent          (new_lock:Lock)
+                   MakeLockEvent          (new_lock:Lock)
                  | LockEvent              (lock:Lock)
                  | UnlockEvent            (unlock:Lock)
-                 | MakeArrayEvent         (arr_make:Array<U>,  initial_arr_value:U, arr_len:int)
+                 | AssumeHeapEvent        (assumption:iset<SharedHeap>)
+                 | MakePtrEvent           (ptr_make:Ptr<U>,    initial_ptr_value:U)
+                 | ReadPtrEvent           (ptr_read:Ptr<U>,    read_value:U)
+                 | WritePtrEvent          (ptr_write:Ptr<U>,   write_value:U)
+                 | MakeArrayEvent         (arr_make:Array<U>,  arr_len:int,         initial_arr_value:U)
                  | ReadArrayEvent         (arr_read:Array<U>,  read_index:int,      read_arr_value:U)
                  | WriteArrayEvent        (arr_write:Array<U>, write_index:int,     write_arr_value:U)
                  // Read-clock event
@@ -146,7 +146,7 @@ class ThreadState
 class SharedState
 {
     constructor{:axiom} () requires false;
-    function{:axiom} heap():SharedHeap reads this;
+    function{:axiom} heapdomain():set<U> reads this;
 }
 
 class ConnectionState
@@ -181,24 +181,23 @@ class SharedStateIfc
         modifies env.events;
         ensures  IsValidLock(lock);
         ensures  env.events.history() == old(env.events.history()) + [MakeLockEvent(lock)];
-        ensures  ToU(lock) !in old(env.shared.heap()) && ToU(lock) in env.shared.heap();
-        ensures  forall ref :: ref in old(env.shared.heap()) ==> ref in env.shared.heap();
+        ensures  ToU(lock) !in old(env.shared.heapdomain()) && ToU(lock) in env.shared.heapdomain();
+        ensures  forall ref :: ref in old(env.shared.heapdomain()) ==> ref in env.shared.heapdomain();
 
     static method {:axiom} Lock(lock:Lock, ghost env:HostEnvironment)
         requires IsValidLock(lock);
         requires env != null && env.Valid();
-        modifies env.shared;
         modifies env.events;
         ensures  env.events.history() == old(env.events.history()) + [LockEvent(lock)];
-        ensures  forall ref :: ref in old(env.shared.heap()) ==> ref in env.shared.heap();
 
+        // TODO: This needs some way to prevent the caller from unlocking a lock one does not hold.
+        // Either it needs to require it be held, or return an ok indicating potential failure.
+        
     static method {:axiom} Unlock(lock:Lock, ghost env:HostEnvironment)
         requires IsValidLock(lock);
         requires env != null && env.Valid();
-        modifies env.shared;
         modifies env.events;
         ensures  env.events.history() == old(env.events.history()) + [UnlockEvent(lock)];
-        ensures  forall ref :: ref in old(env.shared.heap()) ==> ref in env.shared.heap();
 
     static method {:axiom} MakePtr<T>(v:T, ghost ptr_invariant:iset<T>, ghost env:HostEnvironment) 
         returns (ptr:Ptr<T>)
@@ -209,94 +208,83 @@ class SharedStateIfc
         modifies env.events;
         ensures  IsValidPtr(ptr);
         ensures  PtrInvariant(ptr) == ptr_invariant;
-        ensures  ToU(ptr) !in old(env.shared.heap()) && ToU(ptr) in env.shared.heap();
+        ensures  ToU(ptr) !in old(env.shared.heapdomain()) && ToU(ptr) in env.shared.heapdomain();
+        ensures  forall ref :: ref in old(env.shared.heapdomain()) ==> ref in env.shared.heapdomain();
         ensures  env.events.history() == old(env.events.history()) + [MakePtrEvent(ToUPtr(ptr), ToU(v))];
-        ensures  forall ref :: ref in old(env.shared.heap()) ==> ref in env.shared.heap();
 
     static method {:axiom} ReadPtr<T>(ptr:Ptr<T>, ghost env:HostEnvironment) 
         returns (v:T)
         requires IsValidPtr(ptr);
         requires env != null && env.Valid();
-//        modifies env.shared;
         modifies env.events;
         ensures  v in PtrInvariant(ptr);
         ensures  env.events.history() == old(env.events.history()) + [ReadPtrEvent(ToUPtr(ptr), ToU(v))];
-//        ensures  forall ref :: ref in old(env.shared.heap()) ==> ref in env.shared.heap()
     
     static method {:axiom} WritePtr<T>(ptr:Ptr<T>, v:T, ghost env:HostEnvironment) 
         requires IsValidPtr(ptr);
         requires v in PtrInvariant(ptr);
         requires env != null && env.Valid();
-        modifies env.shared;
         modifies env.events;
         ensures  env.events.history() == old(env.events.history()) + [WritePtrEvent(ToUPtr(ptr), ToU(v))];
-        ensures  forall ref :: ref in old(env.shared.heap()) ==> ref in env.shared.heap();
    
     static method {:axiom} ReadPtrAssume<T>(ptr:Ptr<T>, ghost assumption:iset<SharedHeap>, ghost env:HostEnvironment) 
-        returns (v:T)
+        returns (v:T, ghost h:SharedHeap)
         requires IsValidPtr(ptr);
         requires env != null && env.Valid();
-        modifies env.shared;
         modifies env.events;
         ensures  v in PtrInvariant(ptr);
-        ensures  ToU(ptr) in env.shared.heap();
-        ensures  ToU(v) == env.shared.heap()[ToU(ptr)];
-        ensures  env.shared.heap() in assumption;
+        ensures  ToU(ptr) in h;
+        ensures  ToU(v) == h[ToU(ptr)];
+        ensures  h in assumption;
         ensures  env.events.history() == old(env.events.history()) 
-                                       + [ReadPtrEvent(ToUPtr(ptr), ToU(v))]
-                                       + [AssumeEvent (assumption)] ;
-        ensures  forall ref :: ref in old(env.shared.heap()) ==> ref in env.shared.heap();
+                                       + [AssumeHeapEvent (assumption)]
+                                       + [ReadPtrEvent(ToUPtr(ptr), ToU(v))];
     
     static method {:axiom} MakeArray<T>(v:T, len:int, ghost arr_invariant:iset<T>, ghost env:HostEnvironment) 
         returns (arr:Array<T>)
         requires ValueTypes() && IsValueType<T>();
         requires v in arr_invariant;
+        requires len >= 0;
         requires env != null && env.Valid();
         modifies env.shared;
         modifies env.events;
         ensures  IsValidArray(arr);
         ensures  ArrayInvariant(arr) == arr_invariant;
         ensures  Length(arr) == len;
-        ensures  ToU(arr) !in old(env.shared.heap()) && ToU(arr) in env.shared.heap();
-        ensures  env.events.history() == old(env.events.history()) + [MakeArrayEvent(ToUArray(arr), ToU(v), len)];
-        ensures  forall ref :: ref in old(env.shared.heap()) ==> ref in env.shared.heap();
+        ensures  ToU(arr) !in old(env.shared.heapdomain()) && ToU(arr) in env.shared.heapdomain();
+        ensures  forall ref :: ref in old(env.shared.heapdomain()) ==> ref in env.shared.heapdomain();
+        ensures  env.events.history() == old(env.events.history()) + [MakeArrayEvent(ToUArray(arr), len, ToU(v))];
 
     static method {:axiom} ReadArray<T>(arr:Array<T>, index:int, ghost env:HostEnvironment) 
         returns (v:T)
         requires IsValidArray(arr);
         requires 0 <= index < Length(arr);
         requires env != null && env.Valid();
-//        modifies env.shared;
         modifies env.events;
         ensures  v in ArrayInvariant(arr);
         ensures  env.events.history() == old(env.events.history()) + [ReadArrayEvent(ToUArray(arr), index, ToU(v))];
-//        ensures  forall ref :: ref in old(env.shared.heap()) ==> ref in env.shared.heap();
     
     static method {:axiom} WriteArray<T>(arr:Array<T>, index:int, v:T, ghost env:HostEnvironment) 
         requires IsValidArray(arr);
         requires 0 <= index < Length(arr);
         requires v in ArrayInvariant(arr);
         requires env != null && env.Valid();
-        modifies env.shared;
         modifies env.events;
         ensures  env.events.history() == old(env.events.history()) + [WriteArrayEvent(ToUArray(arr), index, ToU(v))];
-        ensures  forall ref :: ref in old(env.shared.heap()) ==> ref in env.shared.heap();
-    
+
     static method {:axiom} ReadArrayAssume<T>(arr:Array<T>, index:int, ghost assumption:iset<SharedHeap>, ghost env:HostEnvironment)
-        returns (v:T)
+        returns (v:T, ghost h:SharedHeap)
         requires IsValidArray(arr);
         requires 0 <= index < Length(arr);
         requires env != null && env.Valid();
-        modifies env.shared;
         modifies env.events;
         ensures  v in ArrayInvariant(arr);
-        ensures  ToU(arr) in env.shared.heap();
-        ensures  exists s:seq<T> :: env.shared.heap()[ToU(arr)] == ToU(s) && |s| == Length(arr) && v == s[index];
-        ensures  env.shared.heap() in assumption;
+        ensures  ToU(arr) in h;
+        ensures  exists s:seq<T> :: h[ToU(arr)] == ToU(s) && |s| == Length(arr) && v == s[index];
+        ensures  h in assumption;
         ensures  env.events.history() == old(env.events.history()) 
-                                       + [ReadArrayEvent(ToUArray(arr), index, ToU(v))]
-                                       + [AssumeEvent   (assumption)] ;
-        ensures  forall ref :: ref in old(env.shared.heap()) ==> ref in env.shared.heap();
+                                       + [AssumeHeapEvent   (assumption)]
+                                       + [ReadArrayEvent(ToUArray(arr), index, ToU(v))];
 } 
 
 //////////////////////////////////////////////////////////////////////////////
