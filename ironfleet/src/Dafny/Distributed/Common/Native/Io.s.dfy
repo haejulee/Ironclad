@@ -14,6 +14,7 @@ class HostEnvironment
     ghost var files:FileSystemState;
     ghost var thread:ThreadState;
     ghost var shared:SharedState;
+    ghost var locks:LockState;
     ghost var connections:ConnectionState;
 
 
@@ -27,6 +28,7 @@ class HostEnvironment
         && files != null
         && thread != null
         && shared != null
+        && locks != null
         && connections != null
     }
 }
@@ -111,7 +113,7 @@ class Events
 //////////////////////////////////////////////////////////////////////////////
 
 type U(==)
-type Lock
+type Lock(==)
 type Ptr<T>
 type Array<T>
 type Table<A,B>
@@ -142,11 +144,16 @@ class ThreadState
         ensures  int(id) == env.thread.ThreadId();
 }
 
-
 class SharedState
 {
     constructor{:axiom} () requires false;
     function{:axiom} heapdomain():set<U> reads this;
+}
+
+class LockState
+{
+    constructor{:axiom} () requires false;
+    function{:axiom} lock_states():map<Lock, bool> reads this;
 }
 
 class ConnectionState
@@ -163,8 +170,6 @@ predicate {:axiom} ValueTypes()
     ensures IsValueType<int>();
     ensures ValueTypes();
 
-predicate IsValidLock(lock:Lock)           
-
 predicate IsValidPtr<T>(ptr:Ptr<T>)
 function  PtrInvariant<T>(ptr:Ptr<T>):iset<T>
 //function  GetPtr<T>(heap:SharedHeap, ptr:Ptr<T>) : T
@@ -177,26 +182,28 @@ class SharedStateIfc
 {
     static method {:axiom} MakeLock(ghost env:HostEnvironment) returns (lock:Lock)
         requires env != null && env.Valid();
-        modifies env.shared;
+        modifies env.locks;
         modifies env.events;
-        ensures  IsValidLock(lock);
+        ensures  lock !in old(env.locks.lock_states());
+        ensures  env.locks.lock_states() == old(env.locks.lock_states())[lock := false];
         ensures  env.events.history() == old(env.events.history()) + [MakeLockEvent(lock)];
-        ensures  ToU(lock) !in old(env.shared.heapdomain()) && ToU(lock) in env.shared.heapdomain();
-        ensures  forall ref :: ref in old(env.shared.heapdomain()) ==> ref in env.shared.heapdomain();
 
     static method {:axiom} Lock(lock:Lock, ghost env:HostEnvironment)
-        requires IsValidLock(lock);
         requires env != null && env.Valid();
+        requires lock in env.locks.lock_states();
+        requires !env.locks.lock_states()[lock];  // I can't hold it yet
+        modifies env.locks;
         modifies env.events;
+        ensures  env.locks.lock_states() == old(env.locks.lock_states())[lock := true];
         ensures  env.events.history() == old(env.events.history()) + [LockEvent(lock)];
-
-        // TODO: This needs some way to prevent the caller from unlocking a lock one does not hold.
-        // Either it needs to require it be held, or return an ok indicating potential failure.
         
     static method {:axiom} Unlock(lock:Lock, ghost env:HostEnvironment)
-        requires IsValidLock(lock);
         requires env != null && env.Valid();
+        requires lock in env.locks.lock_states();
+        requires env.locks.lock_states()[lock];   // I must hold it currently
+        modifies env.locks;
         modifies env.events;
+        ensures  env.locks.lock_states() == old(env.locks.lock_states())[lock := false];
         ensures  env.events.history() == old(env.events.history()) + [UnlockEvent(lock)];
 
     static method {:axiom} MakePtr<T>(v:T, ghost ptr_invariant:iset<T>, ghost env:HostEnvironment) 

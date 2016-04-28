@@ -20,7 +20,8 @@ module SystemModule {
                                        time:int,
                                        connections:map<int, Connection>,
                                        sent_packets:set<Packet>,
-                                       heap:SharedHeap)
+                                       heap:SharedHeap,
+                                       locks:map<Lock, Actor>)
 
     type SystemBehavior = seq<SystemState>
 
@@ -50,6 +51,7 @@ module SystemModule {
         && |ls.sent_packets| == 0
         && ls.connections == map []
         && ls.heap == map []
+        && ls.locks == map []
     }
 
     predicate SystemNextUdpReceive(ls:SystemState, ls':SystemState, actor:Actor, p:Packet)
@@ -163,27 +165,27 @@ module SystemModule {
 
     predicate SystemNextMakeLock(ls:SystemState, ls':SystemState, actor:Actor, lock:Lock)
     {
-           ls' == ls.(heap := ls'.heap)
-        && ToU(lock) !in ls.heap
-        && ls'.heap == ls.heap[ToU(lock) := ToU(NoActor())]
+           ls' == ls.(locks := ls'.locks)
+        && lock !in ls.locks
+        && ls'.locks == ls.locks[lock := NoActor()]
     }
 
     predicate SystemNextLock(ls:SystemState, ls':SystemState, actor:Actor, lock:Lock)
     {
-           ls' == ls.(heap := ls'.heap)
+           ls' == ls.(locks := ls'.locks)
         && !actor.NoActor?
-        && ToU(lock) in ls.heap
-        && ls.heap[ToU(lock)] == ToU(NoActor())
-        && ls'.heap == ls.heap[ToU(lock) := ToU(actor)]
+        && lock in ls.locks
+        && ls.locks[lock] == NoActor()
+        && ls'.locks == ls.locks[lock := actor]
     }
 
     predicate SystemNextUnlock(ls:SystemState, ls':SystemState, actor:Actor, lock:Lock)
     {
-           ls' == ls.(heap := ls'.heap)
+           ls' == ls.(locks := ls'.locks)
         && !actor.NoActor?
-        && ToU(lock) in ls.heap
-        && ls.heap[ToU(lock)] == ToU(actor)
-        && ls'.heap == ls.heap[ToU(lock) := ToU(NoActor())]
+        && lock in ls.locks
+        && ls.locks[lock] == actor
+        && ls'.locks == ls.locks[lock := NoActor()]
     }
 
     predicate SystemNextMakePtr(ls:SystemState, ls':SystemState, actor:Actor, ptr:Ptr<U>, initial_value:U)
