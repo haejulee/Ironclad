@@ -39,13 +39,15 @@ module SystemModule {
     {
            ls' == ls
         && p in ls.sent_packets
-        && (actor.HostActor? ==> p.dst == actor.ep)
+        && actor.ThreadActor?
+        && p.dst.addr == actor.addr
     }
 
     predicate SystemNextSend(ls:SystemState, ls':SystemState, actor:Actor, p:Packet)
     {
            ls' == ls.(sent_packets := ls.sent_packets + {p})
-        && (actor.HostActor? ==> p.src == actor.ep)
+        && actor.ThreadActor?
+        && p.src.addr == actor.addr
     }
 
     predicate SystemNextReadClock(ls:SystemState, ls':SystemState, actor:Actor, t:int)
@@ -95,8 +97,9 @@ module SystemModule {
         && ls'.config == ls.config
         && (forall p :: p in ls.sent_packets ==> p in ls'.sent_packets)
         && (forall p :: p in ls'.sent_packets ==> p in ls.sent_packets || UdpSendEvent(p) in ios)
-        && (actor.HostActor? ==> forall io :: io in ios && io.UdpReceiveEvent? ==> io.r in ls.sent_packets && io.r.dst == actor.ep)
-        && (actor.HostActor? ==> forall io :: io in ios && io.UdpSendEvent? ==> io.s in ls'.sent_packets && io.s.src == actor.ep)
+		&& actor.ThreadActor?
+        && (forall io :: io in ios && io.UdpReceiveEvent? ==> io.r in ls.sent_packets && io.r.dst.addr == actor.addr)
+        && (forall io :: io in ios && io.UdpSendEvent? ==> io.s in ls'.sent_packets && io.s.src.addr == actor.addr)
     }
 
     predicate SystemNextHostNext(
@@ -114,8 +117,9 @@ module SystemModule {
         && ls'.config == ls.config
         && (forall p :: p in ls.sent_packets ==> p in ls'.sent_packets)
         && (forall p :: p in ls'.sent_packets ==> p in ls.sent_packets || UdpSendEvent(p) in ios)
-        && (actor.HostActor? ==> forall io :: io in ios && io.UdpReceiveEvent? ==> io.r in ls.sent_packets && io.r.dst == actor.ep)
-        && (actor.HostActor? ==> forall io :: io in ios && io.UdpSendEvent? ==> io.s in ls'.sent_packets && io.s.src == actor.ep)
+		&& actor.ThreadActor?
+        && (forall io :: io in ios && io.UdpReceiveEvent? ==> io.r in ls.sent_packets && io.r.dst.addr == actor.addr)
+        && (forall io :: io in ios && io.UdpSendEvent? ==> io.s in ls'.sent_packets && io.s.src.addr == actor.addr)
     }
 
     predicate SystemNextVirtualAction(ls:SystemState, ls':SystemState, actor:Actor, action:VirtualAction)
@@ -136,26 +140,29 @@ module SystemModule {
     predicate SystemNextTrackedEvent(ls:SystemState, ls':SystemState, actor:Actor, event:Event)
     {
         match event
-            case MakePtrEvent(id, ptr, v) => SystemNextStutter(ls, ls')             // TODO - fill in
-            case ReadPtrEvent(id, ptr, v) => SystemNextStutter(ls, ls')             // TODO - fill in
-            case WritePtrEvent(id, ptr, v) => SystemNextStutter(ls, ls')            // TODO - fill in
-            case AssumeEvent(id, assumption) => SystemNextStutter(ls, ls')          // TODO - fill in
-            case MakeLockEvent(id, lock) => SystemNextStutter(ls, ls')              // TODO - fill in
-            case LockEvent(id, lock) => SystemNextStutter(ls, ls')                  // TODO - fill in
-            case UnlockEvent(id, lock) => SystemNextStutter(ls, ls')                // TODO - fill in
-            case MakeArrayEvent(id, arr, v, len) => SystemNextStutter(ls, ls')      // TODO - fill in
-            case ReadArrayEvent(id, arr, index, v) => SystemNextStutter(ls, ls')    // TODO - fill in
-            case WriteArrayEvent(id, arr, index, v) => SystemNextStutter(ls, ls')   // TODO - fill in
+            case MakePtrEvent(ptr, v) => SystemNextStutter(ls, ls')             // TODO - fill in
+            case ReadPtrEvent(ptr, v) => SystemNextStutter(ls, ls')             // TODO - fill in
+            case WritePtrEvent(ptr, v) => SystemNextStutter(ls, ls')            // TODO - fill in
+            case AssumeEvent(assumption) => SystemNextStutter(ls, ls')          // TODO - fill in
+            case MakeLockEvent(lock) => SystemNextStutter(ls, ls')              // TODO - fill in
+            case LockEvent(lock) => SystemNextStutter(ls, ls')                  // TODO - fill in
+            case UnlockEvent(lock) => SystemNextStutter(ls, ls')                // TODO - fill in
+            case MakeArrayEvent(arr, v, len) => SystemNextStutter(ls, ls')      // TODO - fill in
+            case ReadArrayEvent(arr, index, v) => SystemNextStutter(ls, ls')    // TODO - fill in
+            case WriteArrayEvent(arr, index, v) => SystemNextStutter(ls, ls')   // TODO - fill in
             case ReadClockEvent(t) => SystemNextReadClock(ls, ls', actor, t)
             case UdpTimeoutReceiveEvent() => SystemNextStutter(ls, ls')
             case UdpReceiveEvent(p) => SystemNextReceive(ls, ls', actor, p)
             case UdpSendEvent(p) => SystemNextSend(ls, ls', actor, p)
-            case TcpTimeoutReceiveEvent() => SystemNextStutter(ls, ls')             // TODO - fill in
-            case TcpReceiveEvent(r) => SystemNextStutter(ls, ls')                   // TODO - fill in
-            case TcpSendEvent(s) => SystemNextStutter(ls, ls')                      // TODO - fill in
-            case FIopOpenEvent(f) => SystemNextStutter(ls, ls')                     // TODO - fill in
-            case FIopReadEvent(f, bytes) => SystemNextStutter(ls, ls')              // TODO - fill in
-            case FIopCloseEvent(f) => SystemNextStutter(ls, ls')                    // TODO - fill in
+            case TcpConnectEvent(id, ep) => SystemNextStutter(ls, ls')          // TODO - fill in
+            case TcpAcceptEvent(id, ep) => SystemNextStutter(ls, ls')           // TODO - fill in
+            case TcpTimeoutReceiveEvent(id) => SystemNextStutter(ls, ls')       // TODO - fill in
+            case TcpReceiveEvent(id, r) => SystemNextStutter(ls, ls')           // TODO - fill in
+            case TcpSendEvent(id, s) => SystemNextStutter(ls, ls')              // TODO - fill in
+            case TcpClose(id) => SystemNextStutter(ls, ls')                     // TODO - fill in
+            case FIopOpenEvent(f) => SystemNextStutter(ls, ls')                 // TODO - fill in
+            case FIopReadEvent(f, bytes) => SystemNextStutter(ls, ls')          // TODO - fill in
+            case FIopCloseEvent(f) => SystemNextStutter(ls, ls')                // TODO - fill in
     }
 
     predicate SystemNextAction(ls:SystemState, ls':SystemState, actor:Actor, action:Action)

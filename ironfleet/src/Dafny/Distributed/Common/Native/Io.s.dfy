@@ -533,8 +533,12 @@ class TcpClient
 
     method{:axiom} Close()
         requires this.Open();
+        requires env != null && env.Valid();
         modifies this;
+        modifies env.events;
+        ensures  env == old(env);
         ensures  !this.Open();
+        ensures  env.events.history() == old(env.events.history()) + [TcpClose(this.Id())];
 }
 
 class TcpListener
