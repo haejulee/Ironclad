@@ -171,6 +171,7 @@ module SystemModule {
     predicate SystemNextLock(ls:SystemState, ls':SystemState, actor:Actor, lock:Lock)
     {
            ls' == ls.(heap := ls'.heap)
+        && !actor.NoActor?
         && ToU(lock) in ls.heap
         && ls.heap[ToU(lock)] == ToU(NoActor())
         && ls'.heap == ls.heap[ToU(lock) := ToU(actor)]
@@ -179,6 +180,7 @@ module SystemModule {
     predicate SystemNextUnlock(ls:SystemState, ls':SystemState, actor:Actor, lock:Lock)
     {
            ls' == ls.(heap := ls'.heap)
+        && !actor.NoActor?
         && ToU(lock) in ls.heap
         && ls.heap[ToU(lock)] == ToU(actor)
         && ls'.heap == ls.heap[ToU(lock) := ToU(NoActor())]
