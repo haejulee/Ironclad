@@ -188,55 +188,49 @@ module SystemModule {
         && ls'.locks == ls.locks[lock := NoActor()]
     }
 
-    predicate SystemNextMakePtr(ls:SystemState, ls':SystemState, actor:Actor, ptr:Ptr<U>, initial_value:U, inv:iset<U>)
+    predicate SystemNextMakePtr(ls:SystemState, ls':SystemState, actor:Actor, ptr:Ptr<U>, initial_value:U)
     {
            ls' == ls.(heap := ls'.heap)
         && ToU(ptr) !in ls.heap
-        && initial_value in inv
         && ls'.heap == ls.heap[ToU(ptr) := initial_value]
     }
 
-    predicate SystemNextReadPtr(ls:SystemState, ls':SystemState, actor:Actor, ptr:Ptr<U>, read_value:U, inv:iset<U>)
+    predicate SystemNextReadPtr(ls:SystemState, ls':SystemState, actor:Actor, ptr:Ptr<U>, read_value:U)
     {
            ls' == ls
         && ToU(ptr) in ls.heap
         && ls.heap[ToU(ptr)] == read_value
-        && read_value in inv
     }
 
-    predicate SystemNextWritePtr(ls:SystemState, ls':SystemState, actor:Actor, ptr:Ptr<U>, write_value:U, inv:iset<U>)
+    predicate SystemNextWritePtr(ls:SystemState, ls':SystemState, actor:Actor, ptr:Ptr<U>, write_value:U)
     {
            ls' == ls.(heap := ls'.heap)
         && ToU(ptr) in ls.heap
         && ls'.heap == ls.heap[ToU(ptr) := write_value]
-        && write_value in inv
     }
 
-    predicate SystemNextMakeArray(ls:SystemState, ls':SystemState, actor:Actor, arr:Array<U>, arr_len:int, initial_value:U, inv:iset<U>)
+    predicate SystemNextMakeArray(ls:SystemState, ls':SystemState, actor:Actor, arr:Array<U>, arr_len:int, initial_value:U)
     {
            ls' == ls.(heap := ls'.heap)
         && ToU(arr) !in ls.heap
-        && initial_value in inv
         && (exists s:seq<U> ::   ls'.heap == ls.heap[ToU(arr) := ToU(s)]
                          && |s| == arr_len
                          && (forall i :: 0 <= i < arr_len ==> s[i] == initial_value))
     }
 
-    predicate SystemNextReadArray(ls:SystemState, ls':SystemState, actor:Actor, arr:Array<U>, index:int, read_value:U, inv:iset<U>)
+    predicate SystemNextReadArray(ls:SystemState, ls':SystemState, actor:Actor, arr:Array<U>, index:int, read_value:U)
     {
            ls' == ls
         && ToU(arr) in ls.heap
-        && read_value in inv
         && (exists s:seq<U> ::   ls.heap[ToU(arr)] == ToU(s)
                          && 0 <= index < |s|
                          && s[index] == read_value)
     }
 
-    predicate SystemNextWriteArray(ls:SystemState, ls':SystemState, actor:Actor, arr:Array<U>, index:int, write_value:U, inv:iset<U>)
+    predicate SystemNextWriteArray(ls:SystemState, ls':SystemState, actor:Actor, arr:Array<U>, index:int, write_value:U)
     {
            ls' == ls.(heap := ls'.heap)
         && ToU(arr) in ls.heap
-        && write_value in inv
         && (exists s:seq<U> ::   ls.heap[ToU(arr)] == ToU(s)
                          && 0 <= index < |s|
                          && ls'.heap == ls.heap[ToU(arr) := ToU(s[index := write_value])])
@@ -324,12 +318,12 @@ module SystemModule {
             case LockEvent(lock) => SystemNextLock(ls, ls', actor, lock)
             case UnlockEvent(lock) => SystemNextUnlock(ls, ls', actor, lock)
             case AssumeHeapEvent(assumption) => SystemNextAssumeHeap(ls, ls', assumption)
-            case MakePtrEvent(ptr, v, inv) => SystemNextMakePtr(ls, ls', actor, ptr, v, inv)
-            case ReadPtrEvent(ptr, v, inv) => SystemNextReadPtr(ls, ls', actor, ptr, v, inv)
-            case WritePtrEvent(ptr, v, inv) => SystemNextWritePtr(ls, ls', actor, ptr, v, inv)
-            case MakeArrayEvent(arr, len, v, inv) => SystemNextMakeArray(ls, ls', actor, arr, len, v, inv)
-            case ReadArrayEvent(arr, index, v, inv) => SystemNextReadArray(ls, ls', actor, arr, index, v, inv)
-            case WriteArrayEvent(arr, index, v, inv) => SystemNextWriteArray(ls, ls', actor, arr, index, v, inv)
+            case MakePtrEvent(ptr, v) => SystemNextMakePtr(ls, ls', actor, ptr, v)
+            case ReadPtrEvent(ptr, v) => SystemNextReadPtr(ls, ls', actor, ptr, v)
+            case WritePtrEvent(ptr, v) => SystemNextWritePtr(ls, ls', actor, ptr, v)
+            case MakeArrayEvent(arr, len, v) => SystemNextMakeArray(ls, ls', actor, arr, len, v)
+            case ReadArrayEvent(arr, index, v) => SystemNextReadArray(ls, ls', actor, arr, index, v)
+            case WriteArrayEvent(arr, index, v) => SystemNextWriteArray(ls, ls', actor, arr, index, v)
             case ReadClockEvent(t) => SystemNextReadClock(ls, ls', actor, t)
             case UdpTimeoutReceiveEvent() => SystemNextStutter(ls, ls')
             case UdpReceiveEvent(p) => SystemNextUdpReceive(ls, ls', actor, p)
