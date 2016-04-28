@@ -7,19 +7,18 @@ module SystemModule {
     type ActorState
     datatype Config = Config(tracked_actors:set<Actor>)
 
-    datatype Connection = Connection(id:int,
-                                     connector:Actor,
+    datatype Connection = Connection(connector:Actor,
                                      acceptor_ep:EndPoint,
                                      acceptor:Actor,
                                      closed_by_connector:bool,
                                      closed_by_acceptor:bool,
-                                     bytes_sent_by_connector_but_not_received:seq<byte>,
-                                     bytes_sent_by_acceptor_but_not_received:seq<byte>)
+                                     bytes_pending_for_acceptor:seq<byte>,
+                                     bytes_pending_for_connector:seq<byte>)
 
     datatype SystemState = SystemState(config:Config,
                                        states:map<Actor, ActorState>,
                                        time:int,
-                                       connections:set<Connection>,
+                                       connections:map<int, Connection>,
                                        sent_packets:set<Packet>,
                                        heap:SharedHeap)
 
@@ -49,7 +48,7 @@ module SystemModule {
            ls.config == config
         && ls.time >= 0
         && |ls.sent_packets| == 0
-        && ls.connections == {}
+        && ls.connections == map []
         && ls.heap == map []
     }
 
@@ -71,8 +70,74 @@ module SystemModule {
     predicate SystemNextTcpConnect(ls:SystemState, ls':SystemState, actor:Actor, conn_id:int, remote_ep:EndPoint)
     {
            ls' == ls.(connections := ls'.connections)
-        && (forall conn :: conn in ls.connections ==> conn.id != conn_id)
-        && ls'.connections == ls.connections + { Connection(conn_id, actor, remote_ep, NoActor(), false, false, [], []) }
+        && conn_id !in ls.connections
+        && actor.ThreadActor?
+        && ls'.connections == ls.connections[conn_id := Connection(actor, remote_ep, NoActor(), false, false, [], [])]
+    }
+
+    predicate SystemNextTcpAccept(ls:SystemState, ls':SystemState, actor:Actor, conn_id:int, remote_ep:EndPoint)
+    {
+           conn_id in ls.connections
+        && actor.ThreadActor?
+        && ls.connections[conn_id].acceptor_ep.addr == actor.addr
+        && ls.connections[conn_id].acceptor == NoActor()
+        && ls' == ls.(connections := ls.connections[conn_id := ls.connections[conn_id].(acceptor := actor)])
+    }
+
+    predicate SystemNextTcpTimeoutReceive(ls:SystemState, ls':SystemState, actor:Actor, conn_id:int)
+    {
+           ls' == ls
+        && conn_id in ls.connections
+        && var conn := ls.connections[conn_id];
+          (    (   conn.acceptor == actor
+                && !conn.closed_by_acceptor)
+            || (   conn.connector == actor
+                && !conn.closed_by_connector))
+    }
+
+    predicate SystemNextTcpReceive(ls:SystemState, ls':SystemState, actor:Actor, conn_id:int, bytes:seq<byte>)
+    {
+           conn_id in ls.connections
+        && conn_id in ls'.connections
+        && var conn := ls.connections[conn_id];
+           var conn' := ls'.connections[conn_id];
+              ls' == ls.(connections := ls.connections[conn_id := conn'])
+           && (   (   conn.acceptor == actor
+                   && !conn.closed_by_acceptor
+                   && conn == conn'.(bytes_pending_for_acceptor := bytes + conn'.bytes_pending_for_acceptor))
+               || (   conn.connector == actor
+                   && !conn.closed_by_connector
+                   && conn == conn'.(bytes_pending_for_connector := bytes + conn'.bytes_pending_for_connector)))
+    }
+
+    predicate SystemNextTcpSend(ls:SystemState, ls':SystemState, actor:Actor, conn_id:int, bytes:seq<byte>)
+    {
+           conn_id in ls.connections
+        && conn_id in ls'.connections
+        && var conn := ls.connections[conn_id];
+           var conn' := ls'.connections[conn_id];
+              ls' == ls.(connections := ls.connections[conn_id := conn'])
+           && (   (   conn.acceptor == actor
+                   && !conn.closed_by_acceptor
+                   && conn' == conn.(bytes_pending_for_connector := conn.bytes_pending_for_connector + bytes))
+               || (   conn.connector == actor
+                   && !conn.closed_by_connector
+                   && conn' == conn.(bytes_pending_for_acceptor := conn.bytes_pending_for_acceptor + bytes)))
+    }
+
+    predicate SystemNextTcpClose(ls:SystemState, ls':SystemState, actor:Actor, conn_id:int)
+    {
+           conn_id in ls.connections
+        && conn_id in ls'.connections
+        && var conn := ls.connections[conn_id];
+           var conn' := ls'.connections[conn_id];
+              ls' == ls.(connections := ls.connections[conn_id := conn'])
+           && (   (   conn.acceptor == actor
+                   && !conn.closed_by_acceptor
+                   && conn' == conn.(closed_by_acceptor := true))
+               || (   conn.connector == actor
+                   && !conn.closed_by_connector
+                   && conn' == conn.(closed_by_connector := true)))
     }
 
     predicate SystemNextReadClock(ls:SystemState, ls':SystemState, actor:Actor, t:int)
@@ -254,11 +319,11 @@ module SystemModule {
             case UdpReceiveEvent(p) => SystemNextUdpReceive(ls, ls', actor, p)
             case UdpSendEvent(p) => SystemNextUdpSend(ls, ls', actor, p)
             case TcpConnectEvent(id, ep) => SystemNextTcpConnect(ls, ls', actor, id, ep)
-            case TcpAcceptEvent(id, ep) => SystemNextStutter(ls, ls')           // TODO - fill in
-            case TcpTimeoutReceiveEvent(id) => SystemNextStutter(ls, ls')       // TODO - fill in
-            case TcpReceiveEvent(id, r) => SystemNextStutter(ls, ls')           // TODO - fill in
-            case TcpSendEvent(id, s) => SystemNextStutter(ls, ls')              // TODO - fill in
-            case TcpClose(id) => SystemNextStutter(ls, ls')                     // TODO - fill in
+            case TcpAcceptEvent(id, ep) => SystemNextTcpAccept(ls, ls', actor, id, ep)
+            case TcpTimeoutReceiveEvent(id) => SystemNextTcpTimeoutReceive(ls, ls', actor, id)
+            case TcpReceiveEvent(id, r) => SystemNextTcpReceive(ls, ls', actor, id, r)
+            case TcpSendEvent(id, s) => SystemNextTcpSend(ls, ls', actor, id, s)
+            case TcpClose(id) => SystemNextTcpClose(ls, ls', actor, id)
             case FIopOpenEvent(f) => SystemNextStutter(ls, ls')                 // TODO - fill in
             case FIopReadEvent(f, bytes) => SystemNextStutter(ls, ls')          // TODO - fill in
             case FIopCloseEvent(f) => SystemNextStutter(ls, ls')                // TODO - fill in
