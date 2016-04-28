@@ -236,9 +236,7 @@ module SystemModule {
     {
            (forall other_actor {:trigger ls.states[other_actor]}{:trigger other_actor in ls.states}{:trigger other_actor in ls'.states} ::
                            other_actor != actor ==> ActorStateMatchesInSystemStates(ls, ls', other_actor))
-        && ls'.sent_packets == ls.sent_packets
-        && ls'.time == ls.time
-        && ls'.config == ls.config
+        && ls' == ls.(states := ls'.states)
     }
 
     predicate SystemNextStutter(ls:SystemState, ls':SystemState)
