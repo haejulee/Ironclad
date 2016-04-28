@@ -6,12 +6,12 @@ module MoversModule {
 
     predicate ActionIsRightMover(action:Action)
     {
-        action.ActionEvent? && action.e.UdpReceiveEvent?
+        action.ActionEvent? && (action.e.UdpReceiveEvent? || action.e.LockEvent?)
     }
 
     predicate ActionIsLeftMover(action:Action)
     {
-        action.ActionEvent? && action.e.UdpSendEvent?
+        action.ActionEvent? && (action.e.UdpSendEvent? || action.e.UnlockEvent?)
     }
 
     predicate EntryIsRightMover(entry:Entry)
@@ -43,6 +43,27 @@ module MoversModule {
         if entry1.action.ActionEvent? && entry1.action.e.UdpReceiveEvent? {
             ls2' := ls3;
         }
+        else if entry1.action.ActionEvent? && entry1.action.e.LockEvent? {
+            var lock := entry1.action.e.lock;
+            ls2' := ls3.(heap := ls3.heap[ToU(lock) := ToU(NoActor())]);
+
+            assert ls2.heap[ToU(lock) := ToU(NoActor())] == ls1.heap;
+
+            if entry2.action.ActionEvent? {
+                if entry2.action.e.ReadPtrEvent? {
+                    assume ToU(lock) != ToU(entry2.action.e.ptr_read);
+                }
+                else if entry2.action.e.WritePtrEvent? {
+                    assume ToU(lock) != ToU(entry2.action.e.ptr_write);
+                }
+                else if entry2.action.e.ReadArrayEvent? {
+                    assume ToU(lock) != ToU(entry2.action.e.arr_read);
+                }
+                else if entry2.action.e.WriteArrayEvent? {
+                    assume ToU(lock) != ToU(entry2.action.e.arr_write);
+                }
+            }
+        }
         else if entry2.action.ActionEvent? && entry2.action.e.UdpSendEvent? {
             ls2' := ls1.(sent_packets := ls1.sent_packets + {entry2.action.e.s});
             if entry1.action.ActionEvent? && entry1.action.e.UdpSendEvent? {
@@ -54,6 +75,33 @@ module MoversModule {
             }
             else if entry1.action.ActionVirtual? && entry1.action.v.HostNext? {
                 assert ls2'.states == ls1.states;
+            }
+        }
+        else if entry2.action.ActionEvent? && entry2.action.e.UnlockEvent? {
+            var lock := entry2.action.e.unlock;
+            ls2' := ls1.(heap := ls1.heap[ToU(lock) := ToU(NoActor())]);
+
+            assert ls2.heap[ToU(lock) := ToU(NoActor())] == ls3.heap;
+
+            if entry1.action.ActionEvent? {
+                if entry1.action.e.ReadPtrEvent? {
+                    assume ToU(lock) != ToU(entry1.action.e.ptr_read);
+                }
+                else if entry1.action.e.WritePtrEvent? {
+                    assume ToU(lock) != ToU(entry1.action.e.ptr_write);
+                }
+                else if entry1.action.e.ReadArrayEvent? {
+                    assume ToU(lock) != ToU(entry1.action.e.arr_read);
+                }
+                else if entry1.action.e.WriteArrayEvent? {
+                    assume ToU(lock) != ToU(entry1.action.e.arr_write);
+                }
+                else if entry1.action.e.MakePtrEvent? {
+                    assume ToU(lock) != ToU(entry1.action.e.ptr_make);
+                }
+                else if entry1.action.e.MakeArrayEvent? {
+                    assume ToU(lock) != ToU(entry1.action.e.arr_make);
+                }
             }
         }
     }
