@@ -131,9 +131,6 @@ function {:axiom} ToUPtr<T>(t:Ptr<T>) : Ptr<U>
 function {:axiom} ToUArray<T>(t:Array<T>) : Array<U>
   ensures FromUArray(ToUArray(t)) == t;
 
-datatype Connection = Connection(connector:EndPoint, acceptor:EndPoint)
-type Connections = map<int, Connection>
-
 class ThreadState
 {
     constructor{:axiom} () requires false;
@@ -155,7 +152,7 @@ class SharedState
 class ConnectionState
 {
     constructor{:axiom} () requires false;
-    function{:axiom} connections():Connections reads this;
+    function{:axiom} connection_ids():set<int> reads this;
 }
 
 // TODO: Replace this with a built-in type predicate.
@@ -489,16 +486,15 @@ class TcpClient
         modifies env.events;
         ensures  env == old(env);
         ensures  env.ok.ok() == ok;
-        ensures  forall id :: id in old(env.connections.connections()) ==> id in env.connections.connections();
+        ensures  forall id :: id in old(env.connections.connection_ids()) ==> id in env.connections.connection_ids();
         ensures  ok ==>   tcp != null
                        && fresh(tcp)
                        && tcp.env == env
                        && tcp.Open()
                        && tcp.LocalEndPoint() == localEP.EP()
                        && tcp.Remote() == remote.EP()
-                       && tcp.Id() !in old(env.connections.connections())
-                       && tcp.Id() in env.connections.connections()
-                       && env.connections.connections()[tcp.Id()] == Connection(tcp.LocalEndPoint(), tcp.Remote())
+                       && tcp.Id() !in old(env.connections.connection_ids())
+                       && tcp.Id() in env.connections.connection_ids()
                        && env.events.history() == old(env.events.history()) + [TcpConnectEvent(tcp.Id(), remote.EP())]
 
     method{:axiom} Read(buffer:array<byte>, offset:int32, size:int32) returns(ok:bool, bytesRead:int32)
@@ -567,7 +563,7 @@ class TcpListener
         modifies env.events;
         ensures  env == old(env);
         ensures  env.ok.ok() == ok;
-        ensures  forall id :: id in old(env.connections.connections()) ==> id in env.connections.connections();
+        ensures  forall id :: id in old(env.connections.connection_ids()) ==> id in env.connections.connection_ids();
         ensures  ok ==>   tcp != null
                        && remote != null
                        && fresh(tcp)
@@ -577,10 +573,9 @@ class TcpListener
                        && tcp.LocalEndPoint() == this.LocalEndPoint()
                        && ValidPhysicalEndpoint(remote.EP())
                        && tcp.Remote() == remote.EP()
-                       && env.events.history() == old(env.events.history()) + [TcpAcceptEvent(tcp.Id(), remote.EP())]
-                       && tcp.Id() !in old(env.connections.connections())
-                       && tcp.Id() in env.connections.connections()
-                       && env.connections.connections()[tcp.Id()] == Connection(tcp.LocalEndPoint(), remote.EP());
+                       && tcp.Id() !in old(env.connections.connection_ids())
+                       && tcp.Id() in env.connections.connection_ids()
+                       && env.events.history() == old(env.events.history()) + [TcpAcceptEvent(tcp.Id(), remote.EP())];
 }
 
 class MutableSet<T(==)>

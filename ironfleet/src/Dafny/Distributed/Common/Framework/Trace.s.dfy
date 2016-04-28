@@ -8,7 +8,7 @@ module TraceModule {
     // Some possibilities for the actors and actions in a trace
     /////////////////////////////////////////////////////////////////////
 
-    datatype Actor = NoActor() | ThreadActor(addr:seq<byte>, tid:int)
+    datatype Actor = NoActor() | ThreadActor(addr:seq<byte>, pid:int, tid:int) // pid is assumed unique across machines
 
     datatype UntrackedEvent = UpdateLocalState()
                             | DeliverPacket(p:Packet)

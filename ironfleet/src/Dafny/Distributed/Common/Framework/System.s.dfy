@@ -6,11 +6,27 @@ module SystemModule {
 
     type ActorState
     datatype Config = Config(tracked_actors:set<Actor>)
+
+    datatype Connection = Connection(id:int,
+                                     connector:Actor,
+                                     acceptor_ep:EndPoint,
+                                     acceptor:Actor,
+                                     closed_by_connector:bool,
+                                     closed_by_acceptor:bool,
+                                     bytes_sent_by_connector_but_not_received:seq<byte>,
+                                     bytes_sent_by_acceptor_but_not_received:seq<byte>)
+
+    datatype SystemState = SystemState(config:Config,
+                                       states:map<Actor, ActorState>,
+                                       time:int,
+                                       connections:set<Connection>,
+                                       sent_packets:set<Packet>,
+                                       heaps:map<int, SharedHeap>)
+
+    type SystemBehavior = seq<SystemState>
+
     predicate HostInit(s:ActorState)
     predicate HostNextPredicate(s:ActorState, s':ActorState, ios:seq<Event>)
-
-    datatype SystemState = SystemState(config:Config, states:map<Actor, ActorState>, time:int, sent_packets:set<Packet>)
-    type SystemBehavior = seq<SystemState>
     
     predicate ValidPhysicalIo(event:Event)
     {
@@ -33,9 +49,12 @@ module SystemModule {
            ls.config == config
         && ls.time >= 0
         && |ls.sent_packets| == 0
+        && ls.connections == {}
+        && (forall actor :: actor in config.tracked_actors && actor.ThreadActor? ==> actor.pid in ls.heaps)
+        && (forall pid, u :: pid in ls.heaps ==> u !in ls.heaps[pid])
     }
 
-    predicate SystemNextReceive(ls:SystemState, ls':SystemState, actor:Actor, p:Packet)
+    predicate SystemNextUdpReceive(ls:SystemState, ls':SystemState, actor:Actor, p:Packet)
     {
            ls' == ls
         && p in ls.sent_packets
@@ -43,11 +62,18 @@ module SystemModule {
         && p.dst.addr == actor.addr
     }
 
-    predicate SystemNextSend(ls:SystemState, ls':SystemState, actor:Actor, p:Packet)
+    predicate SystemNextUdpSend(ls:SystemState, ls':SystemState, actor:Actor, p:Packet)
     {
            ls' == ls.(sent_packets := ls.sent_packets + {p})
         && actor.ThreadActor?
         && p.src.addr == actor.addr
+    }
+
+    predicate SystemNextTcpConnect(ls:SystemState, ls':SystemState, actor:Actor, conn_id:int, remote_ep:EndPoint)
+    {
+           ls' == ls.(connections := ls'.connections)
+        && (forall conn :: conn in ls.connections ==> conn.id != conn_id)
+        && ls'.connections == ls.connections + { Connection(conn_id, actor, remote_ep, NoActor(), false, false, [], []) }
     }
 
     predicate SystemNextReadClock(ls:SystemState, ls':SystemState, actor:Actor, t:int)
@@ -92,9 +118,7 @@ module SystemModule {
         ios:seq<Event>
         )
     {
-           ls'.states == ls.states
-        && ls'.time == ls.time
-        && ls'.config == ls.config
+           ls' == ls.(sent_packets := ls'.sent_packets)
         && (forall p :: p in ls.sent_packets ==> p in ls'.sent_packets)
         && (forall p :: p in ls'.sent_packets ==> p in ls.sent_packets || UdpSendEvent(p) in ios)
 		&& actor.ThreadActor?
@@ -109,12 +133,11 @@ module SystemModule {
         ios:seq<Event>
         )
     {
-           actor in ls.states
+           ls' == ls.(sent_packets := ls'.sent_packets, states := ls'.states)
+        && actor in ls.states
         && actor in ls'.states
         && ls'.states == ls.states[actor := ls'.states[actor]]
         && HostNextPredicate(ls.states[actor], ls'.states[actor], ios)
-        && ls'.time == ls.time
-        && ls'.config == ls.config
         && (forall p :: p in ls.sent_packets ==> p in ls'.sent_packets)
         && (forall p :: p in ls'.sent_packets ==> p in ls.sent_packets || UdpSendEvent(p) in ios)
 		&& actor.ThreadActor?
@@ -152,9 +175,9 @@ module SystemModule {
             case WriteArrayEvent(arr, index, v) => SystemNextStutter(ls, ls')   // TODO - fill in
             case ReadClockEvent(t) => SystemNextReadClock(ls, ls', actor, t)
             case UdpTimeoutReceiveEvent() => SystemNextStutter(ls, ls')
-            case UdpReceiveEvent(p) => SystemNextReceive(ls, ls', actor, p)
-            case UdpSendEvent(p) => SystemNextSend(ls, ls', actor, p)
-            case TcpConnectEvent(id, ep) => SystemNextStutter(ls, ls')          // TODO - fill in
+            case UdpReceiveEvent(p) => SystemNextUdpReceive(ls, ls', actor, p)
+            case UdpSendEvent(p) => SystemNextUdpSend(ls, ls', actor, p)
+            case TcpConnectEvent(id, ep) => SystemNextTcpConnect(ls, ls', actor, id, ep)
             case TcpAcceptEvent(id, ep) => SystemNextStutter(ls, ls')           // TODO - fill in
             case TcpTimeoutReceiveEvent(id) => SystemNextStutter(ls, ls')       // TODO - fill in
             case TcpReceiveEvent(id, r) => SystemNextStutter(ls, ls')           // TODO - fill in
