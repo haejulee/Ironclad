@@ -91,10 +91,10 @@ datatype Event = // Shared-state events
                  // TCP events
                  | TcpConnectEvent        (connect_conn:int,   connect_ep:EndPoint)
                  | TcpAcceptEvent         (accept_conn:int,    accept_ep:EndPoint)
-                 | TcpTimeoutReceiveEvent (timeout_conn:int)
-                 | TcpReceiveEvent        (receive_conn:int,   received_bytes:seq<byte>)
-                 | TcpSendEvent           (send_conn:int,      sent_bytes:seq<byte>)
-                 | TcpClose               (close_conn:int)
+                 | TcpTimeoutReceiveEvent (timeout_conn:int,   timeout_by_connector:bool)
+                 | TcpReceiveEvent        (receive_conn:int,   receive_by_connector:bool,  received_bytes:seq<byte>)
+                 | TcpSendEvent           (send_conn:int,      send_by_connector:bool,     sent_bytes:seq<byte>)
+                 | TcpClose               (close_conn:int,     close_by_connector:bool)
                  // File-system events - broken
                  | FIopOpenEvent(fileName:array<char>) 
                  | FIopReadEvent(f:seq<char>, bytes:seq<byte>)
@@ -459,6 +459,7 @@ class TcpClient
     function{:axiom} LocalEndPoint():EndPoint reads this;
     function{:axiom} Remote():EndPoint reads this;
     function{:axiom} Id():int reads this;
+    function{:axiom} AmIConnector():bool reads this;
 
     static method{:axiom} Connect(localEP:IPEndPoint, remote:IPEndPoint, ghost env:HostEnvironment)
         returns (ok:bool, success:bool, tcp:TcpClient)
@@ -484,6 +485,7 @@ class TcpClient
                      && tcp.Remote() == remote.EP()
                      && tcp.Id() !in old(env.connections.connection_ids())
                      && tcp.Id() in env.connections.connection_ids()
+                     && tcp.AmIConnector()
                      && env.events.history() == old(env.events.history()) + [TcpConnectEvent(tcp.Id(), remote.EP())];
         ensures  ok && !success ==> env.events.history() == old(env.events.history());
 
@@ -494,13 +496,12 @@ class TcpClient
         requires 0 <= int(offset) <= int(offset + size) <= buffer.Length;
         requires env != null && env.Valid();
         requires env.ok.ok();
-        modifies this;
         modifies env.ok;
         modifies env.events;
         ensures  env == old(env);
         ensures  env.ok.ok() == ok;
-        ensures  ok ==> this.Open() && 0 <= bytesRead <= size;
-        ensures  ok ==> env.events.history() == old(env.events.history()) + [TcpReceiveEvent(this.Id(), buffer[offset..offset+bytesRead])];
+        ensures  ok ==> 0 <= bytesRead <= size;
+        ensures  ok ==> env.events.history() == old(env.events.history()) + [TcpReceiveEvent(this.Id(), this.AmIConnector(), buffer[offset..offset+bytesRead])];
 
     method{:axiom} Write(buffer:array<byte>, offset:int32, size:int32) returns(ok:bool, bytesWritten:int32)
         requires this.Open();
@@ -509,14 +510,12 @@ class TcpClient
         requires 0 <= int(offset) <= int(offset + size) <= buffer.Length;
         requires env != null && env.Valid();
         requires env.ok.ok();
-        modifies this;
         modifies env.ok;
         modifies env.events;
         ensures  env == old(env);
         ensures  env.ok.ok() == ok;
-        ensures  ok ==> this.Open();
         ensures  ok ==> 0 <= bytesWritten <= size;
-        ensures  ok ==> env.events.history() == old(env.events.history()) + [TcpSendEvent(this.Id(), buffer[offset..offset + bytesWritten])];
+        ensures  ok ==> env.events.history() == old(env.events.history()) + [TcpSendEvent(this.Id(), this.AmIConnector(), buffer[offset..offset + bytesWritten])];
 
     method{:axiom} Close()
         requires this.Open();
@@ -524,8 +523,10 @@ class TcpClient
         modifies this;
         modifies env.events;
         ensures  env == old(env);
+        ensures  this.Id() == old(this.Id());
+        ensures  this.AmIConnector() == old(this.AmIConnector());
         ensures  !this.Open();
-        ensures  env.events.history() == old(env.events.history()) + [TcpClose(this.Id())];
+        ensures  env.events.history() == old(env.events.history()) + [TcpClose(this.Id(), this.AmIConnector())];
 }
 
 class TcpListener
@@ -567,6 +568,7 @@ class TcpListener
                      && tcp.Remote() == remote.EP()
                      && tcp.Id() !in old(env.connections.connection_ids())
                      && tcp.Id() in env.connections.connection_ids()
+                     && !tcp.AmIConnector()
                      && env.events.history() == old(env.events.history()) + [TcpAcceptEvent(tcp.Id(), remote.EP())];
         ensures  ok && !success ==> env.events.history() == old(env.events.history());
 }

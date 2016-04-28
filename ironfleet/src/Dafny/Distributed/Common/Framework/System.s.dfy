@@ -84,60 +84,68 @@ module SystemModule {
         && ls' == ls.(connections := ls.connections[conn_id := ls.connections[conn_id].(acceptor := actor)])
     }
 
-    predicate SystemNextTcpTimeoutReceive(ls:SystemState, ls':SystemState, actor:Actor, conn_id:int)
+    predicate SystemNextTcpTimeoutReceive(ls:SystemState, ls':SystemState, actor:Actor, conn_id:int, by_connector:bool)
     {
            ls' == ls
         && conn_id in ls.connections
         && var conn := ls.connections[conn_id];
-          (    (   conn.acceptor == actor
-                && !conn.closed_by_acceptor)
-            || (   conn.connector == actor
-                && !conn.closed_by_connector))
+           if by_connector then
+                  conn.connector == actor
+               && !conn.closed_by_connector
+           else
+                  conn.acceptor == actor
+               && !conn.closed_by_acceptor
     }
 
-    predicate SystemNextTcpReceive(ls:SystemState, ls':SystemState, actor:Actor, conn_id:int, bytes:seq<byte>)
+    predicate SystemNextTcpReceive(ls:SystemState, ls':SystemState, actor:Actor, conn_id:int, by_connector:bool, bytes:seq<byte>)
     {
            conn_id in ls.connections
         && conn_id in ls'.connections
         && var conn := ls.connections[conn_id];
            var conn' := ls'.connections[conn_id];
               ls' == ls.(connections := ls.connections[conn_id := conn'])
-           && (   (   conn.acceptor == actor
-                   && !conn.closed_by_acceptor
-                   && conn == conn'.(bytes_pending_for_acceptor := bytes + conn'.bytes_pending_for_acceptor))
-               || (   conn.connector == actor
-                   && !conn.closed_by_connector
-                   && conn == conn'.(bytes_pending_for_connector := bytes + conn'.bytes_pending_for_connector)))
+           && if by_connector then
+                     conn.connector == actor
+                  && !conn.closed_by_connector
+                  && conn == conn'.(bytes_pending_for_connector := bytes + conn'.bytes_pending_for_connector)
+              else
+                     conn.acceptor == actor
+                  && !conn.closed_by_acceptor
+                  && conn == conn'.(bytes_pending_for_acceptor := bytes + conn'.bytes_pending_for_acceptor)
     }
 
-    predicate SystemNextTcpSend(ls:SystemState, ls':SystemState, actor:Actor, conn_id:int, bytes:seq<byte>)
+    predicate SystemNextTcpSend(ls:SystemState, ls':SystemState, actor:Actor, conn_id:int, by_connector:bool, bytes:seq<byte>)
     {
            conn_id in ls.connections
         && conn_id in ls'.connections
         && var conn := ls.connections[conn_id];
            var conn' := ls'.connections[conn_id];
               ls' == ls.(connections := ls.connections[conn_id := conn'])
-           && (   (   conn.acceptor == actor
-                   && !conn.closed_by_acceptor
-                   && conn' == conn.(bytes_pending_for_connector := conn.bytes_pending_for_connector + bytes))
-               || (   conn.connector == actor
-                   && !conn.closed_by_connector
-                   && conn' == conn.(bytes_pending_for_acceptor := conn.bytes_pending_for_acceptor + bytes)))
+           && if by_connector then
+                     conn.connector == actor
+                  && !conn.closed_by_connector
+                  && conn' == conn.(bytes_pending_for_acceptor := conn.bytes_pending_for_acceptor + bytes)
+              else
+                     conn.acceptor == actor
+                  && !conn.closed_by_acceptor
+                  && conn' == conn.(bytes_pending_for_connector := conn.bytes_pending_for_connector + bytes)
     }
 
-    predicate SystemNextTcpClose(ls:SystemState, ls':SystemState, actor:Actor, conn_id:int)
+    predicate SystemNextTcpClose(ls:SystemState, ls':SystemState, actor:Actor, conn_id:int, by_connector:bool)
     {
            conn_id in ls.connections
         && conn_id in ls'.connections
         && var conn := ls.connections[conn_id];
            var conn' := ls'.connections[conn_id];
               ls' == ls.(connections := ls.connections[conn_id := conn'])
-           && (   (   conn.acceptor == actor
-                   && !conn.closed_by_acceptor
-                   && conn' == conn.(closed_by_acceptor := true))
-               || (   conn.connector == actor
-                   && !conn.closed_by_connector
-                   && conn' == conn.(closed_by_connector := true)))
+           && if by_connector then
+                     conn.connector == actor
+                  && !conn.closed_by_connector
+                  && conn' == conn.(closed_by_connector := true)
+              else
+                     conn.acceptor == actor
+                  && !conn.closed_by_acceptor
+                  && conn' == conn.(closed_by_acceptor := true)
     }
 
     predicate SystemNextReadClock(ls:SystemState, ls':SystemState, actor:Actor, t:int)
@@ -320,10 +328,10 @@ module SystemModule {
             case UdpSendEvent(p) => SystemNextUdpSend(ls, ls', actor, p)
             case TcpConnectEvent(id, ep) => SystemNextTcpConnect(ls, ls', actor, id, ep)
             case TcpAcceptEvent(id, ep) => SystemNextTcpAccept(ls, ls', actor, id, ep)
-            case TcpTimeoutReceiveEvent(id) => SystemNextTcpTimeoutReceive(ls, ls', actor, id)
-            case TcpReceiveEvent(id, r) => SystemNextTcpReceive(ls, ls', actor, id, r)
-            case TcpSendEvent(id, s) => SystemNextTcpSend(ls, ls', actor, id, s)
-            case TcpClose(id) => SystemNextTcpClose(ls, ls', actor, id)
+            case TcpTimeoutReceiveEvent(id, by_connector) => SystemNextTcpTimeoutReceive(ls, ls', actor, id, by_connector)
+            case TcpReceiveEvent(id, by_connector, r) => SystemNextTcpReceive(ls, ls', actor, id, by_connector, r)
+            case TcpSendEvent(id, by_connector, s) => SystemNextTcpSend(ls, ls', actor, id, by_connector, s)
+            case TcpClose(id, by_connector) => SystemNextTcpClose(ls, ls', actor, id, by_connector)
             case FIopOpenEvent(f) => SystemNextStutter(ls, ls')                 // TODO - fill in
             case FIopReadEvent(f, bytes) => SystemNextStutter(ls, ls')          // TODO - fill in
             case FIopCloseEvent(f) => SystemNextStutter(ls, ls')                // TODO - fill in
