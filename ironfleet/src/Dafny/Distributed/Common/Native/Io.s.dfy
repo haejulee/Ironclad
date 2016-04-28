@@ -74,12 +74,12 @@ datatype Event = // Shared-state events
                  | LockEvent              (lock:Lock)
                  | UnlockEvent            (unlock:Lock)
                  | AssumeHeapEvent        (assumption:iset<SharedHeap>)
-                 | MakePtrEvent           (ptr_make:Ptr<U>,    initial_ptr_value:U)
-                 | ReadPtrEvent           (ptr_read:Ptr<U>,    read_value:U)
-                 | WritePtrEvent          (ptr_write:Ptr<U>,   write_value:U)
-                 | MakeArrayEvent         (arr_make:Array<U>,  arr_len:int,         initial_arr_value:U)
-                 | ReadArrayEvent         (arr_read:Array<U>,  read_index:int,      read_arr_value:U)
-                 | WriteArrayEvent        (arr_write:Array<U>, write_index:int,     write_arr_value:U)
+                 | MakePtrEvent           (ptr_make:Ptr<U>,    initial_ptr_value:U, ptr_invariant:iset<U>)
+                 | ReadPtrEvent           (ptr_read:Ptr<U>,    read_value:U,        ptr_read_invariant:iset<U>)
+                 | WritePtrEvent          (ptr_write:Ptr<U>,   write_value:U,       ptr_write_invariant:iset<U>)
+                 | MakeArrayEvent         (arr_make:Array<U>,  arr_len:int,         initial_arr_value:U,  arr_invariant:iset<U>)
+                 | ReadArrayEvent         (arr_read:Array<U>,  read_index:int,      read_arr_value:U,     read_arr_invariant:iset<U>)
+                 | WriteArrayEvent        (arr_write:Array<U>, write_index:int,     write_arr_value:U,    write_arr_invariant:iset<U>)
                  // Read-clock event
                  | ReadClockEvent         (time:int)
                  // UDP events
@@ -156,6 +156,12 @@ predicate {:axiom} ValueTypes()
 
 predicate IsValidPtr<T>(ptr:Ptr<T>)
 function  PtrInvariant<T>(ptr:Ptr<T>):iset<T>
+
+function  BoxInvariant<T>(inv_t:iset<T>) : iset<U>
+{
+    iset t | t in inv_t :: ToU(t)
+}
+
 //function  GetPtr<T>(heap:SharedHeap, ptr:Ptr<T>) : T
 
 predicate IsValidArray<T>(arr:Array<T>)
@@ -198,7 +204,7 @@ class SharedStateIfc
         modifies env.events;
         ensures  IsValidPtr(ptr);
         ensures  PtrInvariant(ptr) == ptr_invariant;
-        ensures  env.events.history() == old(env.events.history()) + [MakePtrEvent(ToUPtr(ptr), ToU(v))];
+        ensures  env.events.history() == old(env.events.history()) + [MakePtrEvent(ToUPtr(ptr), ToU(v), BoxInvariant(ptr_invariant))];
 
     static method {:axiom} ReadPtr<T>(ptr:Ptr<T>, ghost env:HostEnvironment) 
         returns (v:T)
@@ -206,14 +212,14 @@ class SharedStateIfc
         requires env != null && env.Valid();
         modifies env.events;
         ensures  v in PtrInvariant(ptr);
-        ensures  env.events.history() == old(env.events.history()) + [ReadPtrEvent(ToUPtr(ptr), ToU(v))];
+        ensures  env.events.history() == old(env.events.history()) + [ReadPtrEvent(ToUPtr(ptr), ToU(v), BoxInvariant(PtrInvariant(ptr)))];
     
     static method {:axiom} WritePtr<T>(ptr:Ptr<T>, v:T, ghost env:HostEnvironment) 
         requires IsValidPtr(ptr);
         requires v in PtrInvariant(ptr);
         requires env != null && env.Valid();
         modifies env.events;
-        ensures  env.events.history() == old(env.events.history()) + [WritePtrEvent(ToUPtr(ptr), ToU(v))];
+        ensures  env.events.history() == old(env.events.history()) + [WritePtrEvent(ToUPtr(ptr), ToU(v), BoxInvariant(PtrInvariant(ptr)))];
    
     static method {:axiom} ReadPtrAssume<T>(ptr:Ptr<T>, ghost assumption:iset<SharedHeap>, ghost env:HostEnvironment) 
         returns (v:T, ghost h:SharedHeap)
@@ -226,7 +232,7 @@ class SharedStateIfc
         ensures  h in assumption;
         ensures  env.events.history() == old(env.events.history()) 
                                        + [AssumeHeapEvent (assumption)]
-                                       + [ReadPtrEvent(ToUPtr(ptr), ToU(v))];
+                                       + [ReadPtrEvent(ToUPtr(ptr), ToU(v), BoxInvariant(PtrInvariant(ptr)))];
     
     static method {:axiom} MakeArray<T>(v:T, len:int, ghost arr_invariant:iset<T>, ghost env:HostEnvironment) 
         returns (arr:Array<T>)
@@ -238,7 +244,7 @@ class SharedStateIfc
         ensures  IsValidArray(arr);
         ensures  ArrayInvariant(arr) == arr_invariant;
         ensures  Length(arr) == len;
-        ensures  env.events.history() == old(env.events.history()) + [MakeArrayEvent(ToUArray(arr), len, ToU(v))];
+        ensures  env.events.history() == old(env.events.history()) + [MakeArrayEvent(ToUArray(arr), len, ToU(v), BoxInvariant(arr_invariant))];
 
     static method {:axiom} ReadArray<T>(arr:Array<T>, index:int, ghost env:HostEnvironment) 
         returns (v:T)
@@ -247,7 +253,7 @@ class SharedStateIfc
         requires env != null && env.Valid();
         modifies env.events;
         ensures  v in ArrayInvariant(arr);
-        ensures  env.events.history() == old(env.events.history()) + [ReadArrayEvent(ToUArray(arr), index, ToU(v))];
+        ensures  env.events.history() == old(env.events.history()) + [ReadArrayEvent(ToUArray(arr), index, ToU(v), BoxInvariant(ArrayInvariant(arr)))];
     
     static method {:axiom} WriteArray<T>(arr:Array<T>, index:int, v:T, ghost env:HostEnvironment) 
         requires IsValidArray(arr);
@@ -255,7 +261,7 @@ class SharedStateIfc
         requires v in ArrayInvariant(arr);
         requires env != null && env.Valid();
         modifies env.events;
-        ensures  env.events.history() == old(env.events.history()) + [WriteArrayEvent(ToUArray(arr), index, ToU(v))];
+        ensures  env.events.history() == old(env.events.history()) + [WriteArrayEvent(ToUArray(arr), index, ToU(v), BoxInvariant(ArrayInvariant(arr)))];
 
     static method {:axiom} ReadArrayAssume<T>(arr:Array<T>, index:int, ghost assumption:iset<SharedHeap>, ghost env:HostEnvironment)
         returns (v:T, ghost h:SharedHeap)
@@ -269,7 +275,7 @@ class SharedStateIfc
         ensures  h in assumption;
         ensures  env.events.history() == old(env.events.history()) 
                                        + [AssumeHeapEvent   (assumption)]
-                                       + [ReadArrayEvent(ToUArray(arr), index, ToU(v))];
+                                       + [ReadArrayEvent(ToUArray(arr), index, ToU(v), BoxInvariant(ArrayInvariant(arr)))];
 } 
 
 //////////////////////////////////////////////////////////////////////////////
