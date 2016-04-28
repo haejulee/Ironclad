@@ -461,7 +461,7 @@ class TcpClient
     function{:axiom} Id():int reads this;
 
     static method{:axiom} Connect(localEP:IPEndPoint, remote:IPEndPoint, ghost env:HostEnvironment)
-        returns (ok:bool, tcp:TcpClient)
+        returns (ok:bool, success:bool, tcp:TcpClient)
         requires env != null && env.Valid();
         requires env.ok.ok();
         requires localEP != null;
@@ -475,15 +475,17 @@ class TcpClient
         ensures  env == old(env);
         ensures  env.ok.ok() == ok;
         ensures  forall id :: id in old(env.connections.connection_ids()) ==> id in env.connections.connection_ids();
-        ensures  ok ==>   tcp != null
-                       && fresh(tcp)
-                       && tcp.env == env
-                       && tcp.Open()
-                       && tcp.LocalEndPoint() == localEP.EP()
-                       && tcp.Remote() == remote.EP()
-                       && tcp.Id() !in old(env.connections.connection_ids())
-                       && tcp.Id() in env.connections.connection_ids()
-                       && env.events.history() == old(env.events.history()) + [TcpConnectEvent(tcp.Id(), remote.EP())]
+        ensures  ok && success ==>
+                        tcp != null
+                     && fresh(tcp)
+                     && tcp.env == env
+                     && tcp.Open()
+                     && tcp.LocalEndPoint() == localEP.EP()
+                     && tcp.Remote() == remote.EP()
+                     && tcp.Id() !in old(env.connections.connection_ids())
+                     && tcp.Id() in env.connections.connection_ids()
+                     && env.events.history() == old(env.events.history()) + [TcpConnectEvent(tcp.Id(), remote.EP())];
+        ensures  ok && !success ==> env.events.history() == old(env.events.history());
 
     method{:axiom} Read(buffer:array<byte>, offset:int32, size:int32) returns(ok:bool, bytesRead:int32)
         requires this.Open();
@@ -500,7 +502,7 @@ class TcpClient
         ensures  ok ==> this.Open() && 0 <= bytesRead <= size;
         ensures  ok ==> env.events.history() == old(env.events.history()) + [TcpReceiveEvent(this.Id(), buffer[offset..offset+bytesRead])];
 
-    method{:axiom} Write(buffer:array<byte>, offset:int32, size:int32) returns(ok:bool)
+    method{:axiom} Write(buffer:array<byte>, offset:int32, size:int32) returns(ok:bool, bytesWritten:int32)
         requires this.Open();
         requires int(offset) + int(size) < 0x80000000;
         requires buffer != null;
@@ -513,7 +515,8 @@ class TcpClient
         ensures  env == old(env);
         ensures  env.ok.ok() == ok;
         ensures  ok ==> this.Open();
-        ensures  ok ==> env.events.history() == old(env.events.history()) + [TcpSendEvent(this.Id(), buffer[offset..offset + size])];
+        ensures  ok ==> 0 <= bytesWritten <= size;
+        ensures  ok ==> env.events.history() == old(env.events.history()) + [TcpSendEvent(this.Id(), buffer[offset..offset + bytesWritten])];
 
     method{:axiom} Close()
         requires this.Open();
@@ -543,7 +546,7 @@ class TcpListener
         ensures  env.ok.ok() == ok;
 
     method{:axiom} Accept(ghost env:HostEnvironment)
-        returns (ok:bool, remote:IPEndPoint, tcp:TcpClient)
+        returns (ok:bool, success:bool, remote:IPEndPoint, tcp:TcpClient)
         requires env != null && env.Valid();
         requires env.ok.ok();
         modifies env.ok;
@@ -552,18 +555,20 @@ class TcpListener
         ensures  env == old(env);
         ensures  env.ok.ok() == ok;
         ensures  forall id :: id in old(env.connections.connection_ids()) ==> id in env.connections.connection_ids();
-        ensures  ok ==>   tcp != null
-                       && remote != null
-                       && fresh(tcp)
-                       && fresh(remote)
-                       && tcp.env == env
-                       && tcp.Open()
-                       && tcp.LocalEndPoint() == this.LocalEndPoint()
-                       && ValidPhysicalEndpoint(remote.EP())
-                       && tcp.Remote() == remote.EP()
-                       && tcp.Id() !in old(env.connections.connection_ids())
-                       && tcp.Id() in env.connections.connection_ids()
-                       && env.events.history() == old(env.events.history()) + [TcpAcceptEvent(tcp.Id(), remote.EP())];
+        ensures  ok && success ==>
+                        tcp != null
+                     && remote != null
+                     && fresh(tcp)
+                     && fresh(remote)
+                     && tcp.env == env
+                     && tcp.Open()
+                     && tcp.LocalEndPoint() == this.LocalEndPoint()
+                     && ValidPhysicalEndpoint(remote.EP())
+                     && tcp.Remote() == remote.EP()
+                     && tcp.Id() !in old(env.connections.connection_ids())
+                     && tcp.Id() in env.connections.connection_ids()
+                     && env.events.history() == old(env.events.history()) + [TcpAcceptEvent(tcp.Id(), remote.EP())];
+        ensures  ok && !success ==> env.events.history() == old(env.events.history());
 }
 
 class MutableSet<T(==)>
