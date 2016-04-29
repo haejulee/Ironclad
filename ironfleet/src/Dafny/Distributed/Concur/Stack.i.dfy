@@ -93,7 +93,7 @@ module Stack {
     }
 
     /*
-    method MakeStack'(ghost env:HostEnvironment, ghost stack_invariant:StackInvariant, me:Actor) returns (s:Stack, ghost events:seq<Event>, reduction_tree:Tree)
+    method MakeStack'(ghost env:HostEnvironment, ghost stack_invariant:StackInvariant, me:Actor) returns (s:Stack, ghost events:seq<Event>, ghost reduction_tree:Tree)
         requires env != null && env.Valid();
         modifies env.events;
         modifies env.locks;
@@ -118,12 +118,13 @@ module Stack {
 //        assert event'' == event' + [MakeArrayEvent(ToUArray(buffers), ToU(init[..]))];
         s := Stack(lock, count, buffers, 3, []);
 
-        events := [ MakeLockEvent(s.lock),
-                    MakePtrEvent(ToUPtr(s.count), ToU(0)),
-                    MakeArrayEvent(ToUArray(s.buffers), 3, ToU(1)) ];
+//        events := [ MakeLockEvent(s.lock),
+//                    MakePtrEvent(ToUPtr(s.count), ToU(0)),
+//                    MakeArrayEvent(ToUArray(s.buffers), 3, ToU(1)) ];
+        events := env.events.history()[|old(env.events.history())|..];
         var entries_map := map i | 0 <= i < |events| :: Leaf(Entry(me, ActionEvent(events[i])));
         var children := ConvertMapToSeq(|events|, entries_map);
-        reduction_tree := Inner(Entry(me, StackInit), children, 1);  // Not actually sure which, should be pivot.  Are all both movers?
+        reduction_tree := Inner(Entry(me, StackInit), children, 0);
 
     }
     */
