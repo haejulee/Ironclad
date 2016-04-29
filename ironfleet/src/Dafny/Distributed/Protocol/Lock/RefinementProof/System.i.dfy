@@ -16,7 +16,7 @@ module LockSystemModule {
     
     datatype LockSystemState = LockSystemState(
         sent_packets:set<LockPacket>,
-        states:map<LockActor, Node>
+        states:map<EndPoint, Node>
         )
 
     predicate LockSystemInit(config:LockConfig, s:LockSystemState)
@@ -24,20 +24,20 @@ module LockSystemModule {
            s.sent_packets == {}
         && |config| > 0
         && SeqIsUnique(config)
-        && (forall e :: e in config <==> LockActorHost(e) in s.states)
-        && (forall index :: 0 <= index < |config| ==> NodeInit(s.states[LockActorHost(config[index])], index, config))
+        && (forall e :: e in config <==> e in s.states)
+        && (forall index :: 0 <= index < |config| ==> NodeInit(s.states[config[index]], index, config))
     }
 
     predicate LockSystemNextHostNext(s:LockSystemState, s':LockSystemState, actor:LockActor, ios:seq<LockIo>)
     {
            s' == s.(sent_packets := s'.sent_packets, states := s'.states)
-        && actor in s.states
-        && actor in s'.states
-        && s'.states == s.states[actor := s'.states[actor]]
-        && NodeNext(s.states[actor], s'.states[actor], ios)
+        && actor.LockActorHost?
+        && actor.ep in s.states
+        && actor.ep in s'.states
+        && s'.states == s.states[actor.ep := s'.states[actor.ep]]
+        && NodeNext(s.states[actor.ep], s'.states[actor.ep], ios)
         && (forall p :: p in s.sent_packets ==> p in s'.sent_packets)
         && (forall p :: p in s'.sent_packets ==> p in s.sent_packets || LockIoSend(p) in ios)
-		&& actor.LockActorHost?
         && (forall io :: io in ios && io.LockIoReceive? ==> io.r in s.sent_packets && io.r.dst == actor.ep)
         && (forall io :: io in ios && io.LockIoSend? ==> io.s in s'.sent_packets && io.s.src == actor.ep)
     }
@@ -93,12 +93,12 @@ module LockSystemModule {
 
     predicate GLockSystemNextAction(s:GLockSystemState, s':GLockSystemState, actor:LockActor, action:LockAction)
     {
-           LockSystemNext(s.ls, s'.ls)
+           LockSystemNextAction(s.ls, s'.ls, actor, action)
         && (if    action.LockActionHostNext?
-               && actor in s.ls.states
-               && NodeGrant(s.ls.states[actor], s'.ls.states[actor], action.ios)
-               && s.ls.states[actor].held && s.ls.states[actor].epoch < 0xFFFF_FFFF_FFFF_FFFF then
-               s'.history == s.history + [s.ls.states[actor].config[(s.ls.states[actor].my_index + 1) % |s.ls.states[actor].config|]]
+               && actor.ep in s.ls.states
+               && NodeGrant(s.ls.states[actor.ep], s'.ls.states[actor.ep], action.ios)
+               && s.ls.states[actor.ep].held && s.ls.states[actor.ep].epoch < 0xFFFF_FFFF_FFFF_FFFF then
+               s'.history == s.history + [s.ls.states[actor.ep].config[(s.ls.states[actor.ep].my_index + 1) % |s.ls.states[actor.ep].config|]]
             else
                s'.history == s.history
            )

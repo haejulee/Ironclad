@@ -1,13 +1,13 @@
-include "DistributedSystem.i.dfy"
+include "System.i.dfy"
 include "../../../Services/Lock/AbstractService.s.dfy"
 include "../../../Common/Collections/Sets.i.dfy"
 
 module Refinement_i {
-    import opened DistributedSystem_i
+    import opened LockSystemModule
     import opened AbstractServiceLock_s 
     
-    function AbstractifyGLS_State(gls:GLS_State) : ServiceState
+    function AbstractifyGLockSystemState(gls:GLockSystemState) : ServiceState
     {
-        ServiceState'(mapdomain(gls.ls.servers), gls.history)
+        ServiceState'(mapdomain(gls.ls.states), gls.history)
     }
 }
