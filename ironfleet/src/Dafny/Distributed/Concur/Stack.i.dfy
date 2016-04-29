@@ -8,7 +8,7 @@ module Stack {
     type Buffer = int
     type StackInvariant = iset<Buffer>
 
-    datatype Stack = Stack(lock:Lock, count:Ptr<int>, buffers:Array<Buffer>, buffers_len:int, ghost s:seq<Buffer>)
+    datatype Stack = Stack(lock:Lock, count:Ptr<int>, buffers:Array<Buffer>, capacity:int, ghost s:seq<Buffer>)
 
     predicate IsValidStack(s:Stack)
     {
@@ -16,10 +16,10 @@ module Stack {
 //     && 
         IsValidPtr(s.count)
      && IsValidArray(s.buffers)
-     && PtrInvariant(s.count) == iset i | 0 <= i <= s.buffers_len
-     && Length(s.buffers) == s.buffers_len
+     && PtrInvariant(s.count) == iset i | 0 <= i <= s.capacity
+     && Length(s.buffers) == s.capacity
      && ArrayInvariant(s.buffers) == iset j | j >= 0
-     && |s.s| <= s.buffers_len
+     && |s.s| <= s.capacity
 
     }
 
@@ -146,10 +146,10 @@ module Stack {
         var the_count := SharedStateIfc.ReadPtr(s.count, env);
         count := the_count;
         s' := s;
-        if the_count < s.buffers_len {
+        if the_count < s.capacity {
             SharedStateIfc.WritePtr(s.count, the_count + 1, env);
             assert IsValidArray(s.buffers);   // TODO: Why is this necessary!?
-            assert Length(s.buffers) == s.buffers_len;  // TODO: Why is this necessary!?
+            assert Length(s.buffers) == s.capacity;  // TODO: Why is this necessary!?
             assert v in ArrayInvariant(s.buffers);      // TODO: Why is this necessary!?
             SharedStateIfc.WriteArray(s.buffers, the_count, v, env);
             ok := true;
@@ -191,7 +191,7 @@ module Stack {
         if count_impl > 0 {
             SharedStateIfc.WritePtr(s.count, count_impl - 1, env);
             assert IsValidArray(s.buffers);   // TODO: Why is this necessary!?
-            assert Length(s.buffers) == s.buffers_len;  // TODO: Why is this necessary!?
+            assert Length(s.buffers) == s.capacity;  // TODO: Why is this necessary!?
             v := SharedStateIfc.ReadArray(s.buffers, count_impl-1, env);
             ok := true;
             events := [ LockEvent  (s.lock),
