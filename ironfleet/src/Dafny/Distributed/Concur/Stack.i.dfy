@@ -8,17 +8,27 @@ module Stack {
     type Buffer = int
     type StackInvariant = iset<Buffer>
 
+    function Bounds(max:int) : iset<int>
+    {
+        iset i | 0 <= i <= max
+    }
+
+    function Positive() : iset<int>
+    {
+        iset j | j >= 0
+    }
+
     datatype Stack = Stack(lock:Lock, count:Ptr<int>, buffers:Array<Buffer>, capacity:int, ghost s:seq<Buffer>)
 
     predicate IsValidStack(s:Stack)
+        reads s.lock;
     {
-//        IsValidLock(s.lock)
-//     && 
-        IsValidPtr(s.count)
+        s.lock != null && !s.lock.locked()
+     && IsValidPtr(s.count)
      && IsValidArray(s.buffers)
-     && PtrInvariant(s.count) == iset i | 0 <= i <= s.capacity
+     && PtrInvariant(s.count) == Bounds(s.capacity)
      && Length(s.buffers) == s.capacity
-     && ArrayInvariant(s.buffers) == iset j | j >= 0
+     && ArrayInvariant(s.buffers) == Positive()
      && |s.s| <= s.capacity
 
     }
@@ -65,7 +75,6 @@ module Stack {
     method MakeStack(ghost env:HostEnvironment, ghost stack_invariant:StackInvariant) returns (s:Stack, ghost events:seq<Event>)
         requires env != null && env.Valid();
         modifies env.events;
-        modifies env.locks;
         ensures  IsValidStack(s);
         ensures  s.s == [];
         ensures  StackInit(s, events);
@@ -96,7 +105,6 @@ module Stack {
     method MakeStack'(ghost env:HostEnvironment, ghost stack_invariant:StackInvariant, me:Actor) returns (s:Stack, ghost events:seq<Event>, ghost reduction_tree:Tree)
         requires env != null && env.Valid();
         modifies env.events;
-        modifies env.locks;
         ensures  IsValidStack(s);
         ensures  s.s == [];
         ensures  StackInit(s, events);
@@ -134,14 +142,12 @@ module Stack {
         requires v in ArrayInvariant(s.buffers); 
         requires env != null && env.Valid();
         modifies env.events;
-        modifies env.locks;
+        modifies s.lock;
+        ensures  IsValidStack(s');
         ensures  if ok then StackPush(s, s', v, count, events) 
                  else StackNoOp(s, s', count, events);
         ensures  env.events.history() == old(env.events.history()) + events;
     {
-        assume s.lock in env.locks.lock_states();     // TODO: Annoying to have to incorporate this into IsValidStack
-        assume !env.locks.lock_states()[s.lock]; 
-
         SharedStateIfc.Lock(s.lock, env);
 
         assert IsValidPtr(s.count);   // TODO: Why is this necessary!?
@@ -168,8 +174,8 @@ module Stack {
 //                        ReadPtrEvent(ToUPtr(s.count), ToU(count)),
 //                        UnlockEvent(s.lock) ];
         }
+        
         SharedStateIfc.Unlock(s.lock, env);
-
         events := env.events.history()[|old(env.events.history())|..];
     }
 
@@ -177,15 +183,13 @@ module Stack {
         requires IsValidStack(s);
         requires env != null && env.Valid();
         modifies env.events;
-        modifies env.locks;
+        modifies s.lock;
+        ensures  IsValidStack(s');
         ensures  ok ==> v in ArrayInvariant(s.buffers); 
         ensures  if ok then StackPop(s, s', v, count, events) 
                  else s.s == [] && StackNoOp(s, s', count, events);
         ensures  env.events.history() == old(env.events.history()) + events;
     {
-        assume s.lock in env.locks.lock_states();     // TODO: Annoying to have to incorporate this into IsValidStack
-        assume !env.locks.lock_states()[s.lock]; 
-
         SharedStateIfc.Lock(s.lock, env);
 
         assert IsValidPtr(s.count);   // TODO: Why is this necessary!?
@@ -203,13 +207,14 @@ module Stack {
 //                        WritePtrEvent(ToUPtr(s.count), ToU(count-1)),
 //                        ReadArrayEvent(ToUArray(s.buffers), count-1, ToU(v)),
 //                        UnlockEvent(s.lock) ];
-            s' := s'.(s := s.s[..|s.s|-1]); 
+            s' := s.(s := s.s[..|s.s|-1]); 
         } else {
             ok := false;
 //            events := [ LockEvent  (s.lock),
 //                        ReadPtrEvent(ToUPtr(s.count), ToU(count)),
 //                        UnlockEvent(s.lock) ];
             s' := s;
+            assert PtrInvariant(s.count) == PtrInvariant(s'.count);
         }
 
         SharedStateIfc.Unlock(s.lock, env);

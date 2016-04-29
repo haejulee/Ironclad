@@ -13,9 +13,7 @@ class HostEnvironment
     ghost var events:Events;
     ghost var now:NowState;
     ghost var files:FileSystemState;
-    ghost var thread:ThreadState;
-    ghost var locks:LockState;
-
+    ghost var thread:ThreadState;    
 
     predicate Valid()
         reads this;
@@ -26,7 +24,6 @@ class HostEnvironment
         && now != null
         && files != null
         && thread != null
-        && locks != null
     }
 }
 
@@ -71,6 +68,10 @@ class Events
     function{:axiom} history():seq<Event> reads this;      
 }
 
+//////////////////////////////////////////////////////////////////////////////
+// Local concurrency 
+//////////////////////////////////////////////////////////////////////////////
+
 class ThreadState
 {
     constructor{:axiom} () requires false;
@@ -82,10 +83,10 @@ class ThreadState
         ensures  int(id) == env.thread.ThreadId();
 }
 
-class LockState
+class Lock
 {
     constructor{:axiom} () requires false;
-    function{:axiom} lock_states():map<Lock, bool> reads this;
+    predicate{:axiom} locked() reads this;
 }
 
 // TODO: Replace this with a built-in type predicate.
@@ -108,28 +109,24 @@ class SharedStateIfc
 {
     static method {:axiom} MakeLock(ghost env:HostEnvironment) returns (lock:Lock)
         requires env != null && env.Valid();
-        modifies env.locks;
         modifies env.events;
-        ensures  lock !in old(env.locks.lock_states());
-        ensures  env.locks.lock_states() == old(env.locks.lock_states())[lock := false];
+        ensures  fresh(lock) && !lock.locked();
         ensures  env.events.history() == old(env.events.history()) + [MakeLockEvent(lock)];
 
     static method {:axiom} Lock(lock:Lock, ghost env:HostEnvironment)
         requires env != null && env.Valid();
-        requires lock in env.locks.lock_states();
-        requires !env.locks.lock_states()[lock];  // I can't hold it yet
-        modifies env.locks;
+        requires lock != null && !lock.locked();
+        modifies lock;
         modifies env.events;
-        ensures  env.locks.lock_states() == old(env.locks.lock_states())[lock := true];
+        ensures  lock.locked();
         ensures  env.events.history() == old(env.events.history()) + [LockEvent(lock)];
         
     static method {:axiom} Unlock(lock:Lock, ghost env:HostEnvironment)
         requires env != null && env.Valid();
-        requires lock in env.locks.lock_states();
-        requires env.locks.lock_states()[lock];   // I must hold it currently
-        modifies env.locks;
+        requires lock != null && lock.locked();
+        modifies lock;
         modifies env.events;
-        ensures  env.locks.lock_states() == old(env.locks.lock_states())[lock := false];
+        ensures  !lock.locked();
         ensures  env.events.history() == old(env.events.history()) + [UnlockEvent(lock)];
 
     static method {:axiom} MakePtr<T>(v:T, ghost ptr_invariant:iset<T>, ghost env:HostEnvironment) 
