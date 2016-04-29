@@ -228,7 +228,7 @@ class SharedStateIfc
                                        + [AssumeHeapEvent (assumption)]
                                        + [ReadPtrEvent(ToUPtr(ptr), ToU(v))];
     
-    static method {:axiom} MakeArray<T>(v:T, len:int, ghost arr_invariant:iset<T>, ghost env:HostEnvironment) 
+    static method {:axiom} MakeArray<T>(len:int, v:T, ghost arr_invariant:iset<T>, ghost env:HostEnvironment) 
         returns (arr:Array<T>)
         requires ValueTypes() && IsValueType<T>();
         requires v in arr_invariant;
