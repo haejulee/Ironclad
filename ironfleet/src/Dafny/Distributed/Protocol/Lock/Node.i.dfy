@@ -3,11 +3,11 @@ include "Types.i.dfy"
 module Protocol_Node_i {
 import opened Types_i
 
-type Config = seq<EndPoint>
+type LockConfig = seq<EndPoint>
 
-datatype Node = Node(held:bool, epoch:int, my_index:int, config:Config)
+datatype Node = Node(held:bool, epoch:int, my_index:int, config:LockConfig)
 
-predicate NodeInit(s:Node, my_index:int, config:Config)
+predicate NodeInit(s:Node, my_index:int, config:LockConfig)
 {
     s.epoch == (if my_index == 0 then 1 else 0)
  && 0 <= my_index < |config|
@@ -19,7 +19,7 @@ predicate NodeGrant(s:Node, s':Node, ios:seq<LockIo>)
 {
     if s.held && s.epoch < 0xFFFF_FFFF_FFFF_FFFF then 
         !s'.held 
-     && |ios| == 1 && ios[0].LIoOpSend?
+     && |ios| == 1 && ios[0].LockIoSend?
      && |s.config| > 0
      && s'.config == s.config
      && s'.epoch == s.epoch
@@ -34,17 +34,17 @@ predicate NodeGrant(s:Node, s':Node, ios:seq<LockIo>)
 predicate NodeAccept(s:Node, s':Node, ios:seq<LockIo>)
 {
     |ios| >= 1
- && if ios[0].LIoOpTimeoutReceive? then 
+ && if ios[0].LockIoTimeoutReceive? then 
         s == s' && |ios| == 1
     else
-        ios[0].LIoOpReceive?
+        ios[0].LockIoReceive?
      && if    !s.held 
            && ios[0].r.src in s.config
            && ios[0].r.msg.Transfer? 
            && ios[0].r.msg.transfer_epoch > s.epoch then
                    s'.held
                 && |ios| == 2
-                && ios[1].LIoOpSend?
+                && ios[1].LockIoSend?
                 && ios[1].s.msg.Locked?
                 && s'.epoch == ios[0].r.msg.transfer_epoch == ios[1].s.msg.locked_epoch
                 && s'.config == s.config

@@ -7,8 +7,9 @@ import opened Native__Io_s
 
 datatype LockMessage = Transfer(transfer_epoch:int) | Locked(locked_epoch:int) | Invalid
 
-type LockEnvironment = LEnvironment<EndPoint, LockMessage>
-type LockPacket = LPacket<EndPoint, LockMessage>
-type LockIo = LIoOp<EndPoint, LockMessage>
+datatype LockPacket = Packet(dst:EndPoint, src:EndPoint, msg:LockMessage)
+datatype LockIo = LockIoReceive(r:LockPacket)
+                | LockIoSend(s:LockPacket)
+                | LockIoTimeoutReceive()
 
 }
