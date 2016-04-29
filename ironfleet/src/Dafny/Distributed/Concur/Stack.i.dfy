@@ -86,9 +86,10 @@ module Stack {
 //        assert event'' == event' + [MakeArrayEvent(ToUArray(buffers), ToU(init[..]))];
         s := Stack(lock, count, buffers, 3, []);
 
-        events := [ MakeLockEvent(s.lock),
-                    MakePtrEvent(ToUPtr(s.count), ToU(0)),
-                    MakeArrayEvent(ToUArray(s.buffers), 3, ToU(1)) ];
+        events := env.events.history()[|old(env.events.history())|..];
+//        events := [ MakeLockEvent(s.lock),
+//                    MakePtrEvent(ToUPtr(s.count), ToU(0)),
+//                    MakeArrayEvent(ToUArray(s.buffers), 3, ToU(1)) ];
     }
 
     /*
@@ -155,18 +156,20 @@ module Stack {
             ok := true;
             s' := s'.(s := s.s + [v]);
 
-            events := [ LockEvent  (s.lock),
-                        ReadPtrEvent(ToUPtr(s.count), ToU(count)),
-                        WritePtrEvent(ToUPtr(s.count), ToU(count+1)),
-                        WriteArrayEvent(ToUArray(s.buffers), count, ToU(v)),
-                        UnlockEvent(s.lock) ];
+//            events := [ LockEvent  (s.lock),
+//                        ReadPtrEvent(ToUPtr(s.count), ToU(count)),
+//                        WritePtrEvent(ToUPtr(s.count), ToU(count+1)),
+//                        WriteArrayEvent(ToUArray(s.buffers), count, ToU(v)),
+//                        UnlockEvent(s.lock) ];
         } else {
             ok := false;
-            events := [ LockEvent  (s.lock),
-                        ReadPtrEvent(ToUPtr(s.count), ToU(count)),
-                        UnlockEvent(s.lock) ];
+//            events := [ LockEvent  (s.lock),
+//                        ReadPtrEvent(ToUPtr(s.count), ToU(count)),
+//                        UnlockEvent(s.lock) ];
         }
         SharedStateIfc.Unlock(s.lock, env);
+
+        events := env.events.history()[|old(env.events.history())|..];
     }
 
     method PopStack(s:Stack, ghost env:HostEnvironment) returns (s':Stack, v:Buffer, ok:bool, ghost count:int, ghost events:seq<Event>)
@@ -194,20 +197,21 @@ module Stack {
             assert Length(s.buffers) == s.capacity;  // TODO: Why is this necessary!?
             v := SharedStateIfc.ReadArray(s.buffers, count_impl-1, env);
             ok := true;
-            events := [ LockEvent  (s.lock),
-                        ReadPtrEvent(ToUPtr(s.count), ToU(count)),
-                        WritePtrEvent(ToUPtr(s.count), ToU(count-1)),
-                        ReadArrayEvent(ToUArray(s.buffers), count-1, ToU(v)),
-                        UnlockEvent(s.lock) ];
+//            events := [ LockEvent  (s.lock),
+//                        ReadPtrEvent(ToUPtr(s.count), ToU(count)),
+//                        WritePtrEvent(ToUPtr(s.count), ToU(count-1)),
+//                        ReadArrayEvent(ToUArray(s.buffers), count-1, ToU(v)),
+//                        UnlockEvent(s.lock) ];
             s' := s'.(s := s.s[..|s.s|-1]); 
         } else {
             ok := false;
-            events := [ LockEvent  (s.lock),
-                        ReadPtrEvent(ToUPtr(s.count), ToU(count)),
-                        UnlockEvent(s.lock) ];
+//            events := [ LockEvent  (s.lock),
+//                        ReadPtrEvent(ToUPtr(s.count), ToU(count)),
+//                        UnlockEvent(s.lock) ];
             s' := s;
         }
 
         SharedStateIfc.Unlock(s.lock, env);
+        events := env.events.history()[|old(env.events.history())|..];
     }
 }
