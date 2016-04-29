@@ -109,5 +109,10 @@ module LockSystemModule {
         GLockSystemNextAction(s, s', entry.actor, entry.action)
     }
 
+    predicate GLockSystemNext(s:GLockSystemState, s':GLockSystemState)
+    {
+        exists entry :: GLockSystemNextEntry(s, s', entry)
+    }
+
 }   
 
