@@ -1,4 +1,4 @@
-include "System.i.dfy"
+include "../Common/Framework/System.s.dfy"
 include "Movers.i.dfy"
 include "GeneralRefinement.i.dfy"
 include "../Common/Collections/Seqs.i.dfy"

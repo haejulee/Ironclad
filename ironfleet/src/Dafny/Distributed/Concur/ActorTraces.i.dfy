@@ -1,5 +1,5 @@
 include "../Common/Collections/Seqs.i.dfy"
-include "Trace.i.dfy"
+include "../Common/Framework/Trace.s.dfy"
 
 module ActorTraces 
 {
