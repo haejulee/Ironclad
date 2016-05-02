@@ -38,7 +38,7 @@ class HostConstants
     constructor{:axiom} () requires false;
 
     function{:axiom} CommandLineArgs():seq<seq<uint16>> reads this; // result of C# System.Environment.GetCommandLineArgs(); argument 0 is name of executable
-    function{:axiom} LocalAddress():seq<byte> reads this;
+    function{:axiom} LocalAddress():IPAddress reads this;
         ensures |LocalAddress()| == 4;
 
     static method{:axiom} NumCommandLineArgs(ghost env:HostEnvironment) returns(n:uint32)
@@ -303,10 +303,11 @@ class Time
 // Networking
 //////////////////////////////////////////////////////////////////////////////
 
-datatype EndPoint = EndPoint(addr:seq<byte>, port:uint16)
+type IPAddress = seq<byte>
+datatype EndPoint = EndPoint(addr:IPAddress, port:uint16)
 datatype Packet = Packet(dst:EndPoint, src:EndPoint, msg:seq<byte>)
 
-predicate ValidPhysicalAddress(addr:seq<byte>)
+predicate ValidPhysicalAddress(addr:IPAddress)
 {
     |addr| == 4
 }
@@ -334,7 +335,7 @@ predicate ValidPhysicalPacket(p:Packet)
 class IPEndPoint
 {
     ghost var env:HostEnvironment;
-    function{:axiom} Address():seq<byte> reads this;
+    function{:axiom} Address():IPAddress reads this;
     function{:axiom} Port():uint16 reads this;
     function EP():EndPoint reads this; { EndPoint(Address(), Port()) }
     constructor{:axiom} () requires false;
