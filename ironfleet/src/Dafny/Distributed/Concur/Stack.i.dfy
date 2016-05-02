@@ -18,12 +18,14 @@ module Stack {
         iset j | j >= 0
     }
 
-    datatype Stack = Stack(lock:LockImpl, count:Ptr<int>, buffers:Array<Buffer>, capacity:int, stack_invariant:StackInvariant)
+    datatype Stack = Stack(lock:Lock, count:Ptr<int>, buffers:Array<Buffer>, capacity:int, stack_invariant:StackInvariant)
 
-    predicate IsValidStack(s:Stack)
-        reads s.lock;
+    predicate IsValidStack(s:Stack, locks:LocksState)
+        requires locks != null;
+        reads locks;
     {
-        s.lock != null && !s.lock.locked()
+        IsValidLock(s.lock)
+     && s.lock in locks.locks_held()
      && IsValidPtr(s.count)
      && IsValidArray(s.buffers)
      && PtrInvariant(s.count) == Bounds(s.capacity)
@@ -34,10 +36,11 @@ module Stack {
     method MakeStack(ghost env:HostEnvironment, ghost stack_invariant:StackInvariant, me:Actor) returns (s:Stack, ghost reduction_tree:Tree)
         requires env != null && env.Valid();
         modifies env.events;
-        ensures  IsValidStack(s);        
+        modifies env.locks;
+        ensures  IsValidStack(s, env.locks);        
         ensures  TreeValid(reduction_tree);
         ensures  reduction_tree.reduced_entry == StackInitAction(ToUPtr(s.count), stack_invariant)
-        ensures  env.events.history() == old(env.events.history()) +  GetLeafEntries(reduction_tree);
+        ensures  env.events.history() == old(env.events.history()) + GetLeafEntries(reduction_tree);
     {
         var lock := SharedStateIfc.MakeLock(env);
         var count := SharedStateIfc.MakePtr(0, iset i | 0 <= i <= 3, env);
@@ -53,12 +56,13 @@ module Stack {
     // TODO: Here's a place where we'd like to have a shared pointer to the stack,
     //       so we can replace the existing array with a larger one, instead of returning an error
     method PushStack(s:Stack, v:Buffer, ghost env:HostEnvironment) returns (s':Stack, ok:bool, ghost reduction_tree:Tree)
-        requires IsValidStack(s);
+        requires IsValidStack(s, env.locks);
         requires v in ArrayInvariant(s.buffers); 
         requires env != null && env.Valid();
         modifies env.events;
-        modifies s.lock;
-        ensures  IsValidStack(s');
+        modifies env.locks;
+        ensures  IsValidStack(s', env.locks);
+        ensures  env.locks.locks_held() == old(env.locks.locks_held());
         ensures  TreeValid(reduction_tree);
         ensures  if ok then reduction_tree.reduced_entry == StackPushAction(ToUPtr(s.count), ToU(v))
                  else reduction_tree.reduced_entry == StackNoOpAction(ToUPtr(s.count));
@@ -93,11 +97,12 @@ module Stack {
     }
 
     method PopStack(s:Stack, ghost env:HostEnvironment) returns (s':Stack, v:Buffer, ok:bool, ghost reduction_tree:Tree)
-        requires IsValidStack(s);
+        requires IsValidStack(s, env.locks);
         requires env != null && env.Valid();
         modifies env.events;
-        modifies s.lock;
-        ensures  IsValidStack(s');
+        modifies env.locks;
+        ensures  IsValidStack(s', env.locks);
+        ensures  env.locks.locks_held() == old(env.locks.locks_held());
         ensures  ok ==> v in ArrayInvariant(s.buffers); 
         ensures  TreeValid(reduction_tree);
         ensures  if ok then reduction_tree.reduced_entry == StackPopAction(ToUPtr(s.count), ToU(v))

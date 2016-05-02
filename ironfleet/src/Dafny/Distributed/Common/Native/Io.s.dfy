@@ -13,7 +13,8 @@ class HostEnvironment
     ghost var events:Events;
     ghost var now:NowState;
     ghost var files:FileSystemState;
-    ghost var thread:ThreadState;    
+    ghost var thread:ThreadState;
+    ghost var locks:LocksState;
 
     predicate Valid()
         reads this;
@@ -24,6 +25,7 @@ class HostEnvironment
         && now != null
         && files != null
         && thread != null
+        && locks != null
     }
 }
 
@@ -83,11 +85,10 @@ class ThreadState
         ensures  int(id) == env.thread.ThreadId();
 }
 
-class LockImpl
+class LocksState
 {
     constructor{:axiom} () requires false;
-    predicate{:axiom} locked() reads this;
-    function {:axiom} lock() : Lock 
+    function {:axiom} locks_held() : set<Lock> reads this;
 }
 
 // TODO: Replace this with a built-in type predicate.
@@ -98,6 +99,8 @@ predicate {:axiom} ValueTypes()
     ensures IsValueType<int>();
     ensures ValueTypes();
 
+predicate IsValidLock(lock:Lock)
+    
 predicate IsValidPtr<T>(ptr:Ptr<T>)
 function  PtrInvariant<T>(ptr:Ptr<T>):iset<T>
 //function  GetPtr<T>(heap:SharedHeap, ptr:Ptr<T>) : T
@@ -108,27 +111,30 @@ function  Length<T>(arr:Array<T>):int
 
 class SharedStateIfc
 {
-    static method {:axiom} MakeLock(ghost env:HostEnvironment) returns (lock:LockImpl)
+    static method {:axiom} MakeLock(ghost env:HostEnvironment) returns (lock:Lock)
         requires env != null && env.Valid();
         modifies env.events;
-        ensures  fresh(lock) && !lock.locked();
-        ensures  env.events.history() == old(env.events.history()) + [MakeLockEvent(lock.lock())];
+        ensures  IsValidLock(lock);
+        ensures  lock !in env.locks.locks_held();
+        ensures  env.events.history() == old(env.events.history()) + [MakeLockEvent(lock)];
 
-    static method {:axiom} Lock(lock:LockImpl, ghost env:HostEnvironment)
+    static method {:axiom} Lock(lock:Lock, ghost env:HostEnvironment)
         requires env != null && env.Valid();
-        requires lock != null && !lock.locked();
-        modifies lock;
+        requires IsValidLock(lock);
+        requires lock !in env.locks.locks_held();
         modifies env.events;
-        ensures  lock.locked();
-        ensures  env.events.history() == old(env.events.history()) + [LockEvent(lock.lock())];
+        modifies env.locks;
+        ensures  env.locks.locks_held() == old(env.locks.locks_held()) + { lock };
+        ensures  env.events.history() == old(env.events.history()) + [LockEvent(lock)];
         
-    static method {:axiom} Unlock(lock:LockImpl, ghost env:HostEnvironment)
+    static method {:axiom} Unlock(lock:Lock, ghost env:HostEnvironment)
         requires env != null && env.Valid();
-        requires lock != null && lock.locked();
-        modifies lock;
+        requires IsValidLock(lock);
+        requires lock in env.locks.locks_held();
         modifies env.events;
-        ensures  !lock.locked();
-        ensures  env.events.history() == old(env.events.history()) + [UnlockEvent(lock.lock())];
+        modifies env.locks;
+        ensures  env.locks.locks_held() == old(env.locks.locks_held()) - { lock };
+        ensures  env.events.history() == old(env.events.history()) + [UnlockEvent(lock)];
 
     static method {:axiom} MakePtr<T>(v:T, ghost ptr_invariant:iset<T>, ghost env:HostEnvironment) 
         returns (ptr:Ptr<T>)
