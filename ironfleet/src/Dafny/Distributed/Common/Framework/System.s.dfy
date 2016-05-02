@@ -1,8 +1,10 @@
+include "../Native/Io.s.dfy"
 include "Trace.s.dfy"
 
 module SystemModule {
 
     import opened TraceModule
+    import opened Native__Io_s
 
     type ActorState
     datatype Config = Config(tracked_actors:set<Actor>)
