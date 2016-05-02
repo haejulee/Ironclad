@@ -1,8 +1,8 @@
-include "../Native/Io.s.dfy"
+include "Event.s.dfy"
 
 module TraceModule {
 
-    import opened Native__Io_s
+    import opened EventModule
 
     /////////////////////////////////////////////////////////////////////
     // Some possibilities for the actors and actions in a trace
