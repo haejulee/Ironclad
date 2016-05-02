@@ -83,10 +83,11 @@ class ThreadState
         ensures  int(id) == env.thread.ThreadId();
 }
 
-class Lock
+class LockImpl
 {
     constructor{:axiom} () requires false;
     predicate{:axiom} locked() reads this;
+    function {:axiom} lock() : Lock 
 }
 
 // TODO: Replace this with a built-in type predicate.
@@ -107,27 +108,27 @@ function  Length<T>(arr:Array<T>):int
 
 class SharedStateIfc
 {
-    static method {:axiom} MakeLock(ghost env:HostEnvironment) returns (lock:Lock)
+    static method {:axiom} MakeLock(ghost env:HostEnvironment) returns (lock:LockImpl)
         requires env != null && env.Valid();
         modifies env.events;
         ensures  fresh(lock) && !lock.locked();
-        ensures  env.events.history() == old(env.events.history()) + [MakeLockEvent(lock)];
+        ensures  env.events.history() == old(env.events.history()) + [MakeLockEvent(lock.lock())];
 
-    static method {:axiom} Lock(lock:Lock, ghost env:HostEnvironment)
+    static method {:axiom} Lock(lock:LockImpl, ghost env:HostEnvironment)
         requires env != null && env.Valid();
         requires lock != null && !lock.locked();
         modifies lock;
         modifies env.events;
         ensures  lock.locked();
-        ensures  env.events.history() == old(env.events.history()) + [LockEvent(lock)];
+        ensures  env.events.history() == old(env.events.history()) + [LockEvent(lock.lock())];
         
-    static method {:axiom} Unlock(lock:Lock, ghost env:HostEnvironment)
+    static method {:axiom} Unlock(lock:LockImpl, ghost env:HostEnvironment)
         requires env != null && env.Valid();
         requires lock != null && lock.locked();
         modifies lock;
         modifies env.events;
         ensures  !lock.locked();
-        ensures  env.events.history() == old(env.events.history()) + [UnlockEvent(lock)];
+        ensures  env.events.history() == old(env.events.history()) + [UnlockEvent(lock.lock())];
 
     static method {:axiom} MakePtr<T>(v:T, ghost ptr_invariant:iset<T>, ghost env:HostEnvironment) 
         returns (ptr:Ptr<T>)

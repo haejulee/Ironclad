@@ -18,7 +18,7 @@ module Stack {
         iset j | j >= 0
     }
 
-    datatype Stack = Stack(lock:Lock, count:Ptr<int>, buffers:Array<Buffer>, capacity:int, stack_invariant:StackInvariant)
+    datatype Stack = Stack(lock:LockImpl, count:Ptr<int>, buffers:Array<Buffer>, capacity:int, stack_invariant:StackInvariant)
 
     predicate IsValidStack(s:Stack)
         reads s.lock;
