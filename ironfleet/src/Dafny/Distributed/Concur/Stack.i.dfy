@@ -1,24 +1,186 @@
 include "../Common/Native/Io.s.dfy"
+include "../Common/Logic/Option.i.dfy"
 include "Reduction.i.dfy"
 
 module Stack {
     import opened Native__Io_s
+    import opened Logic__Option_i
     import opened ReductionModule
 
     type Buffer = int
     type StackInvariant = iset<Buffer>
 
-    function Bounds(max:int) : iset<int>
+    type ThreadActor = RealActor
+    //datatype ThreadActor = ThreadActor(tid:int, pid:int, endpoint:EndPoint)
+
+    /////////////////////////////////////////////////////////
+    //
+    //  High-level stack state and associated actions
+    //
+    /////////////////////////////////////////////////////////
+
+    //datatype HStackState = HStackState(stacks:map<int,seq<Buffer>>)
+    type HStackState = map<U,seq<Buffer>>
+
+    datatype HStackAction = 
+                     MakeStackAction      (new_id:U)
+                   | PushStackAction      (stack_id:U, b_in:Buffer)
+                   | PopStackAction       (id:U, b_out:Option<Buffer>)
+
+    predicate HStackNextInit(s:HStackState, s':HStackState, id:U)
     {
-        iset i | 0 <= i <= max
+          id !in s
+       && s' == s[id := []]
+    }
+    
+    predicate HStackNextPush(s:HStackState, s':HStackState, id:U, b:Buffer)
+    {
+           id in s
+        && s' == s[id := s[id] + [b]]
     }
 
-    function Positive() : iset<int>
+    predicate HStackNextPop(s:HStackState, s':HStackState, id:U, b:Option<Buffer>)
     {
-        iset j | j >= 0
+           id in s
+        && (s[id] == [] ==> s == s' && b.None?)
+        && (s[id] != [] ==> (var old_stack := s[id];
+                             s' == s[id := old_stack[..|old_stack|-1]]
+                         &&  b == Some(last(old_stack))) )
     }
+
+    predicate HStackNext(s:HStackState, s':HStackState, event:HStackAction)
+    {
+        match event
+            case MakeStackAction(id)    => HStackNextInit(s, s', id)
+            case PushStackAction(id, b) => HStackNextPush(s, s', id, b)
+            case PopStackAction(id, b)  => HStackNextPop(s, s', id, b)
+    }
+
+    /////////////////////////////////////////////////////////
+    //
+    //  Low-level stack state and associated actions
+    //
+    /////////////////////////////////////////////////////////
+    datatype LStackState = LStackState(heap:SharedHeap, locks:map<Lock, ThreadActor>)
+
+    datatype LStackAction = 
+                     MakeLockAction          (new_lock:Lock)
+                   | LockAction              (lock:Lock)
+                   | UnlockAction            (unlock:Lock)
+                   | AssumeHeapAction        (assumption:iset<SharedHeap>)
+                   | MakePtrAction           (ptr_make:Ptr<U>,    initial_ptr_value:U)
+                   | ReadPtrAction           (ptr_read:Ptr<U>,    read_value:U)
+                   | WritePtrAction          (ptr_write:Ptr<U>,   write_value:U)
+                   | MakeArrayAction         (arr_make:Array<U>,  arr_len:int,         initial_arr_value:U)
+                   | ReadArrayAction         (arr_read:Array<U>,  read_index:int,      read_arr_value:U)
+                   | WriteArrayAction        (arr_write:Array<U>, write_index:int,     write_arr_value:U)
+
+
+    predicate LStackNextAssumeHeap(ls:LStackState, ls':LStackState, assumption:iset<SharedHeap>)
+    {
+        ls' == ls
+        // Note that we DON'T have "assumption in ls.heap" because it's not necessarily justified.
+    }
+
+    predicate LStackNextMakeLock(ls:LStackState, ls':LStackState, actor:ThreadActor, lock:Lock)
+    {
+           ls' == ls.(locks := ls'.locks)
+        && lock !in ls.locks
+        && ls'.locks == ls.locks[lock := NoActor()]
+    }
+
+    predicate LStackNextLock(ls:LStackState, ls':LStackState, actor:ThreadActor, lock:Lock)
+    {
+           ls' == ls.(locks := ls'.locks)
+        && !actor.NoActor?
+        && lock in ls.locks
+        && ls.locks[lock] == NoActor()
+        && ls'.locks == ls.locks[lock := actor]
+    }
+
+    predicate LStackNextUnlock(ls:LStackState, ls':LStackState, actor:ThreadActor, lock:Lock)
+    {
+           ls' == ls.(locks := ls'.locks)
+        && !actor.NoActor?
+        && lock in ls.locks
+        && ls.locks[lock] == actor
+        && ls'.locks == ls.locks[lock := NoActor()]
+    }
+
+    predicate LStackNextMakePtr(ls:LStackState, ls':LStackState, actor:ThreadActor, ptr:Ptr<U>, initial_value:U)
+    {
+           ls' == ls.(heap := ls'.heap)
+        && ToU(ptr) !in ls.heap
+        && ls'.heap == ls.heap[ToU(ptr) := initial_value]
+    }
+
+    predicate LStackNextReadPtr(ls:LStackState, ls':LStackState, actor:ThreadActor, ptr:Ptr<U>, read_value:U)
+    {
+           ls' == ls
+        && ToU(ptr) in ls.heap
+        && ls.heap[ToU(ptr)] == read_value
+    }
+
+    predicate LStackNextWritePtr(ls:LStackState, ls':LStackState, actor:ThreadActor, ptr:Ptr<U>, write_value:U)
+    {
+           ls' == ls.(heap := ls'.heap)
+        && ToU(ptr) in ls.heap
+        && ls'.heap == ls.heap[ToU(ptr) := write_value]
+    }
+
+    predicate LStackNextMakeArray(ls:LStackState, ls':LStackState, actor:ThreadActor, arr:Array<U>, arr_len:int, initial_value:U)
+    {
+           ls' == ls.(heap := ls'.heap)
+        && ToU(arr) !in ls.heap
+        && (exists s:seq<U> ::   ls'.heap == ls.heap[ToU(arr) := ToU(s)]
+                         && |s| == arr_len
+                         && (forall i :: 0 <= i < arr_len ==> s[i] == initial_value))
+    }
+
+    predicate LStackNextReadArray(ls:LStackState, ls':LStackState, actor:ThreadActor, arr:Array<U>, index:int, read_value:U)
+    {
+           ls' == ls
+        && ToU(arr) in ls.heap
+        && (exists s:seq<U> ::   ls.heap[ToU(arr)] == ToU(s)
+                         && 0 <= index < |s|
+                         && s[index] == read_value)
+    }
+
+    predicate LStackNextWriteArray(ls:LStackState, ls':LStackState, actor:ThreadActor, arr:Array<U>, index:int, write_value:U)
+    {
+           ls' == ls.(heap := ls'.heap)
+        && ToU(arr) in ls.heap
+        && (exists s:seq<U> ::   ls.heap[ToU(arr)] == ToU(s)
+                         && 0 <= index < |s|
+                         && ls'.heap == ls.heap[ToU(arr) := ToU(s[index := write_value])])
+    }
+
+    predicate LStackNext(ls:LStackState, ls':LStackState, actor:ThreadActor, event:LStackAction)
+    {
+        match event
+            case MakeLockAction(lock) => LStackNextMakeLock(ls, ls', actor, lock)
+            case LockAction(lock) => LStackNextLock(ls, ls', actor, lock)
+            case UnlockAction(lock) => LStackNextUnlock(ls, ls', actor, lock)
+            case AssumeHeapAction(assumption) => LStackNextAssumeHeap(ls, ls', assumption)
+            case MakePtrAction(ptr, v) => LStackNextMakePtr(ls, ls', actor, ptr, v)
+            case ReadPtrAction(ptr, v) => LStackNextReadPtr(ls, ls', actor, ptr, v)
+            case WritePtrAction(ptr, v) => LStackNextWritePtr(ls, ls', actor, ptr, v)
+            case MakeArrayAction(arr, len, v) => LStackNextMakeArray(ls, ls', actor, arr, len, v)
+            case ReadArrayAction(arr, index, v) => LStackNextReadArray(ls, ls', actor, arr, index, v)
+            case WriteArrayAction(arr, index, v) => LStackNextWriteArray(ls, ls', actor, arr, index, v)
+    }
+
+    /////////////////////////////////////////////////////////
+    //
+    //  Concrete stack implementation
+    //
+    /////////////////////////////////////////////////////////
 
     datatype Stack = Stack(lock:Lock, count:Ptr<int>, buffers:Array<Buffer>, capacity:int, ghost stack_invariant:StackInvariant)
+
+    // Name these so that Dafny can match them properly
+    function Bounds(max:int) : iset<int> { iset i | 0 <= i <= max } 
+    function Positive() : iset<int> { iset j | j >= 0 }
 
     predicate IsValidStack(s:Stack, locks:LocksState)
         requires locks != null;
@@ -33,7 +195,7 @@ module Stack {
      && ArrayInvariant(s.buffers) == Positive()
     }
 
-    method MakeStack(ghost env:HostEnvironment, ghost stack_invariant:StackInvariant, ghost me:Actor) returns (s:Stack, ghost reduction_tree:Tree)
+    method MakeStack(ghost env:HostEnvironment, ghost stack_invariant:StackInvariant, ghost me:ThreadActor) returns (s:Stack, ghost reduction_tree:Tree<ThreadActor,LStackAction,LStackState>)
         requires env != null && env.Valid();
         modifies env.events;
         modifies env.locks;
@@ -47,15 +209,20 @@ module Stack {
         var buffers := SharedStateIfc.MakeArray(3, 1, iset i | i >= 0, env);
         s := Stack(lock, count, buffers, 3, stack_invariant);
 
-        ghost var events := env.events.history()[|old(env.events.history())|..];
-        ghost var entries_map := map i | 0 <= i < |events| :: Leaf(Entry(me, ActionEvent(events[i])));
-        ghost var children := ConvertMapToSeq(|events|, entries_map);
+//        ghost var events := env.events.history()[|old(env.events.history())|..];
+//        ghost var entries_map := map i | 0 <= i < |events| :: Leaf(Entry(me, events[i]));
+//        ghost var children := ConvertMapToSeq(|events|, entries_map);
         //reduction_tree := Inner(Entry(me, StackInit), children, 0);
+
+        ghost var children := [ Leaf(Entry(me, MakeLockAction(lock))),
+                                Leaf(Entry(me, MakePtrAction(count, ToU(0)))),
+                                Leaf(Entry(me, MakeArrayAction(buffers, 3, ToU(1)))) ];
+        reduction_tree := Inner(Entry(me, MakeStackAction(ToU(lock))), children, 0);
     }
 
     // TODO: Here's a place where we'd like to have a shared pointer to the stack,
     //       so we can replace the existing array with a larger one, instead of returning an error
-    method PushStack(s:Stack, v:Buffer, ghost env:HostEnvironment, ghost me:Actor) returns (s':Stack, ok:bool, ghost reduction_tree:Tree)
+    method PushStack(s:Stack, v:Buffer, ghost env:HostEnvironment, ghost me:ThreadActor) returns (s':Stack, ok:bool, ghost reduction_tree:Tree<ThreadActor,LStackAction,LStackState>)
         requires env != null && env.Valid();
         requires IsValidStack(s, env.locks);
         requires v in ArrayInvariant(s.buffers); 
@@ -96,7 +263,7 @@ module Stack {
 //        reduction_tree := Inner(Entry(me, action), children, 0);
     }
 
-    method PopStack(s:Stack, ghost env:HostEnvironment, ghost me:Actor) returns (s':Stack, v:Buffer, ok:bool, ghost reduction_tree:Tree)
+    method PopStack(s:Stack, ghost env:HostEnvironment, ghost me:ThreadActor) returns (s':Stack, v:Buffer, ok:bool, ghost reduction_tree:Tree)
         requires env != null && env.Valid();
         requires IsValidStack(s, env.locks);
         modifies env.events;
