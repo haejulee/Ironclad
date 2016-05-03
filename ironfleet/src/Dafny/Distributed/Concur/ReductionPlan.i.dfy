@@ -1,15 +1,25 @@
 include "Reduction.i.dfy"
-include "System.i.dfy"
+include "../Common/Framework/System.s.dfy"
 
 module ReductionPlanModule {
 
     import opened ReductionModule
     import opened SystemModule
 
-    datatype ActorReductionPlan = ActorReductionPlan(ab:seq<ActorState>, trees:seq<Tree>)
-    type ReductionPlan = map<Actor, ActorReductionPlan>
+    datatype VirtualAction<Actor(==), Action(==), State(==), VirtualActorState(==), VirtualAction(==)> =
+                   VirtualActionUntrackedEvent(u:UntrackedEvent)
+                 | PerformIos(raw_ios:seq<Event>)
+                 | HostNext(host_ios:seq<Event>)
 
-    predicate TreeOnlyForActor(tree:Tree, actor:Actor)
+    datatype ReductionPlanFramework<Actor(==), Action(==), State(==), VirtualActorState(==), VirtualAction(==)> =
+                 ReductionPlanFramework(rf:ReductionFramework,
+                                        host_init:iset<VirtualActorState>,
+                                        host_next:iset<(VirtualActorState, VirtualActorState, VirtualAction)>)
+
+    datatype ActorReductionPlan<Actor(==), Action(==), State(==), VirtualActorState(==)> = ActorReductionPlan(ab:seq<VirtualActorState>, trees:seq<Tree>)
+    type ReductionPlan<Actor(==), Action(==), State(==), VirtualActorState(==)> = map<Actor, ActorReductionPlan>
+
+    predicate TreeOnlyForActor<Actor(==), Action(==), State(==)>(tree:Tree, actor:Actor)
     {
         if tree.Leaf? then
             tree.entry.actor == actor
@@ -17,22 +27,26 @@ module ReductionPlanModule {
             tree.reduced_entry.actor == actor && TreesOnlyForActor(tree.children, actor)
     }
 
-    predicate TreesOnlyForActor(trees:seq<Tree>, actor:Actor)
+    predicate TreesOnlyForActor<Actor(==), Action(==), State(==)>(trees:seq<Tree>, actor:Actor)
     {
         forall tree :: tree in trees ==> TreeOnlyForActor(tree, actor)
     }
 
-    predicate IsValidActorReductionPlan(plan:ActorReductionPlan)
+    predicate IsValidActorReductionPlan<Actor(==), Action(==), State(==), VirtualActorState(==), VirtualAction(==)>(
+        framework:ReductionPlanFramework,
+        plan:ActorReductionPlan
+        )
     {
            |plan.ab| == |plan.trees| + 1
-        && HostInit(plan.ab[0])
+        && plan.ab[0] in framework.host_init
         && (forall i {:trigger plan.trees[i]} :: 0 <= i < |plan.trees| ==>
-                                              TreeValid(plan.trees[i])
+                                              TreeValid(framework.rf, plan.trees[i])
                                            && GetRootEntry(plan.trees[i]).action.PerformIos?
-                                           && HostNextPredicate(plan.ab[i], plan.ab[i+1], GetRootEntry(plan.trees[i]).action.raw_ios))
+                                           && (plan.ab[i], plan.ab[i+1], GetRootEntry(plan.trees[i]).action.raw_ios) in framework.rf.host_next)
     }
 
-    predicate IsValidReductionPlan(config:Config, plan:ReductionPlan)
+/*
+    predicate IsValidReductionPlan<Actor(==), Action(==), State(==), VirtualActorState(==)>(config:RealConfig, plan:ReductionPlan)
     {
             NoActor() !in config.tracked_actors
          && (forall actor :: actor in config.tracked_actors ==>    actor in plan 
@@ -40,7 +54,7 @@ module ReductionPlanModule {
                                                           && TreesOnlyForActor(plan[actor].trees, actor))
     }
 
-    function RestrictTraceToTrackedActions(trace:Trace) : Trace
+    function RestrictTraceToTrackedActions<Actor(==), Action(==), State(==)>(trace:Trace) : Trace
         ensures var trace':= RestrictTraceToTrackedActions(trace);
                 forall entry {:trigger entry in trace'}{:trigger IsTrackedAction(entry.action)} ::
                          entry in trace' ==> IsTrackedAction(entry.action);
@@ -52,5 +66,5 @@ module ReductionPlanModule {
         else
             RestrictTraceToTrackedActions(trace[1..])
     }
-
+*/
 }

@@ -15,23 +15,23 @@ module SpecRefinementModule {
 
     predicate SpecInit(hs:SpecState)
     predicate SpecNext(hs:SpecState, hs':SpecState)
-    predicate SpecCorrespondence(ls:SystemState, hs:SpecState)
+    predicate SpecCorrespondence(ls:RealSystemState, hs:SpecState)
 
-    lemma {:axiom} lemma_RightMoverForwardPreservation(rightMover:Entry, ls:SystemState, ls':SystemState, hs:SpecState)
+    lemma {:axiom} lemma_RightMoverForwardPreservation(rightMover:RealEntry, ls:RealSystemState, ls':RealSystemState, hs:SpecState)
         requires EntryIsRightMover(rightMover);
-        requires SystemNextEntry(ls, ls', rightMover);
+        requires RealSystemNextEntry(ls, ls', rightMover);
         requires SpecCorrespondence(ls, hs);
         ensures  SpecCorrespondence(ls', hs);
 
-    lemma {:axiom} lemma_LeftMoverBackwardPreservation(leftMover:Entry, ls:SystemState, ls':SystemState, hs:SpecState)
+    lemma {:axiom} lemma_LeftMoverBackwardPreservation(leftMover:RealEntry, ls:RealSystemState, ls':RealSystemState, hs:SpecState)
         requires EntryIsLeftMover(leftMover);
-        requires SystemNextEntry(ls, ls', leftMover);
+        requires RealSystemNextEntry(ls, ls', leftMover);
         requires SpecCorrespondence(ls', hs);
         ensures  SpecCorrespondence(ls, hs);
 
-    lemma {:axiom} lemma_TrackedActorStateDoesntAffectSpecCorrespondence(ls:SystemState, ls':SystemState, hs:SpecState)
+    lemma {:axiom} lemma_TrackedActorStateDoesntAffectSpecCorrespondence(ls:RealSystemState, ls':RealSystemState, hs:SpecState)
         requires ls' == ls.(states := ls'.states);
-        requires forall actor :: actor !in ls.config.tracked_actors && ls'.config == ls.config ==> ActorStateMatchesInSystemStates(ls, ls', actor);
+        requires forall actor :: actor !in ls.config.tracked_actors && ls'.config == ls.config ==> ActorStateMatchesInRealSystemStates(ls, ls', actor);
         requires SpecCorrespondence(ls', hs);
         ensures  SpecCorrespondence(ls, hs);
 
@@ -46,26 +46,26 @@ module SpecRefinementModule {
         && (forall i {:trigger SpecNext(hb[i], hb[i+1])} :: 0 <= i < |hb| - 1 ==> SpecNext(hb[i], hb[i+1]))
     }
 
-    function GetSystemSpecRefinementRelation() : RefinementRelation<SystemState, SpecState>
+    function GetRealSystemSpecRefinementRelation() : RefinementRelation<RealSystemState, SpecState>
     {
-        iset pair:RefinementPair<SystemState, SpecState> {:trigger SpecCorrespondence(pair.low, pair.high)} |
+        iset pair:RefinementPair<RealSystemState, SpecState> {:trigger SpecCorrespondence(pair.low, pair.high)} |
              SpecCorrespondence(pair.low, pair.high)
     }
 
-    predicate SystemBehaviorRefinesValidSpecBehaviorUsingRefinementMap(lb:SystemBehavior, hb:SpecBehavior, lh_map:RefinementMap)
+    predicate RealSystemBehaviorRefinesValidSpecBehaviorUsingRefinementMap(lb:RealSystemBehavior, hb:SpecBehavior, lh_map:RefinementMap)
     {
            IsValidSpecBehavior(hb)
-        && BehaviorRefinesBehaviorUsingRefinementMap(lb, hb, GetSystemSpecRefinementRelation(), lh_map)
+        && BehaviorRefinesBehaviorUsingRefinementMap(lb, hb, GetRealSystemSpecRefinementRelation(), lh_map)
     }
 
-    predicate SystemBehaviorRefinesValidSpecBehavior(lb:SystemBehavior, hb:SpecBehavior)
+    predicate RealSystemBehaviorRefinesValidSpecBehavior(lb:RealSystemBehavior, hb:SpecBehavior)
     {
-        exists lh_map :: SystemBehaviorRefinesValidSpecBehaviorUsingRefinementMap(lb, hb, lh_map)
+        exists lh_map :: RealSystemBehaviorRefinesValidSpecBehaviorUsingRefinementMap(lb, hb, lh_map)
     }
 
-    predicate SystemBehaviorRefinesSpec(lb:SystemBehavior)
+    predicate RealSystemBehaviorRefinesSpec(lb:RealSystemBehavior)
     {
-        exists hb, lh_map :: SystemBehaviorRefinesValidSpecBehaviorUsingRefinementMap(lb, hb, lh_map)
+        exists hb, lh_map :: RealSystemBehaviorRefinesValidSpecBehaviorUsingRefinementMap(lb, hb, lh_map)
     }
 }
 
