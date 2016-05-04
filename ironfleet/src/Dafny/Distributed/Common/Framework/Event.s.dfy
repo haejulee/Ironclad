@@ -18,8 +18,8 @@ module EventModule {
 
     type U(==)
     type Lock(==)
-    type Ptr<T>
-    type Array<T>
+    type Ptr(==)<T>
+    type Array(==)<T>
     type Table<A,B>
     
     type SharedHeap = map<U,U>

@@ -67,7 +67,7 @@ module Stack {
                      MakeLockAction          (new_lock:Lock)
                    | LockAction              (lock:Lock)
                    | UnlockAction            (unlock:Lock)
-                   | AssumeHeapAction        (assumption:iset<SharedHeap>)
+                   //| AssumeHeapAction        (assumption:iset<SharedHeap>)
                    | MakePtrAction           (ptr_make:Ptr<U>,    initial_ptr_value:U)
                    | ReadPtrAction           (ptr_read:Ptr<U>,    read_value:U)
                    | WritePtrAction          (ptr_write:Ptr<U>,   write_value:U)
@@ -161,7 +161,7 @@ module Stack {
             case MakeLockAction(lock) => LStackNextMakeLock(ls, ls', actor, lock)
             case LockAction(lock) => LStackNextLock(ls, ls', actor, lock)
             case UnlockAction(lock) => LStackNextUnlock(ls, ls', actor, lock)
-            case AssumeHeapAction(assumption) => LStackNextAssumeHeap(ls, ls', assumption)
+            //case AssumeHeapAction(assumption) => LStackNextAssumeHeap(ls, ls', assumption)
             case MakePtrAction(ptr, v) => LStackNextMakePtr(ls, ls', actor, ptr, v)
             case ReadPtrAction(ptr, v) => LStackNextReadPtr(ls, ls', actor, ptr, v)
             case WritePtrAction(ptr, v) => LStackNextWritePtr(ls, ls', actor, ptr, v)
@@ -214,10 +214,11 @@ module Stack {
 //        ghost var children := ConvertMapToSeq(|events|, entries_map);
         //reduction_tree := Inner(Entry(me, StackInit), children, 0);
 
-        ghost var children := [ Leaf(Entry(me, MakeLockAction(lock))),
-                                Leaf(Entry(me, MakePtrAction(count, ToU(0)))),
-                                Leaf(Entry(me, MakeArrayAction(buffers, 3, ToU(1)))) ];
-        reduction_tree := Inner(Entry(me, MakeStackAction(ToU(lock))), children, 0);
+        ghost var children:seq<Tree<ThreadActor,LStackAction,LStackState>> := 
+            [ Leaf(Entry(me, MakeLockAction(lock))),
+              Leaf(Entry(me, MakePtrAction(ToUPtr(count), ToU(0)))),
+              Leaf(Entry(me, MakeArrayAction(ToUArray(buffers), 3, ToU(1)))) ];
+        //reduction_tree := Inner(Entry(me, MakeStackAction(ToU(lock))), children, 0);
     }
 
     // TODO: Here's a place where we'd like to have a shared pointer to the stack,
