@@ -4,6 +4,7 @@ import sys
 import os
 import subprocess
 import re
+import datetime
 os.environ["PATH"] = "tools/Dafny:"+os.environ["PATH"]
 
 def docmd(*cmd):
@@ -26,15 +27,20 @@ def main():
         m = re.search(r'^procedure\s*({:[^}]+}\s*)*(Impl[^\(]+)', line)
 	if m:
             procedureName = m.group(2)
-            if procedureName.find(escapedProcName) > -1:
-                mangledProcName = procedureName
-                break
+            if len(procedureName) > len(escapedProcName):
+                suffix = procedureName[len(procedureName) - len(escapedProcName) - 1:]
+                if suffix == '.' + escapedProcName:
+                    mangledProcName = procedureName
+                    break
     boogieFileHandle.close()
     if len(mangledProcName) == 0:
-        print 'Could not find procedure with substring %s in %s' % (escapedProcName, boogieFile)
+        print 'Could not find procedure ending in .%s in %s' % (escapedProcName, boogieFile)
         sys.exit(-1)
-            
-    docmd("dafny", "/allowGlobals", "/z3opt:nlsat.randomize=false", "/z3opt:pi.warnings=true", "/proverWarnings:1", "/compile:0", "/noCheating:1", "/autoTriggers:1", "/ironDafny", "/noNLarith", "/proc:%s" % mangledProcName, dfyfile)
+
+    start_time = datetime.datetime.now()
+    docmd("dafny", "/allowGlobals", "/z3opt:nlsat.randomize=false", "/z3opt:pi.warnings=true", "/proverWarnings:1", "/compile:0", "/noCheating:1", "/autoTriggers:1", "/ironDafny", "/noNLarith", "/timeLimit:30", "/proc:%s" % mangledProcName, dfyfile)
+    end_time = datetime.datetime.now()
     docmd("rm", boogieFile)
+    print 'Boogie time was %s sec' % ((end_time - start_time).total_seconds())
 
 main()
