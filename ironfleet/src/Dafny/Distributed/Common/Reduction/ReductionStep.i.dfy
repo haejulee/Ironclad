@@ -972,6 +972,7 @@ module ReductionStepModule {
         var entry := sub_tree.reduced_entry;
         lemma_IfTreeOnlyForActorThenSubtreeIs(tree, designator, actor);
         assert entry.actor == actor;
+        assert IsValidActor(actor);
 
         var left_index_to_move := |prefix|;
         var pivot_index := |prefix| + sub_tree.pivot_index;
@@ -995,6 +996,21 @@ module ReductionStepModule {
         htrace := ConvertMapToSeq(|mtrace| - |sub_tree_trace| + 1, trace_map);
         var behavior_map := map i | 0 <= i <= |mb| - |sub_tree_trace| :: if i <= first_replaced_entry_pos then mb[i] else mb[i+|sub_tree_trace|-1];
         hb := ConvertMapToSeq(|mb| - |sub_tree_trace| + 1, behavior_map);
+
+        forall hentry | hentry in htrace
+            ensures IsValidActor(hentry.actor);
+        {
+            var i :| 0 <= i < |htrace| && hentry == htrace[i];
+            if i < first_replaced_entry_pos {
+                assert htrace[i] == mtrace[i];
+            }
+            else if i == first_replaced_entry_pos {
+                assert htrace[i] == entry;
+            }
+            else {
+                assert htrace[i] == mtrace[i+|sub_tree_trace|-1];
+            }
+        }
 
         // Prove IsValidExtendedSystemTraceAndBehaviorSlice(htrace, hb)
 

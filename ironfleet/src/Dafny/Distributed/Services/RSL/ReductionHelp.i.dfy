@@ -69,16 +69,6 @@ module ReductionHelpModule {
         && (e.UdpReceiveEvent? ==> ConcretePacketIsAbstractable(e.r))
     }
 
-    function AbstractifyEvent(e:Event) : seq<LIoOp<NodeIdentity, RslMessage>>
-        requires EventIsAbstractable(e);
-    {
-             if e.UdpSendEvent? then [LIoOpSend(AbstractifyConcretePacket(e.s))]
-        else if e.UdpReceiveEvent? then [LIoOpReceive(AbstractifyConcretePacket(e.r))]
-        else if e.UdpTimeoutReceiveEvent? then [LIoOpTimeoutReceive()]
-        else if e.ReadClockEvent? then [LIoOpReadClock(e.time)]
-        else []
-    }
-
     predicate UntrackedEventIsAbstractable(u:UntrackedEvent)
     {
         u.DeliverPacket? ==> ConcretePacketIsAbstractable(u.p)
@@ -95,7 +85,9 @@ module ReductionHelpModule {
     predicate ExtendedEntryIsAbstractable(entry:ExtendedEntry)
     {
         match entry.action
-            case ExtendedActionEvent(e) => entry.actor.FixedEndPointActor? && EventIsAbstractable(e)
+            case ExtendedActionEvent(e) => EventIsAbstractable(e) &&
+                                           ((e.UdpSendEvent? || e.UdpReceiveEvent? || e.UdpTimeoutReceiveEvent? || e.ReadClockEvent?)
+                                            ==> entry.actor.FixedEndPointActor?)
             case ExtendedActionUntrackedEvent(u) => IsValidActor(entry.actor) && UntrackedEventIsAbstractable(u)
             case ExtendedActionPerformIos(ios) => entry.actor.FixedEndPointActor? && EventLogIsAbstractable(ios)
             case ExtendedActionHostNext(ios) => entry.actor.FixedEndPointActor? && EventLogIsAbstractable(ios)
@@ -105,7 +97,12 @@ module ReductionHelpModule {
         requires ExtendedEntryIsAbstractable(entry);
     {
         match entry.action
-            case ExtendedActionEvent(e) => LEnvStepHostIos(entry.actor.ep, AbstractifyEvent(e))
+            case ExtendedActionEvent(e) =>
+                     if e.UdpSendEvent? then LEnvStepHostIos(entry.actor.ep, [LIoOpSend(AbstractifyConcretePacket(e.s))])
+                else if e.UdpReceiveEvent? then LEnvStepHostIos(entry.actor.ep, [LIoOpReceive(AbstractifyConcretePacket(e.r))])
+                else if e.UdpTimeoutReceiveEvent? then LEnvStepHostIos(entry.actor.ep, [LIoOpTimeoutReceive()])
+                else if e.ReadClockEvent? then LEnvStepHostIos(entry.actor.ep, [LIoOpReadClock(e.time)])
+                else LEnvStepStutter()
             case ExtendedActionUntrackedEvent(u) => AbstractifyUntrackedEvent(u)
             case ExtendedActionPerformIos(ios) => LEnvStepHostIos(entry.actor.ep, AbstractifyRawLogToIos(ios))
             case ExtendedActionHostNext(ios) => LEnvStepHostIos(entry.actor.ep, AbstractifyRawLogToIos(ios))
@@ -409,7 +406,7 @@ module ReductionHelpModule {
         }
     }
 
-    lemma {:timeLimitMultiplier 2} lemma_ExtendedSystemHostNextImpliesLEnvironmentNext(
+    lemma {:timeLimitMultiplier 3} lemma_ExtendedSystemHostNextImpliesLEnvironmentNext(
         config:ConcreteConfiguration,
         trace:ExtendedTrace,
         eb:seq<ExtendedSystemState>,
@@ -699,7 +696,7 @@ module ReductionHelpModule {
         assert rs' == AbstractifyExtendedSystemState(es', next_step);
 
         var actor := entry.actor;
-        assert actor.FixedEndPointActor?;
+        assert IsValidActor(actor);
         lemma_AbstractifyEndPointsToNodeIdentities_properties(config.config.replica_ids);
         lemma_ExtendedSystemBehaviorConsistency(config, trace, eb, i);
         lemma_ExtendedSystemBehaviorConsistency(config, trace, eb, i+1);
@@ -730,10 +727,14 @@ module ReductionHelpModule {
             assert rs'.replicas == rs.replicas[idx := rs'.replicas[idx]];
             assert RslNextOneReplica(rs, rs', idx, step.ios);
         }
+        else if step.LEnvStepStutter? {
+            assert RslNextEnvironment(rs, rs');
+            assert RslNext(rs, rs');
+        }
         else {
-            assert actor.ep !in config.config.replica_ids;
             assert IsRealExtendedAction(entry.action);
             if entry.action.ExtendedActionEvent? {
+                assert actor.ep !in config.config.replica_ids;
                 var eid := actor.ep;
                 var ios := step.ios;
                 if ios == [] {

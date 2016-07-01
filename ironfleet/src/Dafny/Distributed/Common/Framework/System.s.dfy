@@ -62,6 +62,12 @@ module SystemModule {
         && ActorResponsibleForAddress(actor, p.src)
     }
 
+    predicate SystemNextUdpTimeoutReceive<Config>(ls:SystemState, ls':SystemState, actor:Actor)
+    {
+           ls' == ls
+        && !actor.NoActor?
+    }
+
     predicate SystemNextTcpConnect<Config>(ls:SystemState, ls':SystemState, actor:Actor, conn_id:int, remote_ep:EndPoint)
     {
            ls' == ls.(connections := ls'.connections)
@@ -270,7 +276,7 @@ module SystemModule {
             case ReadArrayEvent(arr, index, v) => SystemNextReadArray(ls, ls', actor, arr, index, v)
             case WriteArrayEvent(arr, index, v) => SystemNextWriteArray(ls, ls', actor, arr, index, v)
             case ReadClockEvent(t) => SystemNextReadClock(ls, ls', actor, t)
-            case UdpTimeoutReceiveEvent() => SystemNextStutter(ls, ls')
+            case UdpTimeoutReceiveEvent() => SystemNextUdpTimeoutReceive(ls, ls', actor)
             case UdpReceiveEvent(p) => SystemNextUdpReceive(ls, ls', actor, p)
             case UdpSendEvent(p) => SystemNextUdpSend(ls, ls', actor, p)
             case TcpConnectEvent(id, ep) => SystemNextTcpConnect(ls, ls', actor, id, ep)
