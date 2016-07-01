@@ -1,25 +1,12 @@
-include "../Common/Collections/Seqs.i.dfy"
-include "../Common/Framework/Trace.s.dfy"
+include "../Collections/Seqs.i.dfy"
+include "../Framework/Trace.s.dfy"
 
-module ActorTraces 
+module ActorTracesModule
 {
     import opened TraceModule
     import opened Collections__Seqs_i
 
-    function RestrictTraceToActor<Actor, Action>(t:Trace, a:Actor) : Trace
-        ensures var t' := RestrictTraceToActor(t, a);
-                forall e {:trigger e in t'} {:trigger e in t, e.actor} :: e in t' <==> e in t && e.actor == a;
-        ensures |RestrictTraceToActor(t, a)| <= |t|;
-    {
-        if |t| == 0 then
-            []
-        else if t[0].actor == a then
-            [t[0]] + RestrictTraceToActor(t[1..], a)
-        else
-            RestrictTraceToActor(t[1..], a)
-    }
-
-    function GetTraceIndicesForActor<Actor, Action>(trace:Trace, actor:Actor) : seq<int>
+    function GetTraceIndicesForActor<Action>(trace:Trace, actor:Actor) : seq<int>
         ensures var indices := GetTraceIndicesForActor(trace, actor);
                 forall index {:trigger trace[index].actor} {:trigger index in indices } :: 
                     index in indices <==> 0 <= index < |trace| && trace[index].actor == actor;
@@ -44,7 +31,7 @@ module ActorTraces
     //
     //////////////////////////////////////////////////////////////////////////////
 
-    lemma lemma_InterveningTraceIndicesFromDifferentActor<Actor, Action>(
+    lemma lemma_InterveningTraceIndicesFromDifferentActor<Action>(
         trace:Trace,
         actor:Actor,
         indices:seq<int>,
@@ -76,7 +63,7 @@ module ActorTraces
         }
     }
 
-    lemma lemma_PrecedingTraceIndicesFromDifferentActor<Actor, Action>(
+    lemma lemma_PrecedingTraceIndicesFromDifferentActor<Action>(
         trace:Trace,
         actor:Actor,
         indices:seq<int>,
@@ -89,7 +76,7 @@ module ActorTraces
     {
     }
 
-    lemma lemma_TrailingTraceIndicesFromDifferentActor<Actor, Action>(
+    lemma lemma_TrailingTraceIndicesFromDifferentActor<Action>(
         trace:Trace,
         actor:Actor,
         indices:seq<int>,
@@ -102,7 +89,7 @@ module ActorTraces
     {
     }
 
-    ghost method GetCorrespondingActorTraceAndIndexForEntry<Actor, Action>(
+    ghost method GetCorrespondingActorTraceAndIndexForEntry<Action>(
         trace:Trace,
         trace_index:int
         ) returns (
@@ -135,7 +122,7 @@ module ActorTraces
         }
     }
 
-    lemma lemma_ConsecutiveActorEntries<Actor, Action>(
+    lemma lemma_ConsecutiveActorEntries<Action>(
             trace:Trace,
             position:int,
             group_len:int,
@@ -182,7 +169,7 @@ module ActorTraces
     //
     //////////////////////////////////////////////////////////////////////////////
 
-    lemma lemma_SplitRestrictTraceToActor<Actor, Action>(t1:Trace, t2:Trace, actor:Actor)
+    lemma lemma_SplitRestrictTraceToActor<Action>(t1:Trace, t2:Trace, actor:Actor)
         ensures RestrictTraceToActor(t1, actor) + RestrictTraceToActor(t2, actor) == RestrictTraceToActor(t1 + t2, actor);
     {
         if |t1| == 0 {
@@ -210,27 +197,27 @@ module ActorTraces
         }
     }
 
-    lemma lemma_Split3RestrictTraceToActor<Actor, Action>(t1:Trace, t2:Trace, t3:Trace, actor:Actor)
+    lemma lemma_Split3RestrictTraceToActor<Action>(t1:Trace, t2:Trace, t3:Trace, actor:Actor)
         ensures RestrictTraceToActor(t1, actor) + RestrictTraceToActor(t2, actor) + RestrictTraceToActor(t3, actor) == RestrictTraceToActor(t1 + t2 + t3, actor);
     {
         lemma_SplitRestrictTraceToActor(t1, t2, actor);
         lemma_SplitRestrictTraceToActor(t1 + t2, t3, actor);
     }
 
-    lemma lemma_Split4RestrictTraceToActor<Actor, Action>(t1:Trace, t2:Trace, t3:Trace, t4:Trace, actor:Actor)
+    lemma lemma_Split4RestrictTraceToActor<Action>(t1:Trace, t2:Trace, t3:Trace, t4:Trace, actor:Actor)
         ensures RestrictTraceToActor(t1, actor) + RestrictTraceToActor(t2, actor) + RestrictTraceToActor(t3, actor) + RestrictTraceToActor(t4, actor) == RestrictTraceToActor(t1 + t2 + t3 + t4, actor);
     {
         lemma_Split3RestrictTraceToActor(t1, t2, t3, actor);
         lemma_SplitRestrictTraceToActor(t1 + t2 + t3, t4, actor);
     }
 
-    lemma lemma_RestrictTraceToActorEmpty<Actor, Action>(trace:Trace, actor:Actor)
+    lemma lemma_RestrictTraceToActorEmpty<Action>(trace:Trace, actor:Actor)
         requires forall i :: 0 <= i < |trace| ==> trace[i].actor != actor;
         ensures RestrictTraceToActor(trace, actor) == [];
     {
     }
 
-    lemma lemma_RestrictTraceToActorSeqSliceTakeLength<Actor, Action>(trace:Trace, actor:Actor, trace_index:int, actor_index:int)
+    lemma lemma_RestrictTraceToActorSeqSliceTakeLength<Action>(trace:Trace, actor:Actor, trace_index:int, actor_index:int)
         requires var indices := GetTraceIndicesForActor(trace, actor); 
                  0 <= actor_index < |indices| && indices[actor_index] == trace_index;
         decreases actor_index;
@@ -298,7 +285,7 @@ module ActorTraces
         assert |a_trace| == actor_index;
     }
 
-    lemma lemma_RestrictTraceToActorSeqSliceTake<Actor, Action>(trace:Trace, actor:Actor, trace_index:int, actor_index:int)
+    lemma lemma_RestrictTraceToActorSeqSliceTake<Action>(trace:Trace, actor:Actor, trace_index:int, actor_index:int)
         requires var indices := GetTraceIndicesForActor(trace, actor); 
                  0 <= actor_index < |indices| && indices[actor_index] == trace_index;
         decreases actor_index;
@@ -384,7 +371,7 @@ module ActorTraces
         }
     }
 
-    lemma {:timeLimitMultiplier 4} lemma_RestrictTraceToActorSeqSliceDrop<Actor, Action>(trace:Trace, actor:Actor, trace_index:int, actor_index:int)
+    lemma {:timeLimitMultiplier 4} lemma_RestrictTraceToActorSeqSliceDrop<Action>(trace:Trace, actor:Actor, trace_index:int, actor_index:int)
         requires var indices := GetTraceIndicesForActor(trace, actor); 
                  0 <= actor_index < |indices| && indices[actor_index] == trace_index;
         decreases |GetTraceIndicesForActor(trace, actor)| - actor_index;
@@ -475,7 +462,7 @@ module ActorTraces
         }
     }
 
-    lemma lemma_RestrictTraceToActorPreservation<Actor, Action>(
+    lemma lemma_RestrictTraceToActorPreservation<Action>(
         trace:Trace,
         actor:Actor,
         begin_entry_pos:int,
@@ -546,7 +533,7 @@ module ActorTraces
         }
     }
 
-    lemma lemma_TraceIndicesForActor_length<Actor, Action>(trace:Trace, actor:Actor)
+    lemma lemma_TraceIndicesForActor_length<Action>(trace:Trace, actor:Actor)
         ensures |GetTraceIndicesForActor(trace, actor)| == |RestrictTraceToActor(trace, actor)|;
     {
         if |trace| == 0 {
@@ -580,7 +567,7 @@ module ActorTraces
         }
     }
 
-    lemma {:timeLimitMultiplier 4} lemma_CorrespondenceBetweenGetTraceIndicesAndRestrictTraces<Actor, Action>(trace:Trace, actor:Actor)
+    lemma {:timeLimitMultiplier 4} lemma_CorrespondenceBetweenGetTraceIndicesAndRestrictTraces<Action>(trace:Trace, actor:Actor)
         ensures var sub_trace := RestrictTraceToActor(trace, actor);
                 var indices := GetTraceIndicesForActor(trace, actor);
                 |sub_trace| == |indices| 
@@ -652,7 +639,7 @@ module ActorTraces
 
     }
 
-    lemma lemma_IfAllEntriesAreFromActorThenRestrictTraceToActorIsIdentity<Actor, Action>(
+    lemma lemma_IfAllEntriesAreFromActorThenRestrictTraceToActorIsIdentity<Action>(
         trace:Trace,
         actor:Actor
         )
@@ -666,7 +653,7 @@ module ActorTraces
         lemma_IfAllEntriesAreFromActorThenRestrictTraceToActorIsIdentity(trace[1..], actor);
     }
 
-    lemma lemma_IfNoEntriesAreFromActorThenRestrictTraceToActorIsEmpty<Actor, Action>(
+    lemma lemma_IfNoEntriesAreFromActorThenRestrictTraceToActorIsEmpty<Action>(
         trace:Trace,
         actor:Actor
         )
@@ -680,7 +667,7 @@ module ActorTraces
         lemma_IfNoEntriesAreFromActorThenRestrictTraceToActorIsEmpty(trace[1..], actor);
     }
 
-    lemma {:timeLimitMultiplier 2} lemma_TraceIndicesForActorConverse<Actor, Action>(
+    lemma {:timeLimitMultiplier 2} lemma_TraceIndicesForActorConverse<Action>(
         trace:Trace,
         actor:Actor,
         indices:seq<int>
@@ -705,6 +692,7 @@ module ActorTraces
                 if 0 <= j < i {
                 }
                 else if indices[i] < indices_actual[i] {
+                    assert indices_actual[i-1] < indices[i-1+1];
                     lemma_InterveningTraceIndicesFromDifferentActor(trace, actor, indices_actual, i-1, indices[i]);
                     assert false;
                 }
@@ -737,7 +725,7 @@ module ActorTraces
         }
     }
 
-    ghost method FindIndices<Actor, Action>(
+    ghost method FindIndices<Action>(
         trace:Trace,
         actor:Actor,
         actor_trace:Trace,

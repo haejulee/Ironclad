@@ -1,102 +1,108 @@
+include "ActorTraces.i.dfy"
 include "ReductionPlan.i.dfy"
 include "SystemRefinement.i.dfy"
+include "ImplSpecificReduction.i.dfy"
 
 module ReductionMoveModule
 {
+    import opened ActorTracesModule
     import opened ReductionPlanModule
     import opened SystemRefinementModule
+    import opened ImplSpecificReductionModule
 
-    lemma lemma_SystemStatesConnectedByRightMoverCorrespond(
-        ls:SystemState,
-        ls':SystemState,
-        entry:Entry
+    lemma lemma_ExtendedSystemStatesConnectedByRightMoverCorrespond(
+        ls:ExtendedSystemState,
+        ls':ExtendedSystemState,
+        entry:ExtendedEntry
         )
-        requires SystemNextEntry(ls, ls', entry);
-        requires EntryIsRightMover(entry);
-        ensures  SystemCorrespondence(ls', ls);
+        requires ExtendedSystemNextEntry(ls, ls', entry);
+        requires ExtendedEntryIsRightMover(entry);
+        ensures  ExtendedSystemCorrespondence(ls', ls);
     {
-        forall ss | SpecCorrespondence(ls, ss)
-            ensures SpecCorrespondence(ls', ss)
+        forall ss | SpecCorrespondence(ls.ss, ss)
+            ensures SpecCorrespondence(ls'.ss, ss)
         {
             lemma_RightMoverForwardPreservation(entry, ls, ls', ss);
         }
     }
 
-    lemma lemma_SystemStatesConnectedByLeftMoverCorrespond(
-        ls:SystemState,
-        ls':SystemState,
-        entry:Entry
+    lemma lemma_ExtendedSystemStatesConnectedByLeftMoverCorrespond(
+        ls:ExtendedSystemState,
+        ls':ExtendedSystemState,
+        entry:ExtendedEntry
         )
-        requires SystemNextEntry(ls, ls', entry);
-        requires EntryIsLeftMover(entry);
-        ensures  SystemCorrespondence(ls, ls');
+        requires ExtendedSystemNextEntry(ls, ls', entry);
+        requires ExtendedEntryIsLeftMover(entry);
+        ensures  ExtendedSystemCorrespondence(ls, ls');
     {
-        forall ss | SpecCorrespondence(ls', ss)
-            ensures SpecCorrespondence(ls, ss)
+        forall ss | SpecCorrespondence(ls'.ss, ss)
+            ensures SpecCorrespondence(ls.ss, ss)
         {
             lemma_LeftMoverBackwardPreservation(entry, ls, ls', ss);
         }
     }
 
-    lemma lemma_SequenceOfRightMoversCausesSystemCorrespondence(
-        ltrace:seq<Entry>,
-        lb:seq<SystemState>
+    lemma lemma_SequenceOfRightMoversCausesExtendedSystemCorrespondence(
+        ltrace:seq<ExtendedEntry>,
+        lb:seq<ExtendedSystemState>
         )
         requires |lb| == |ltrace| + 1;
-        requires forall i :: 0 <= i < |ltrace| ==> SystemNextEntry(lb[i], lb[i+1], ltrace[i]);
-        requires forall entry :: entry in ltrace ==> EntryIsRightMover(entry);
-        ensures  SystemCorrespondence(last(lb), lb[0]);
+        requires forall i :: 0 <= i < |ltrace| ==> ExtendedSystemNextEntry(lb[i], lb[i+1], ltrace[i]);
+        requires forall entry :: entry in ltrace ==> ExtendedEntryIsRightMover(entry);
+        ensures  ExtendedSystemCorrespondence(last(lb), lb[0]);
     {
         if |lb| == 1 {
-            lemma_SystemStateCorrespondsToItself(lb[0]);
+            lemma_ExtendedSystemStateCorrespondsToItself(lb[0]);
             return;
         }
 
-        lemma_SystemStatesConnectedByRightMoverCorrespond(lb[0], lb[0+1], ltrace[0]);
-        lemma_SequenceOfRightMoversCausesSystemCorrespondence(ltrace[1..], lb[1..]);
+        lemma_ExtendedSystemStatesConnectedByRightMoverCorrespond(lb[0], lb[0+1], ltrace[0]);
+        lemma_SequenceOfRightMoversCausesExtendedSystemCorrespondence(ltrace[1..], lb[1..]);
         assert last(lb) == last(lb[1..]);
         assert lb[1] == lb[1..][0];
-        assert SystemCorrespondence(last(lb), lb[1]);
+        assert ExtendedSystemCorrespondence(last(lb), lb[1]);
         lemma_SystemRefinementRelationConvolvesWithItself();
     }
 
-    lemma lemma_SequenceOfLeftMoversCausesSystemCorrespondence(
-        ltrace:seq<Entry>,
-        lb:seq<SystemState>
+    lemma lemma_SequenceOfLeftMoversCausesExtendedSystemCorrespondence(
+        ltrace:seq<ExtendedEntry>,
+        lb:seq<ExtendedSystemState>
         )
         requires |lb| == |ltrace| + 1;
-        requires forall i :: 0 <= i < |ltrace| ==> SystemNextEntry(lb[i], lb[i+1], ltrace[i]);
-        requires forall entry :: entry in ltrace ==> EntryIsLeftMover(entry);
-        ensures  SystemCorrespondence(lb[0], last(lb));
+        requires forall i :: 0 <= i < |ltrace| ==> ExtendedSystemNextEntry(lb[i], lb[i+1], ltrace[i]);
+        requires forall entry :: entry in ltrace ==> ExtendedEntryIsLeftMover(entry);
+        ensures  ExtendedSystemCorrespondence(lb[0], last(lb));
     {
         if |lb| == 1 {
-            lemma_SystemStateCorrespondsToItself(lb[0]);
+            lemma_ExtendedSystemStateCorrespondsToItself(lb[0]);
             return;
         }
 
-        lemma_SystemStatesConnectedByLeftMoverCorrespond(lb[0], lb[0+1], ltrace[0]);
-        lemma_SequenceOfLeftMoversCausesSystemCorrespondence(ltrace[1..], lb[1..]);
+        lemma_ExtendedSystemStatesConnectedByLeftMoverCorrespond(lb[0], lb[0+1], ltrace[0]);
+        lemma_SequenceOfLeftMoversCausesExtendedSystemCorrespondence(ltrace[1..], lb[1..]);
         assert last(lb) == last(lb[1..]);
         assert lb[1] == lb[1..][0];
 
-        assert SystemCorrespondence(lb[1], last(lb));
+        assert ExtendedSystemCorrespondence(lb[1], last(lb));
         lemma_SystemRefinementRelationConvolvesWithItself();
     }
 
     lemma lemma_PerformMoveRight(
-        config:Config,
-        ltrace:Trace,
-        lb:seq<SystemState>,
+        config:ConcreteConfiguration,
+        ltrace:ExtendedTrace,
+        lb:seq<ExtendedSystemState>,
         first_entry_pos:int
         ) returns (
-        htrace:Trace,
-        hb:seq<SystemState>
+        htrace:ExtendedTrace,
+        hb:seq<ExtendedSystemState>
         )
-        requires IsValidSystemTraceAndBehavior(config, ltrace, lb);
+        requires IsValidExtendedSystemTraceAndBehaviorSlice(ltrace, lb);
+        requires SystemInit(config, lb[0].ss);
         requires 0 <= first_entry_pos < |ltrace| - 1;
         requires ltrace[first_entry_pos].actor != ltrace[first_entry_pos+1].actor;
-        requires EntryIsRightMover(ltrace[first_entry_pos]);
-        ensures  IsValidSystemTraceAndBehavior(config, htrace, hb);
+        requires ExtendedEntryIsRightMover(ltrace[first_entry_pos]);
+        ensures  IsValidExtendedSystemTraceAndBehaviorSlice(htrace, hb);
+        ensures  SystemInit(config, hb[0].ss);
         ensures  |hb| == |lb|;
         ensures  SystemBehaviorRefinesSystemBehavior(lb, hb);
         ensures  htrace == ltrace[first_entry_pos := ltrace[first_entry_pos+1]][first_entry_pos + 1 := ltrace[first_entry_pos]];
@@ -108,8 +114,8 @@ module ReductionMoveModule
         var ls3 := lb[first_entry_pos+2];
 
         htrace := ltrace[first_entry_pos := entry2][first_entry_pos + 1 := entry1];
-        assert SystemNextEntry(lb[first_entry_pos+1], lb[first_entry_pos+1+1], ltrace[first_entry_pos+1]);
-        var ls2' := lemma_MoverCommutativityForEntries(entry1, entry2, ls1, ls2, ls3);
+        assert ExtendedSystemNextEntry(lb[first_entry_pos+1], lb[first_entry_pos+1+1], ltrace[first_entry_pos+1]);
+        var ls2' := lemma_MoverCommutativityForExtendedEntries(entry1, entry2, ls1, ls2, ls3);
         hb := lb[first_entry_pos + 1 := ls2'];
 
         var relation := GetSystemSystemRefinementRelation();
@@ -129,18 +135,18 @@ module ReductionMoveModule
         {
             if i <= first_entry_pos {
                 assert hb[j] == lb[i];
-                lemma_SystemStateCorrespondsToItself(lb[i]);
+                lemma_ExtendedSystemStateCorrespondsToItself(lb[i]);
             }
             else if i == first_entry_pos + 1 {
-                lemma_SystemStatesConnectedByRightMoverCorrespond(lb[first_entry_pos], lb[first_entry_pos+1], ltrace[first_entry_pos]);
+                lemma_ExtendedSystemStatesConnectedByRightMoverCorrespond(lb[first_entry_pos], lb[first_entry_pos+1], ltrace[first_entry_pos]);
             }
             else if i == first_entry_pos + 2 {
-                lemma_SystemStatesConnectedByRightMoverCorrespond(hb[first_entry_pos+1], hb[first_entry_pos+1+1], htrace[first_entry_pos+1]);
-                lemma_SystemStateCorrespondsToItself(lb[i]);
+                lemma_ExtendedSystemStatesConnectedByRightMoverCorrespond(hb[first_entry_pos+1], hb[first_entry_pos+1+1], htrace[first_entry_pos+1]);
+                lemma_ExtendedSystemStateCorrespondsToItself(lb[i]);
             }
             else {
                 assert hb[j] == lb[i];
-                lemma_SystemStateCorrespondsToItself(lb[i]);
+                lemma_ExtendedSystemStateCorrespondsToItself(lb[i]);
             }
         }
 
@@ -148,19 +154,21 @@ module ReductionMoveModule
     }
 
     lemma lemma_PerformMoveLeft(
-        config:Config,
-        ltrace:Trace,
-        lb:seq<SystemState>,
+        config:ConcreteConfiguration,
+        ltrace:ExtendedTrace,
+        lb:seq<ExtendedSystemState>,
         first_entry_pos:int
         ) returns (
-        htrace:Trace,
-        hb:seq<SystemState>
+        htrace:ExtendedTrace,
+        hb:seq<ExtendedSystemState>
         )
-        requires IsValidSystemTraceAndBehavior(config, ltrace, lb);
+        requires IsValidExtendedSystemTraceAndBehaviorSlice(ltrace, lb);
+        requires SystemInit(config, lb[0].ss);
         requires 0 <= first_entry_pos < |ltrace| - 1;
         requires ltrace[first_entry_pos].actor != ltrace[first_entry_pos+1].actor;
-        requires EntryIsLeftMover(ltrace[first_entry_pos+1]);
-        ensures  IsValidSystemTraceAndBehavior(config, htrace, hb);
+        requires ExtendedEntryIsLeftMover(ltrace[first_entry_pos+1]);
+        ensures  IsValidExtendedSystemTraceAndBehaviorSlice(htrace, hb);
+        ensures  SystemInit(config, hb[0].ss);
         ensures  |hb| == |lb|;
         ensures  SystemBehaviorRefinesSystemBehavior(lb, hb);
         ensures  htrace == ltrace[first_entry_pos := ltrace[first_entry_pos+1]][first_entry_pos + 1 := ltrace[first_entry_pos]];
@@ -172,8 +180,8 @@ module ReductionMoveModule
         var ls3 := lb[first_entry_pos+2];
 
         htrace := ltrace[first_entry_pos := entry2][first_entry_pos + 1 := entry1];
-        assert SystemNextEntry(lb[first_entry_pos+1], lb[first_entry_pos+1+1], ltrace[first_entry_pos+1]);
-        var ls2' := lemma_MoverCommutativityForEntries(entry1, entry2, ls1, ls2, ls3);
+        assert ExtendedSystemNextEntry(lb[first_entry_pos+1], lb[first_entry_pos+1+1], ltrace[first_entry_pos+1]);
+        var ls2' := lemma_MoverCommutativityForExtendedEntries(entry1, entry2, ls1, ls2, ls3);
         hb := lb[first_entry_pos + 1 := ls2'];
 
         var relation := GetSystemSystemRefinementRelation();
@@ -193,25 +201,25 @@ module ReductionMoveModule
         {
             if i < first_entry_pos {
                 assert hb[j] == lb[i];
-                lemma_SystemStateCorrespondsToItself(lb[i]);
+                lemma_ExtendedSystemStateCorrespondsToItself(lb[i]);
             }
             else if i == first_entry_pos {
-                lemma_SystemStateCorrespondsToItself(lb[i]);
-                lemma_SystemStatesConnectedByLeftMoverCorrespond(hb[first_entry_pos], hb[first_entry_pos+1], htrace[first_entry_pos]);
+                lemma_ExtendedSystemStateCorrespondsToItself(lb[i]);
+                lemma_ExtendedSystemStatesConnectedByLeftMoverCorrespond(hb[first_entry_pos], hb[first_entry_pos+1], htrace[first_entry_pos]);
             }
             else if i == first_entry_pos + 1 {
-                lemma_SystemStatesConnectedByLeftMoverCorrespond(lb[first_entry_pos+1], lb[first_entry_pos+1+1], ltrace[first_entry_pos+1]);
+                lemma_ExtendedSystemStatesConnectedByLeftMoverCorrespond(lb[first_entry_pos+1], lb[first_entry_pos+1+1], ltrace[first_entry_pos+1]);
             }
             else {
                 assert hb[j] == lb[i];
-                lemma_SystemStateCorrespondsToItself(lb[i]);
+                lemma_ExtendedSystemStateCorrespondsToItself(lb[i]);
             }
         }
 
         assert BehaviorRefinesBehaviorUsingRefinementMap(lb, hb, relation, lh_map);
     }
 
-    function MoveTraceElementRight(trace:Trace, cur_pos:int, desired_pos:int) : Trace
+    function MoveTraceElementRight(trace:ExtendedTrace, cur_pos:int, desired_pos:int) : ExtendedTrace
         requires 0 <= cur_pos <= desired_pos < |trace|;
         ensures  MoveTraceElementRight(trace, cur_pos, desired_pos) == trace[..cur_pos] + trace[cur_pos+1..desired_pos+1] + [trace[cur_pos]] + trace[desired_pos+1..];
     {
@@ -221,7 +229,7 @@ module ReductionMoveModule
                                                            else trace[i])
     }
 
-    function MoveTraceElementLeft(trace:Trace, cur_pos:int, desired_pos:int) : Trace
+    function MoveTraceElementLeft(trace:ExtendedTrace, cur_pos:int, desired_pos:int) : ExtendedTrace
         requires 0 <= desired_pos <= cur_pos < |trace|;
         ensures MoveTraceElementLeft(trace, cur_pos, desired_pos) == trace[..desired_pos] + [trace[cur_pos]] + trace[desired_pos..cur_pos] + trace[cur_pos+1..];
     {
@@ -232,10 +240,10 @@ module ReductionMoveModule
     }
 
     lemma {:timeLimitMultiplier 2} lemma_MoveTraceElementRightProperties(
-        trace:Trace,
-        trace':Trace,
+        trace:ExtendedTrace,
+        trace':ExtendedTrace,
         actor:Actor,
-        atrace:Trace,
+        atrace:ExtendedTrace,
         indices:seq<int>,
         indices':seq<int>,
         updated_index:int,
@@ -322,10 +330,10 @@ module ReductionMoveModule
     }
 
     lemma {:timeLimitMultiplier 4} lemma_MoveTraceElementLeftProperties(
-        trace:Trace,
-        trace':Trace,
+        trace:ExtendedTrace,
+        trace':ExtendedTrace,
         actor:Actor,
-        atrace:Trace,
+        atrace:ExtendedTrace,
         indices:seq<int>,
         indices':seq<int>,
         updated_index:int,
@@ -410,21 +418,23 @@ module ReductionMoveModule
     }
 
     lemma lemma_MoveRightMoverIntoPlace(
-        config:Config,
-        ltrace:Trace,
-        lb:SystemBehavior,
+        config:ConcreteConfiguration,
+        ltrace:ExtendedTrace,
+        lb:seq<ExtendedSystemState>,
         cur_pos:int,
         desired_pos:int
         ) returns (
-        htrace:Trace,
-        hb:SystemBehavior
+        htrace:ExtendedTrace,
+        hb:seq<ExtendedSystemState>
         )
-        requires IsValidSystemTraceAndBehavior(config, ltrace, lb);
+        requires IsValidExtendedSystemTraceAndBehaviorSlice(ltrace, lb);
+        requires SystemInit(config, lb[0].ss);
         requires 0 <= cur_pos <= desired_pos < |ltrace|;
-        requires EntryIsRightMover(ltrace[cur_pos]);
+        requires ExtendedEntryIsRightMover(ltrace[cur_pos]);
         requires forall i :: cur_pos < i <= desired_pos ==> ltrace[i].actor != ltrace[cur_pos].actor;
 
-        ensures  IsValidSystemTraceAndBehavior(config, htrace, hb);
+        ensures  IsValidExtendedSystemTraceAndBehaviorSlice(htrace, hb);
+        ensures  SystemInit(config, hb[0].ss);
         ensures  htrace == MoveTraceElementRight(ltrace, cur_pos, desired_pos);
         ensures  SystemBehaviorRefinesSystemBehavior(lb, hb);
 
@@ -443,21 +453,23 @@ module ReductionMoveModule
     }
 
     lemma lemma_MoveLeftMoverIntoPlace(
-        config:Config,
-        ltrace:Trace,
-        lb:SystemBehavior,
+        config:ConcreteConfiguration,
+        ltrace:ExtendedTrace,
+        lb:seq<ExtendedSystemState>,
         cur_pos:int,
         desired_pos:int
         ) returns (
-        htrace:Trace,
-        hb:SystemBehavior
+        htrace:ExtendedTrace,
+        hb:seq<ExtendedSystemState>
         )
-        requires IsValidSystemTraceAndBehavior(config, ltrace, lb);
+        requires IsValidExtendedSystemTraceAndBehaviorSlice(ltrace, lb);
+        requires SystemInit(config, lb[0].ss);
         requires 0 <= desired_pos <= cur_pos < |ltrace|;
-        requires EntryIsLeftMover(ltrace[cur_pos]);
+        requires ExtendedEntryIsLeftMover(ltrace[cur_pos]);
         requires forall i :: desired_pos <= i < cur_pos ==> ltrace[i].actor != ltrace[cur_pos].actor;
 
-        ensures  IsValidSystemTraceAndBehavior(config, htrace, hb);
+        ensures  IsValidExtendedSystemTraceAndBehaviorSlice(htrace, hb);
+        ensures  SystemInit(config, hb[0].ss);
         ensures  htrace == MoveTraceElementLeft(ltrace, cur_pos, desired_pos);
         ensures  SystemBehaviorRefinesSystemBehavior(lb, hb);
 
@@ -476,11 +488,11 @@ module ReductionMoveModule
     }
 
     lemma lemma_MakeActionsForActorAdjacentByMovingLeftIndexAlreadyInPlaceLeft(
-        config:Config,
-        ltrace:Trace,
-        lb:SystemBehavior,
+        config:ConcreteConfiguration,
+        ltrace:ExtendedTrace,
+        lb:seq<ExtendedSystemState>,
         actor:Actor,
-        atrace:seq<Entry>,
+        atrace:seq<ExtendedEntry>,
         l_indices:seq<int>,
         pivot_index:int,
         left_index_to_move:int,
@@ -489,18 +501,22 @@ module ReductionMoveModule
         right_index_already_in_place:int
         ) returns (
         h_indices:seq<int>,
-        htrace:Trace,
-        hb:SystemBehavior
+        htrace:ExtendedTrace,
+        hb:seq<ExtendedSystemState>
         )
-        requires IsValidSystemTraceAndBehavior(config, ltrace, lb);
+        requires IsValidExtendedSystemTraceAndBehaviorSlice(ltrace, lb);
+        requires SystemInit(config, lb[0].ss);
+        requires forall lentry :: lentry in ltrace ==> IsValidActor(lentry.actor);
         requires atrace == RestrictTraceToActor(ltrace, actor);
         requires l_indices == GetTraceIndicesForActor(ltrace, actor);
         requires |atrace| == |l_indices|;
         requires 0 <= left_index_to_move < left_index_already_in_place <= pivot_index <= right_index_already_in_place <= right_index_to_move < |atrace|;
-        requires forall i {:trigger EntryIsRightMover(atrace[i])} :: left_index_to_move <= i < pivot_index ==> EntryIsRightMover(atrace[i]);
-        requires forall i {:trigger EntryIsLeftMover(atrace[i])} :: pivot_index < i <= right_index_to_move ==> EntryIsLeftMover(atrace[i]);
+        requires forall i {:trigger ExtendedEntryIsRightMover(atrace[i])} :: left_index_to_move <= i < pivot_index ==> ExtendedEntryIsRightMover(atrace[i]);
+        requires forall i {:trigger ExtendedEntryIsLeftMover(atrace[i])} :: pivot_index < i <= right_index_to_move ==> ExtendedEntryIsLeftMover(atrace[i]);
         requires forall i {:trigger l_indices[i]} :: left_index_already_in_place <= i <= right_index_already_in_place ==> i - pivot_index == l_indices[i] - l_indices[pivot_index];
-        ensures  IsValidSystemTraceAndBehavior(config, htrace, hb);
+        ensures  IsValidExtendedSystemTraceAndBehaviorSlice(htrace, hb);
+        ensures  SystemInit(config, hb[0].ss);
+        ensures  forall hentry :: hentry in htrace ==> IsValidActor(hentry.actor);
         ensures  SystemBehaviorRefinesSystemBehavior(lb, hb);
         ensures  forall any_actor :: RestrictTraceToActor(ltrace, any_actor) == RestrictTraceToActor(htrace, any_actor);
         ensures  |h_indices| == |l_indices|;
@@ -522,7 +538,7 @@ module ReductionMoveModule
 
         lemma_CorrespondenceBetweenGetTraceIndicesAndRestrictTraces(ltrace, actor);
         assert atrace[left_index_already_in_place-1] == ltrace[l_indices[left_index_already_in_place-1]];
-        assert EntryIsRightMover(atrace[left_index_already_in_place-1]);
+        assert ExtendedEntryIsRightMover(atrace[left_index_already_in_place-1]);
 
         var mtrace, mb := lemma_MoveRightMoverIntoPlace(config, ltrace, lb, cur_pos, desired_pos);
         var m_indices := l_indices[left_index_already_in_place-1 := l_indices[left_index_already_in_place]-1];
@@ -533,11 +549,11 @@ module ReductionMoveModule
     }
 
     lemma lemma_MakeActionsForActorAdjacentByMovingRightIndexAlreadyInPlaceRight(
-        config:Config,
-        ltrace:Trace,
-        lb:SystemBehavior,
+        config:ConcreteConfiguration,
+        ltrace:ExtendedTrace,
+        lb:seq<ExtendedSystemState>,
         actor:Actor,
-        atrace:seq<Entry>,
+        atrace:seq<ExtendedEntry>,
         l_indices:seq<int>,
         pivot_index:int,
         left_index_to_move:int,
@@ -546,18 +562,22 @@ module ReductionMoveModule
         right_index_already_in_place:int
         ) returns (
         h_indices:seq<int>,
-        htrace:Trace,
-        hb:SystemBehavior
+        htrace:ExtendedTrace,
+        hb:seq<ExtendedSystemState>
         )
-        requires IsValidSystemTraceAndBehavior(config, ltrace, lb);
+        requires IsValidExtendedSystemTraceAndBehaviorSlice(ltrace, lb);
+        requires SystemInit(config, lb[0].ss);
+        requires forall lentry :: lentry in ltrace ==> IsValidActor(lentry.actor);
         requires atrace == RestrictTraceToActor(ltrace, actor);
         requires l_indices == GetTraceIndicesForActor(ltrace, actor);
         requires |atrace| == |l_indices|;
         requires 0 <= left_index_to_move <= left_index_already_in_place <= pivot_index <= right_index_already_in_place < right_index_to_move < |atrace|;
-        requires forall i {:trigger EntryIsRightMover(atrace[i])} :: left_index_to_move <= i < pivot_index ==> EntryIsRightMover(atrace[i]);
-        requires forall i {:trigger EntryIsLeftMover(atrace[i])} :: pivot_index < i <= right_index_to_move ==> EntryIsLeftMover(atrace[i]);
+        requires forall i {:trigger ExtendedEntryIsRightMover(atrace[i])} :: left_index_to_move <= i < pivot_index ==> ExtendedEntryIsRightMover(atrace[i]);
+        requires forall i {:trigger ExtendedEntryIsLeftMover(atrace[i])} :: pivot_index < i <= right_index_to_move ==> ExtendedEntryIsLeftMover(atrace[i]);
         requires forall i {:trigger l_indices[i]} :: left_index_already_in_place <= i <= right_index_already_in_place ==> i - pivot_index == l_indices[i] - l_indices[pivot_index];
-        ensures  IsValidSystemTraceAndBehavior(config, htrace, hb);
+        ensures  IsValidExtendedSystemTraceAndBehaviorSlice(htrace, hb);
+        ensures  SystemInit(config, hb[0].ss);
+        ensures  forall hentry :: hentry in htrace ==> IsValidActor(hentry.actor);
         ensures  SystemBehaviorRefinesSystemBehavior(lb, hb);
         ensures  forall any_actor :: RestrictTraceToActor(ltrace, any_actor) == RestrictTraceToActor(htrace, any_actor);
         ensures  |h_indices| == |l_indices|;
@@ -577,7 +597,7 @@ module ReductionMoveModule
 
         lemma_CorrespondenceBetweenGetTraceIndicesAndRestrictTraces(ltrace, actor);
         assert atrace[right_index_already_in_place+1] == ltrace[l_indices[right_index_already_in_place+1]];
-        assert EntryIsLeftMover(atrace[right_index_already_in_place+1]);
+        assert ExtendedEntryIsLeftMover(atrace[right_index_already_in_place+1]);
 
         var mtrace, mb := lemma_MoveLeftMoverIntoPlace(config, ltrace, lb, cur_pos, desired_pos);
         var m_indices := l_indices[right_index_already_in_place+1 := l_indices[right_index_already_in_place]+1];
@@ -588,11 +608,11 @@ module ReductionMoveModule
     }
 
     lemma lemma_MakeActionsForActorAdjacent(
-        config:Config,
-        ltrace:Trace,
-        lb:SystemBehavior,
+        config:ConcreteConfiguration,
+        ltrace:ExtendedTrace,
+        lb:seq<ExtendedSystemState>,
         actor:Actor,
-        atrace:seq<Entry>,
+        atrace:seq<ExtendedEntry>,
         l_indices:seq<int>,
         pivot_index:int,
         left_index_to_move:int,
@@ -601,18 +621,22 @@ module ReductionMoveModule
         right_index_already_in_place:int
         ) returns (
         h_indices:seq<int>,
-        htrace:Trace,
-        hb:SystemBehavior
+        htrace:ExtendedTrace,
+        hb:seq<ExtendedSystemState>
         )
-        requires IsValidSystemTraceAndBehavior(config, ltrace, lb);
+        requires IsValidExtendedSystemTraceAndBehaviorSlice(ltrace, lb);
+        requires SystemInit(config, lb[0].ss);
+        requires forall lentry :: lentry in ltrace ==> IsValidActor(lentry.actor);
         requires atrace == RestrictTraceToActor(ltrace, actor);
         requires l_indices == GetTraceIndicesForActor(ltrace, actor);
         requires |atrace| == |l_indices|;
         requires 0 <= left_index_to_move <= left_index_already_in_place <= pivot_index <= right_index_already_in_place <= right_index_to_move < |atrace|;
-        requires forall i {:trigger EntryIsRightMover(atrace[i])} :: left_index_to_move <= i < pivot_index ==> EntryIsRightMover(atrace[i]);
-        requires forall i {:trigger EntryIsLeftMover(atrace[i])} :: pivot_index < i <= right_index_to_move ==> EntryIsLeftMover(atrace[i]);
+        requires forall i {:trigger ExtendedEntryIsRightMover(atrace[i])} :: left_index_to_move <= i < pivot_index ==> ExtendedEntryIsRightMover(atrace[i]);
+        requires forall i {:trigger ExtendedEntryIsLeftMover(atrace[i])} :: pivot_index < i <= right_index_to_move ==> ExtendedEntryIsLeftMover(atrace[i]);
         requires forall i {:trigger l_indices[i]} :: left_index_already_in_place <= i <= right_index_already_in_place ==> i - pivot_index == l_indices[i] - l_indices[pivot_index];
-        ensures  IsValidSystemTraceAndBehavior(config, htrace, hb);
+        ensures  IsValidExtendedSystemTraceAndBehaviorSlice(htrace, hb);
+        ensures  SystemInit(config, hb[0].ss);
+        ensures  forall hentry :: hentry in htrace ==> IsValidActor(hentry.actor);
         ensures  SystemBehaviorRefinesSystemBehavior(lb, hb);
         ensures  forall any_actor :: RestrictTraceToActor(ltrace, any_actor) == RestrictTraceToActor(htrace, any_actor);
         ensures  |h_indices| == |l_indices|;
@@ -634,27 +658,31 @@ module ReductionMoveModule
     }
 
     lemma lemma_MoveActionsForActorToEnd(
-        config:Config,
-        ltrace:Trace,
-        lb:SystemBehavior,
+        config:ConcreteConfiguration,
+        ltrace:ExtendedTrace,
+        lb:seq<ExtendedSystemState>,
         actor:Actor,
-        atrace:seq<Entry>,
+        atrace:seq<ExtendedEntry>,
         l_indices:seq<int>,
         left_index_to_move:int,
         left_index_already_in_place:int
         ) returns (
         h_indices:seq<int>,
-        htrace:Trace,
-        hb:SystemBehavior
+        htrace:ExtendedTrace,
+        hb:seq<ExtendedSystemState>
         )
-        requires IsValidSystemTraceAndBehavior(config, ltrace, lb);
+        requires IsValidExtendedSystemTraceAndBehaviorSlice(ltrace, lb);
+        requires SystemInit(config, lb[0].ss);
+        requires forall lentry :: lentry in ltrace ==> IsValidActor(lentry.actor);
         requires atrace == RestrictTraceToActor(ltrace, actor);
         requires l_indices == GetTraceIndicesForActor(ltrace, actor);
         requires |atrace| == |l_indices|;
         requires 0 <= left_index_to_move <= left_index_already_in_place <= |atrace|;
-        requires forall i {:trigger EntryIsRightMover(atrace[i])} :: left_index_to_move <= i < |atrace| ==> EntryIsRightMover(atrace[i]);
+        requires forall i {:trigger ExtendedEntryIsRightMover(atrace[i])} :: left_index_to_move <= i < |atrace| ==> ExtendedEntryIsRightMover(atrace[i]);
         requires forall i {:trigger l_indices[i]} :: left_index_already_in_place <= i < |atrace| ==> l_indices[i] == |ltrace| - |atrace| + i;
-        ensures  IsValidSystemTraceAndBehavior(config, htrace, hb);
+        ensures  IsValidExtendedSystemTraceAndBehaviorSlice(htrace, hb);
+        ensures  SystemInit(config, hb[0].ss);
+        ensures  forall hentry :: hentry in htrace ==> IsValidActor(hentry.actor);
         ensures  SystemBehaviorRefinesSystemBehavior(lb, hb);
         ensures  forall any_actor :: RestrictTraceToActor(ltrace, any_actor) == RestrictTraceToActor(htrace, any_actor);
         ensures  |h_indices| == |l_indices|;
@@ -679,7 +707,7 @@ module ReductionMoveModule
 
         lemma_CorrespondenceBetweenGetTraceIndicesAndRestrictTraces(ltrace, actor);
         assert atrace[index_to_move] == ltrace[l_indices[index_to_move]];
-        assert EntryIsRightMover(atrace[index_to_move]);
+        assert ExtendedEntryIsRightMover(atrace[index_to_move]);
 
         var mtrace, mb := lemma_MoveRightMoverIntoPlace(config, ltrace, lb, cur_pos, desired_pos);
         var m_indices := l_indices[index_to_move := desired_pos];
@@ -690,18 +718,22 @@ module ReductionMoveModule
     }
 
     lemma lemma_ExtendTraceGivenLeftMoversAlwaysEnabled(
-        config:Config,
-        ltrace:Trace,
-        lb:seq<SystemState>,
+        config:ConcreteConfiguration,
+        ltrace:ExtendedTrace,
+        lb:seq<ExtendedSystemState>,
         actor:Actor,
         tree:Tree,
         first_entry_pos:int,
         last_entry_pos:int
         ) returns (
-        htrace:Trace,
-        hb:seq<SystemState>
+        htrace:ExtendedTrace,
+        hb:seq<ExtendedSystemState>
         )
-        requires IsValidSystemTraceAndBehavior(config, ltrace, lb);
+        requires IsValidExtendedSystemTraceAndBehaviorSlice(ltrace, lb);
+        requires SystemInit(config, lb[0].ss);
+        requires actor in TrackedActorsInConfig(config);
+        requires forall any_actor :: any_actor in TrackedActorsInConfig(config) ==> IsValidActor(any_actor);
+        requires forall lentry :: lentry in ltrace ==> IsValidActor(lentry.actor);
         requires TreeRootPivotValid(tree);
         requires TreeOnlyForActor(tree, actor);
         requires LeftMoversAlwaysEnabled(tree);
@@ -714,7 +746,9 @@ module ReductionMoveModule
         requires last_entry_pos < |ltrace|;
         requires forall i {:trigger ltrace[i]} :: first_entry_pos <= i <= last_entry_pos ==> ltrace[i] == GetRootEntry(tree.children[i - first_entry_pos]);
         requires forall i :: last_entry_pos < i < |ltrace| ==> ltrace[i].actor != actor;
-        ensures  IsValidSystemTraceAndBehavior(config, htrace, hb);
+        ensures  IsValidExtendedSystemTraceAndBehaviorSlice(htrace, hb);
+        ensures  SystemInit(config, hb[0].ss);
+        ensures  forall hentry :: hentry in htrace ==> IsValidActor(hentry.actor);
         ensures  SystemBehaviorRefinesSystemBehavior(lb, hb);
         ensures  |htrace| >= first_entry_pos + |tree.children|;
         ensures  forall i {:trigger htrace[i]} :: first_entry_pos <= i < first_entry_pos + |tree.children| ==> htrace[i] == GetRootEntry(tree.children[i - first_entry_pos]);
@@ -733,20 +767,22 @@ module ReductionMoveModule
 
         var ltrace' := GetRootEntries(tree.children[..left_mover_pos]) + other_actor_entries;
         var lb' := lb[first_entry_pos..];
-        forall i {:trigger SystemNextEntry(lb'[i], lb'[i+1], ltrace'[i])} | 0 <= i < |ltrace'|
-            ensures SystemNextEntry(lb'[i], lb'[i+1], ltrace'[i]);
+        forall i {:trigger ExtendedSystemNextEntry(lb'[i], lb'[i+1], ltrace'[i])} | 0 <= i < |ltrace'|
+            ensures ExtendedSystemNextEntry(lb'[i], lb'[i+1], ltrace'[i]);
         {
             var j := i + first_entry_pos;
-            assert SystemNextEntry(lb[j], lb[j+1], ltrace[j]);
+            assert ExtendedSystemNextEntry(lb[j], lb[j+1], ltrace[j]);
         }
 
-        assert IsValidSystemTraceAndBehaviorSlice(GetRootEntries(tree.children[..left_mover_pos]) + other_actor_entries, lb[first_entry_pos..]);
+        assert IsValidExtendedSystemTraceAndBehaviorSlice(GetRootEntries(tree.children[..left_mover_pos]) + other_actor_entries, lb[first_entry_pos..]);
         var entry := GetRootEntry(tree.children[left_mover_pos]);
-        var ls' :| SystemNextEntry(last(lb'), ls', entry);
+        var ls' :| ExtendedSystemNextEntry(last(lb'), ls', entry);
         var mtrace := ltrace + [entry];
         var mb := lb + [ls'];
 
-        assert IsValidSystemTraceAndBehavior(config, mtrace, mb);
+        assert IsValidExtendedSystemTraceAndBehaviorSlice(mtrace, mb);
+        assert TreeOnlyForActor(tree.children[left_mover_pos], actor);
+        assert forall mentry :: mentry in mtrace ==> IsValidActor(mentry.actor);
 
         var relation := GetSystemSystemRefinementRelation();
         var lm_map := ConvertMapToSeq(|lb|, map i | 0 <= i < |lb| ::
@@ -760,12 +796,12 @@ module ReductionMoveModule
             ensures RefinementPair(lb[i], mb[j]) in relation;
         {
             if i == j {
-                lemma_SystemStateCorrespondsToItself(lb[i]);
+                lemma_ExtendedSystemStateCorrespondsToItself(lb[i]);
             }
             else {
                 assert i == |lb| - 1;
                 assert j == |lb|;
-                lemma_SystemStatesConnectedByLeftMoverCorrespond(last(lb'), ls', entry);
+                lemma_ExtendedSystemStatesConnectedByLeftMoverCorrespond(last(lb'), ls', entry);
             }
         }
 

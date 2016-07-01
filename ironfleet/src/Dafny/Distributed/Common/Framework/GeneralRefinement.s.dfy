@@ -1,8 +1,17 @@
-include "../Common/Collections/Seqs.i.dfy"
+include "../Collections/Seqs.s.dfy"
 
 module GeneralRefinementModule {
 
-    import opened Collections__Seqs_i
+    import opened Collections__Seqs_s
+
+    datatype Spec<State> = Spec(init:iset<State>, next:iset<(State, State)>)
+
+    predicate BehaviorSatisfiesSpec<State>(b:seq<State>, sm:Spec<State>)
+    {
+           |b| > 0
+        && b[0] in sm.init
+        && (forall i {:trigger (b[i], b[i+1]) in sm.next} :: 0 <= i < |b|-1 ==> (b[i], b[i+1]) in sm.next)
+    }
 
     datatype RefinementRange = RefinementRange(first:int, last:int)
     type RefinementMap = seq<RefinementRange>
@@ -42,4 +51,23 @@ module GeneralRefinementModule {
     {
         exists lh_map :: BehaviorRefinesBehaviorUsingRefinementMap(lb, hb, relation, lh_map)
     }
+
+    predicate BehaviorRefinesSpec<L, H>(
+        lb:seq<L>,
+        spec:Spec<H>,
+        relation:RefinementRelation<L, H>
+        )
+    {
+        exists hb :: BehaviorRefinesBehavior(lb, hb, relation) && BehaviorSatisfiesSpec(hb, spec)
+    }
+
+    predicate SpecRefinesSpec<L, H>(
+        l_spec:Spec<L>,
+        h_spec:Spec<H>,
+        relation:RefinementRelation<L, H>
+        )
+    {
+        forall lb :: BehaviorSatisfiesSpec(lb, l_spec) ==> BehaviorRefinesSpec(lb, h_spec, relation)
+    }
+
 }

@@ -1,8 +1,8 @@
 include "AppStateMachine.s.dfy"
-include "AbstractService.s.dfy"
+include "Conversion.s.dfy"
 
 module AppStateMachine_i exclusively refines AppStateMachine_s {
-    import opened AbstractServiceRSL_s 
+    import opened ConversionModule
 
     type AppState = uint64
 

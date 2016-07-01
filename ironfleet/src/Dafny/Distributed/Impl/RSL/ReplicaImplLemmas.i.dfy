@@ -179,12 +179,12 @@ static lemma lemma_MapBroadcastToIosExtractSentPacketsFromIosEquivalence(broadca
     }
 }
 
-lemma lemma_UdpEventLogToBroadcast(udpEventLog:seq<UdpEvent>, broadcast:CBroadcast, index:int)
+lemma lemma_EventLogToBroadcast(udpEventLog:seq<Event>, broadcast:CBroadcast, index:int)
     requires CBroadcastIsValid(broadcast);
     requires broadcast.CBroadcast?;
     requires 0 <= index < |udpEventLog|;
     requires SendLogReflectsBroadcast(udpEventLog, broadcast);
-    ensures  udpEventLog[index].LIoOpSend?;
+    ensures  udpEventLog[index].UdpSendEvent?;
     ensures  UdpPacketIsAbstractable(udpEventLog[index].s);
     ensures  AbstractifyUdpPacketToRslPacket(udpEventLog[index].s) == AbstractifyCBroadcastToRlsPacketSeq(broadcast)[index];
 {
@@ -193,23 +193,23 @@ lemma lemma_UdpEventLogToBroadcast(udpEventLog:seq<UdpEvent>, broadcast:CBroadca
         SendLogReflectsBroadcast(udpEventLog, broadcast);
         SendLogReflectsBroadcastPrefix(udpEventLog, broadcast);
         SendLogMatchesRefinement(udpEventLog, broadcast, index);
-        udpEventLog[index].LIoOpSend? && UdpPacketIsAbstractable(udpEventLog[index].s)
+        udpEventLog[index].UdpSendEvent? && UdpPacketIsAbstractable(udpEventLog[index].s)
         && AbstractifyCBroadcastToRlsPacketSeq(broadcast)[index] == AbstractifyUdpPacketToRslPacket(udpEventLog[index].s);
     }
 }
 
-lemma lemma_UdpEventLogToBroadcastRefinable(udpEventLog:seq<UdpEvent>, broadcast:CBroadcast)
+lemma lemma_EventLogToBroadcastRefinable(udpEventLog:seq<Event>, broadcast:CBroadcast)
     requires CBroadcastIsValid(broadcast);
     requires SendLogReflectsBroadcast(udpEventLog, broadcast);
-    ensures  UdpEventLogIsAbstractable(udpEventLog);
+    ensures  EventLogIsAbstractable(udpEventLog);
 {
     if broadcast.CBroadcastNop? {
         assert udpEventLog == [];
     } else {
         forall i | 0 <= i < |udpEventLog|
-            ensures UdpEventIsAbstractable(udpEventLog[i]);
+            ensures EventIsAbstractable(udpEventLog[i]);
         {
-            lemma_UdpEventLogToBroadcast(udpEventLog, broadcast, i);
+            lemma_EventLogToBroadcast(udpEventLog, broadcast, i);
         }
     }
 }
@@ -265,11 +265,11 @@ static lemma lemma_IthElementOfPrepended<T>(s:seq<T>, s':seq<T>, x:T, i:int)
 static lemma {:timeLimitMultiplier 4} lemma_ReplicaNextProcessPacketWithoutReadingClockHelper(
     replica:ReplicaState, replica':ReplicaState, cpacket:CPacket, sent_packets:OutboundPackets,
     ios:seq<RslIo>, io0:RslIo, ios_head:seq<RslIo>, ios_tail:seq<RslIo>, 
-    udpEvent0:UdpEvent, log_head:seq<UdpEvent>, log_tail:seq<UdpEvent>, udpEventLog:seq<UdpEvent>)
+    udpEvent0:Event, log_head:seq<Event>, log_tail:seq<Event>, udpEventLog:seq<Event>)
     // From Receive:
-    requires udpEvent0.LIoOpReceive?;
+    requires udpEvent0.UdpReceiveEvent?;
     requires CPacketIsAbstractable(cpacket);
-    requires UdpEventIsAbstractable(udpEvent0);
+    requires EventIsAbstractable(udpEvent0);
     requires AbstractifyCPacketToRslPacket(cpacket) == AbstractifyUdpPacketToRslPacket(udpEvent0.r);
     requires io0 == LIoOpReceive(AbstractifyUdpPacketToRslPacket(udpEvent0.r));
 
@@ -303,21 +303,21 @@ static lemma {:timeLimitMultiplier 4} lemma_ReplicaNextProcessPacketWithoutReadi
     }
 
     forall i | 0<=i<|udpEventLog|
-        ensures UdpEventIsAbstractable(udpEventLog[i]);
-        ensures ios[i] == AbstractifyUdpEventToRslIo(udpEventLog[i]);
+        ensures EventIsAbstractable(udpEventLog[i]);
+        ensures ios[i] == AbstractifyEventToRslIo(udpEventLog[i]);
     {
         if (i==0) {
             assert udpEventLog[i]==udpEvent0;
-            assert UdpEventIsAbstractable(udpEventLog[i]);
-            assert ios[i] == AbstractifyUdpEventToRslIo(udpEventLog[i]);
+            assert EventIsAbstractable(udpEventLog[i]);
+            assert ios[i] == AbstractifyEventToRslIo(udpEventLog[i]);
         } else {
             lemma_IthElementOfPrepended(log_tail, udpEventLog, udpEvent0, i);
             assert udpEventLog[i]==log_tail[i-1];
-            assert UdpEventIsAbstractable(udpEventLog[i]);
-            assert ios[i] == AbstractifyUdpEventToRslIo(udpEventLog[i]);
+            assert EventIsAbstractable(udpEventLog[i]);
+            assert ios[i] == AbstractifyEventToRslIo(udpEventLog[i]);
         }
     }
-    assert UdpEventLogIsAbstractable(udpEventLog);
+    assert EventLogIsAbstractable(udpEventLog);
     assert AbstractifyRawLogToIos(udpEventLog) == ios;
 
     lemma_ExtractSentPacketsFromIosDoesNotMindSomeClutter(ios_head, ios_tail);
@@ -326,35 +326,35 @@ static lemma {:timeLimitMultiplier 4} lemma_ReplicaNextProcessPacketWithoutReadi
     assert RawIoConsistentWithSpecIO(udpEventLog, ios);
 }
     
-static lemma lemma_CombineAbstractifyUdpEventToRslIo(ios_head:seq<RslIo>, ios_tail:seq<RslIo>, ios:seq<RslIo>, log_head:seq<UdpEvent>, log_tail:seq<UdpEvent>, log:seq<UdpEvent>)
+static lemma lemma_CombineAbstractifyEventToRslIo(ios_head:seq<RslIo>, ios_tail:seq<RslIo>, ios:seq<RslIo>, log_head:seq<Event>, log_tail:seq<Event>, log:seq<Event>)
     requires |log_head| == |ios_head|;
     requires forall i :: 0<=i<|log_head|
-        ==> UdpEventIsAbstractable(log_head[i]) && ios_head[i] == AbstractifyUdpEventToRslIo(log_head[i]);
+        ==> EventIsAbstractable(log_head[i]) && ios_head[i] == AbstractifyEventToRslIo(log_head[i]);
     requires |log_tail| == |ios_tail|;
     requires forall i :: 0<=i<|log_tail|
-        ==> UdpEventIsAbstractable(log_tail[i]) && ios_tail[i] == AbstractifyUdpEventToRslIo(log_tail[i]);
+        ==> EventIsAbstractable(log_tail[i]) && ios_tail[i] == AbstractifyEventToRslIo(log_tail[i]);
     requires ios == ios_head+ios_tail;
     requires log == log_head+log_tail;
-    ensures forall i :: 0<=i<|log| ==> ios[i] == AbstractifyUdpEventToRslIo(log[i]);
+    ensures forall i :: 0<=i<|log| ==> ios[i] == AbstractifyEventToRslIo(log[i]);
 {
 }
 
-static lemma lemma_UdpEventLogIsAbstractableExtend(log_head:seq<UdpEvent>, log_tail:seq<UdpEvent>, log:seq<UdpEvent>)
+static lemma lemma_EventLogIsAbstractableExtend(log_head:seq<Event>, log_tail:seq<Event>, log:seq<Event>)
     requires log == log_head+log_tail;
-    requires UdpEventLogIsAbstractable(log_head);
-    requires UdpEventLogIsAbstractable(log_tail);
-    ensures UdpEventLogIsAbstractable(log);
+    requires EventLogIsAbstractable(log_head);
+    requires EventLogIsAbstractable(log_tail);
+    ensures EventLogIsAbstractable(log);
 {
 }
 
 static lemma lemma_ReplicaNoReceiveReadClockNextHelper(
     replica:ReplicaState, replica':ReplicaState, clock:CClockReading, sent_packets:OutboundPackets, nextActionIndex:int,
     ios:seq<RslIo>, io0:RslIo, ios_head:seq<RslIo>, ios_tail:seq<RslIo>, 
-    udpEvent0:UdpEvent, log_head:seq<UdpEvent>, log_tail:seq<UdpEvent>, udpEventLog:seq<UdpEvent>)
+    udpEvent0:Event, log_head:seq<Event>, log_tail:seq<Event>, udpEventLog:seq<Event>)
     // From ReadClock:
-    requires udpEvent0.LIoOpReadClock?;
-    requires int(clock.t) == udpEvent0.t;
-    requires UdpEventIsAbstractable(udpEvent0);
+    requires udpEvent0.ReadClockEvent?;
+    requires int(clock.t) == udpEvent0.time;
+    requires EventIsAbstractable(udpEvent0);
     requires io0 == LIoOpReadClock(int(clock.t));
 
     // From downcalls:
@@ -404,8 +404,8 @@ static lemma lemma_ReplicaNoReceiveReadClockNextHelper(
 //        }
 //        assert AllIosAreSends(ios);
 
-    assert io0 == AbstractifyUdpEventToRslIo(udpEvent0);
-    forall i | 0<=i<|log_head| ensures UdpEventIsAbstractable(log_head[i]) && ios_head[i] == AbstractifyUdpEventToRslIo(log_head[i]);
+    assert io0 == AbstractifyEventToRslIo(udpEvent0);
+    forall i | 0<=i<|log_head| ensures EventIsAbstractable(log_head[i]) && ios_head[i] == AbstractifyEventToRslIo(log_head[i]);
     {
         assert log_head[i] == udpEvent0;
         assert ios_head[i] == io0;
@@ -413,12 +413,12 @@ static lemma lemma_ReplicaNoReceiveReadClockNextHelper(
 
     lemma_ExtractSentPacketsFromIosDoesNotMindSomeClutter(ios_head, ios_tail);
     assert forall io :: io in ios[1..] ==> io.LIoOpSend?;   // OBSERVE trigger
-    ghost var log_head := [udpEvent0];
-    lemma_CombineAbstractifyUdpEventToRslIo(ios_head, ios_tail, ios, log_head, log_tail, udpEventLog);
+    ghost var log_head' := [udpEvent0];
+    lemma_CombineAbstractifyEventToRslIo(ios_head, ios_tail, ios, log_head', log_tail, udpEventLog);
 
     assert AbstractifyOutboundCPacketsToSeqOfRslPackets(sent_packets) == ExtractSentPacketsFromIos(ios);
-    lemma_UdpEventLogIsAbstractableExtend(log_head, log_tail, udpEventLog);
-    assert UdpEventLogIsAbstractable(udpEventLog);
+    lemma_EventLogIsAbstractableExtend(log_head', log_tail, udpEventLog);
+    assert EventLogIsAbstractable(udpEventLog);
     lemma_EstablishAbstractifyRawLogToIos(udpEventLog, ios);
     assert AbstractifyRawLogToIos(udpEventLog) == ios;
     assert RawIoConsistentWithSpecIO(udpEventLog, ios);

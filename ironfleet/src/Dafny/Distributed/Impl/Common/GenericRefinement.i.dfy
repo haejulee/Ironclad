@@ -37,7 +37,7 @@ function {:opaque} AbstractifyMap<CKT,CVT,KT,VT>(m:map<CKT,CVT>, RefineKey:CKT->
     requires forall ck :: ck in m ==> ReverseKey.requires(RefineKey(ck)) && ReverseKey(RefineKey(ck)) == ck;
 {
     var new_domain := set ck | ck in m :: RefineKey(ck);
-    map k | k in new_domain :: RefineValue(m[ReverseKey(k)])
+    map k {:trigger RefineValue(m[ReverseKey(k)])} | k in new_domain :: RefineValue(m[ReverseKey(k)])
 }
 
 lemma Lemma_AbstractifyMap_basic_properties<CKT,CVT,KT,VT>(m:map<CKT,CVT>, RefineKey:CKT->KT, RefineValue:CVT->VT, ReverseKey:KT->CKT)

@@ -368,7 +368,7 @@ predicate LSchedulerNext(s:LScheduler, s':LScheduler, ios:seq<RslIo>)
 {
        s'.nextActionIndex == (s.nextActionIndex + 1) % LReplicaNumActions()
     && if s.nextActionIndex == 0 then
-          LReplicaNextProcessPacket(s.replica, s'.replica, ios)
+           LReplicaNextProcessPacket(s.replica, s'.replica, ios)
        else
            LReplicaNoReceiveNext(s.replica, s.nextActionIndex, s'.replica, ios)
 }

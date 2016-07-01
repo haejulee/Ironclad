@@ -24,15 +24,15 @@ import opened LiveRSL__UdpRSL_i
 import opened LiveRSL__CClockReading_i
 import opened LiveRSL__Unsendable_i
 
-    method ReplicaNextProcessPacketTimeout(r:ReplicaImpl, ghost old_udp_history:seq<UdpEvent>, ghost timeout_event:UdpEvent)
-        returns (ghost udpEventLog:seq<UdpEvent>, ghost ios:seq<RslIo>)
+    method ReplicaNextProcessPacketTimeout(r:ReplicaImpl, ghost old_udp_history:seq<Event>, ghost timeout_event:Event)
+        returns (ghost udpEventLog:seq<Event>, ghost ios:seq<RslIo>)
         requires r != null;
         requires r.Valid();
-        requires r.Env().udp.history() == old_udp_history + [ timeout_event ];
-        requires timeout_event.LIoOpTimeoutReceive?;
+        requires r.Env().events.history() == old_udp_history + [ timeout_event ];
+        requires timeout_event.UdpTimeoutReceiveEvent?;
         ensures  Q_LReplica_Next_ProcessPacket(old(r.AbstractifyToLReplica()), r.AbstractifyToLReplica(), ios);
         ensures  RawIoConsistentWithSpecIO(udpEventLog, ios);
-        ensures  old_udp_history + udpEventLog == r.Env().udp.history();
+        ensures  old_udp_history + udpEventLog == r.Env().events.history();
         ensures  OnlySentMarshallableData(udpEventLog);
     {
         ios := [ LIoOpTimeoutReceive() ];
@@ -42,16 +42,16 @@ import opened LiveRSL__Unsendable_i
 
     method ReplicaNextProcessPacketUnmarshallable(
         r:ReplicaImpl,
-        ghost old_udp_history:seq<UdpEvent>,
+        ghost old_udp_history:seq<Event>,
         rr:ReceiveResult,
-        ghost receive_event:UdpEvent
+        ghost receive_event:Event
         )
-        returns (ghost udpEventLog:seq<UdpEvent>, ghost ios:seq<RslIo>)
+        returns (ghost udpEventLog:seq<Event>, ghost ios:seq<RslIo>)
         requires r != null;
         requires r.Valid();
-        requires r.Env().udp.history() == old_udp_history + [receive_event];
+        requires r.Env().events.history() == old_udp_history + [receive_event];
         requires rr.RRPacket?;
-        requires receive_event.LIoOpReceive?;
+        requires receive_event.UdpReceiveEvent?;
         requires !Marshallable(rr.cpacket.msg);
         requires UdpPacketIsAbstractable(receive_event.r);
         requires CPacketIsAbstractable(rr.cpacket);
@@ -60,7 +60,7 @@ import opened LiveRSL__Unsendable_i
         requires rr.cpacket.msg == PaxosDemarshallData(receive_event.r.msg);
         ensures  IosReflectIgnoringUnsendable(udpEventLog);
         ensures  RawIoConsistentWithSpecIO(udpEventLog, ios);
-        ensures  old_udp_history + udpEventLog == r.Env().udp.history();
+        ensures  old_udp_history + udpEventLog == r.Env().events.history();
         ensures  OnlySentMarshallableData(udpEventLog);
     {
         ghost var receive_io := LIoOpReceive(AbstractifyUdpPacketToRslPacket(receive_event.r));
@@ -70,16 +70,16 @@ import opened LiveRSL__Unsendable_i
 
     method ReplicaNextProcessPacketHeartbeat(
         r:ReplicaImpl,
-        ghost old_udp_history:seq<UdpEvent>,
+        ghost old_udp_history:seq<Event>,
         rr:ReceiveResult,
-        ghost receive_event:UdpEvent
+        ghost receive_event:Event
         )
-        returns (ok:bool, ghost udpEventLog:seq<UdpEvent>, ghost ios:seq<RslIo>)
+        returns (ok:bool, ghost udpEventLog:seq<Event>, ghost ios:seq<RslIo>)
         requires r != null;
         requires r.Valid();
-        requires r.Env().udp.history() == old_udp_history + [receive_event];
+        requires r.Env().events.history() == old_udp_history + [receive_event];
         requires rr.RRPacket?;
-        requires receive_event.LIoOpReceive?;
+        requires receive_event.UdpReceiveEvent?;
         requires rr.cpacket.msg.CMessage_Heartbeat?;
         requires UdpPacketIsAbstractable(receive_event.r);
         requires CPacketIsSendable(rr.cpacket);
@@ -96,7 +96,7 @@ import opened LiveRSL__Unsendable_i
             && Q_LReplica_Next_ProcessPacket(old(r.AbstractifyToLReplica()), r.AbstractifyToLReplica(), ios)
             && RawIoConsistentWithSpecIO(udpEventLog, ios)
             && OnlySentMarshallableData(udpEventLog)
-            && old_udp_history + udpEventLog == r.Env().udp.history());
+            && old_udp_history + udpEventLog == r.Env().events.history());
     {
         ok := true;
         //var process_start_time := Time.GetDebugTimeTicks();
@@ -118,16 +118,16 @@ import opened LiveRSL__Unsendable_i
     
     method ReplicaNextProcessPacketNonHeartbeat(
         r:ReplicaImpl,
-        ghost old_udp_history:seq<UdpEvent>,
+        ghost old_udp_history:seq<Event>,
         rr:ReceiveResult,
-        ghost receive_event:UdpEvent
+        ghost receive_event:Event
         )
-        returns (ok:bool, ghost udpEventLog:seq<UdpEvent>, ghost ios:seq<RslIo>)
+        returns (ok:bool, ghost udpEventLog:seq<Event>, ghost ios:seq<RslIo>)
         requires r != null;
         requires r.Valid();
-        requires r.Env().udp.history() == old_udp_history + [receive_event];
+        requires r.Env().events.history() == old_udp_history + [receive_event];
         requires rr.RRPacket?;
-        requires receive_event.LIoOpReceive?;
+        requires receive_event.UdpReceiveEvent?;
         requires !rr.cpacket.msg.CMessage_Heartbeat?;
         requires UdpPacketIsAbstractable(receive_event.r);
         requires CPacketIsSendable(rr.cpacket);
@@ -144,7 +144,7 @@ import opened LiveRSL__Unsendable_i
             && Q_LReplica_Next_ProcessPacket(old(r.AbstractifyToLReplica()), r.AbstractifyToLReplica(), ios)
             && RawIoConsistentWithSpecIO(udpEventLog, ios)
             && OnlySentMarshallableData(udpEventLog)
-            && old_udp_history + udpEventLog == r.Env().udp.history());
+            && old_udp_history + udpEventLog == r.Env().events.history());
     {
         ok := true;
         //var process_start_time := Time.GetDebugTimeTicks();
@@ -164,7 +164,7 @@ import opened LiveRSL__Unsendable_i
     }
 
     method Replica_Next_ProcessPacketX(r:ReplicaImpl)
-        returns (ok:bool, ghost udpEventLog:seq<UdpEvent>, ghost ios:seq<RslIo>)
+        returns (ok:bool, ghost udpEventLog:seq<Event>, ghost ios:seq<RslIo>)
         requires r != null;
         requires r.Valid();
         modifies r.Repr, r.cur_req_set, r.prev_req_set, r.reply_cache_mutable;
@@ -180,9 +180,9 @@ import opened LiveRSL__Unsendable_i
                     && old(r.AbstractifyToLReplica()) == r.AbstractifyToLReplica()))
             && RawIoConsistentWithSpecIO(udpEventLog, ios)
             && OnlySentMarshallableData(udpEventLog)
-            && old(r.Env().udp.history()) + udpEventLog == r.Env().udp.history());
+            && old(r.Env().events.history()) + udpEventLog == r.Env().events.history());
     {
-        ghost var old_udp_history := r.Env().udp.history();
+        ghost var old_udp_history := r.Env().events.history();
         //var start_time := Time.GetDebugTimeTicks();
         var rr;
         ghost var receive_event;

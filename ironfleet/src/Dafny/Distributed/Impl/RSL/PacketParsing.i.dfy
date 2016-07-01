@@ -1502,19 +1502,19 @@ predicate BufferRefinementAgreesWithMessageRefinement(msg:CMessage, marshalled:s
             == LPacket(AbstractifyEndPointToNodeIdentity(dst), AbstractifyEndPointToNodeIdentity(src), AbstractifyCMessageToRslMessage(msg)))
 }
 
-function AbstractifyUdpPacketToRslPacket(udp:UdpPacket) : RslPacket
+function AbstractifyUdpPacketToRslPacket(udp:Packet) : RslPacket
     requires UdpPacketIsAbstractable(udp);
 {
     AbstractifyBufferToRslPacket(udp.src, udp.dst, udp.msg)
 }
 
-predicate UdpPacketIsAbstractable(udp:UdpPacket)
+predicate UdpPacketIsAbstractable(udp:Packet)
 {
       EndPointIsValidIPV4(udp.src)
     && EndPointIsValidIPV4(udp.dst)
 }
 
-predicate UdpPacketsIsAbstractable(udpps:set<UdpPacket>)
+predicate UdpPacketsIsAbstractable(udpps:set<Packet>)
 {
     forall p :: p in udpps ==> UdpPacketIsAbstractable(p)
 }

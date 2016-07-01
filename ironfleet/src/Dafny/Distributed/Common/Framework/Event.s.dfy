@@ -45,7 +45,7 @@ module EventModule {
                      MakeLockEvent          (new_lock:Lock)
                    | LockEvent              (lock:Lock)
                    | UnlockEvent            (unlock:Lock)
-                   | AssumeHeapEvent        (assumption:iset<SharedHeap>)
+                   | AssumeHeapEvent        (assumption:set<SharedHeap>)
                    | MakePtrEvent           (ptr_make:Ptr<U>,    initial_ptr_value:U)
                    | ReadPtrEvent           (ptr_read:Ptr<U>,    read_value:U)
                    | WritePtrEvent          (ptr_write:Ptr<U>,   write_value:U)

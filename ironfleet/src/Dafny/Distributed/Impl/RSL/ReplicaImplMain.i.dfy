@@ -38,7 +38,7 @@ import opened LiveRSL__CClockReading_i
     }
 
     method {:timeLimitMultiplier 2} ReplicaNextMainProcessPacketX(r:ReplicaImpl)
-        returns (ok:bool, ghost udpEventLog:seq<UdpEvent>, ghost ios:seq<RslIo>)
+        returns (ok:bool, ghost udpEventLog:seq<Event>, ghost ios:seq<RslIo>)
         requires r != null;
         requires r.Valid();
         requires r.nextActionIndex == 0;
@@ -52,7 +52,7 @@ import opened LiveRSL__CClockReading_i
                 || HostNextIgnoreUnsendable(old(r.AbstractifyToLScheduler()), r.AbstractifyToLScheduler(), udpEventLog))
             && RawIoConsistentWithSpecIO(udpEventLog, ios)
             && OnlySentMarshallableData(udpEventLog)
-            && old(r.Env().udp.history()) + udpEventLog == r.Env().udp.history()
+            && old(r.Env().events.history()) + udpEventLog == r.Env().events.history()
             );
     {
         ghost var replica_old := old(r.AbstractifyToLReplica());
@@ -104,7 +104,7 @@ import opened LiveRSL__CClockReading_i
     }
 
     method ReplicaNextMainNoClock(r:ReplicaImpl)
-        returns (ok:bool, ghost udpEventLog:seq<UdpEvent>, ghost ios:seq<RslIo>)
+        returns (ok:bool, ghost udpEventLog:seq<Event>, ghost ios:seq<RslIo>)
         requires r != null;
         requires r.Valid();
         requires r.nextActionIndex == 1 || r.nextActionIndex == 2 || r.nextActionIndex == 4 || r.nextActionIndex == 5 || r.nextActionIndex == 6;
@@ -117,7 +117,7 @@ import opened LiveRSL__CClockReading_i
             && Q_LScheduler_Next(old(r.AbstractifyToLScheduler()), r.AbstractifyToLScheduler(), ios)
             && RawIoConsistentWithSpecIO(udpEventLog, ios)
             && OnlySentMarshallableData(udpEventLog)
-            && old(r.Env().udp.history()) + udpEventLog == r.Env().udp.history()
+            && old(r.Env().events.history()) + udpEventLog == r.Env().events.history()
             );
     {
         var curActionIndex := r.nextActionIndex;
@@ -162,7 +162,7 @@ import opened LiveRSL__CClockReading_i
     }
 
     method ReplicaNextMainReadClock(r:ReplicaImpl)
-        returns (ok:bool, ghost udpEventLog:seq<UdpEvent>, ghost ios:seq<RslIo>)
+        returns (ok:bool, ghost udpEventLog:seq<Event>, ghost ios:seq<RslIo>)
         requires r != null;
         requires r.Valid();
         requires r.nextActionIndex == 3 || r.nextActionIndex == 7 || r.nextActionIndex == 8 || r.nextActionIndex == 9;
@@ -175,7 +175,7 @@ import opened LiveRSL__CClockReading_i
             && Q_LScheduler_Next(old(r.AbstractifyToLScheduler()), r.AbstractifyToLScheduler(), ios)
             && RawIoConsistentWithSpecIO(udpEventLog, ios)
             && OnlySentMarshallableData(udpEventLog)
-            && old(r.Env().udp.history()) + udpEventLog == r.Env().udp.history()
+            && old(r.Env().events.history()) + udpEventLog == r.Env().events.history()
             );
     {
         var curActionIndex := r.nextActionIndex;
@@ -219,7 +219,7 @@ import opened LiveRSL__CClockReading_i
     }
 
     method Replica_Next_main(r:ReplicaImpl)
-        returns (ok:bool, ghost udpEventLog:seq<UdpEvent>, ghost ios:seq<RslIo>)
+        returns (ok:bool, ghost udpEventLog:seq<Event>, ghost ios:seq<RslIo>)
         requires r != null;
         requires r.Valid();
         modifies r.Repr, r.cur_req_set, r.prev_req_set, r.reply_cache_mutable;
@@ -232,7 +232,7 @@ import opened LiveRSL__CClockReading_i
                 || HostNextIgnoreUnsendable(old(r.AbstractifyToLScheduler()), r.AbstractifyToLScheduler(), udpEventLog))
             && RawIoConsistentWithSpecIO(udpEventLog, ios)
             && OnlySentMarshallableData(udpEventLog)
-            && old(r.Env().udp.history()) + udpEventLog == r.Env().udp.history()
+            && old(r.Env().events.history()) + udpEventLog == r.Env().events.history()
             );
     {
         //print ("Replica_Next_main Enter\n");

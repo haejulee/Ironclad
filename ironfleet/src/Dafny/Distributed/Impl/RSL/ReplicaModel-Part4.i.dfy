@@ -45,7 +45,7 @@ method Replica_Next_Process_AppStateRequest(
     assert LReplicaNextProcessAppStateRequest(s, s', received_packet, sent_packets);
 }
 
-method Replica_Next_Process_Heartbeat(
+method {:timeLimitMultiplier 2} Replica_Next_Process_Heartbeat(
     replica:ReplicaState,
     inp:CPacket,
     clock:uint64,

@@ -1,81 +1,78 @@
-include "../../Common/Native/Io.s.dfy"
-//include "Host.s.dfy"
-include "DistributedSystem.s.dfy"
-include "AbstractService.s.dfy"
 include "../Collections/Seqs.s.dfy"
+include "AbstractService.s.dfy"
 
 abstract module Main_s {
-    //import opened Host as Host_s
-    import opened DistributedSystem_s
-    import opened AbstractService_s
     import opened Collections__Seqs_s
+    import opened AbstractServiceModule
 
     method Main(ghost env:HostEnvironment) returns (exitCode:int)
         requires env != null && env.Valid() && env.ok.ok();
-        requires env.udp.history() == [];
+        requires env.events.history() == [];
         requires |env.constants.CommandLineArgs()| >= 2;
-        modifies set x:object | true;     // Everything!
+        modifies set x:object {:trigger x != x} | true || x != x;     // Everything!
         decreases *;
     {
 
         var ok, host_state, config, servers, clients, id := HostInitImpl(env);
-        assert ok ==> HostInit(host_state, config, id);
+        assert ok ==> HostInit(AbstractifyHostState(host_state), config, id);
 
         while (ok) 
             invariant ok ==> HostStateInvariants(host_state, env);
             invariant ok ==> env != null && env.Valid() && env.ok.ok();
             decreases *;
         {
-            ghost var old_udp_history := env.udp.history();
+            ghost var old_udp_history := env.events.history();
             ghost var old_state := host_state;
+            ghost var ios;
 
-            ghost var recvs, clocks, sends, ios;
-            ok, host_state, recvs, clocks, sends, ios := HostNextImpl(env, host_state);
+            ok, host_state, ios := HostNextImpl(env, host_state);
 
             if ok {
                 // Correctly executed one action
-                assert HostNext(old_state, host_state, ios);
+                assert HostNext(AbstractifyHostState(old_state), AbstractifyHostState(host_state), ios);
 
-                // Connect the low-level IO events to the spec-level IO events
-                assert recvs + clocks + sends == ios;
-
-                // These obligations enable us to apply reduction
-                assert env.udp.history() == old_udp_history + recvs + clocks + sends;
-                assert forall e :: (e in recvs ==> e.LIoOpReceive?) 
-                                && (e in clocks ==> e.LIoOpReadClock? || e.LIoOpTimeoutReceive?) 
-                                && (e in sends ==> e.LIoOpSend?);
-                assert |clocks| <= 1;
+                assert env.events.history() == old_udp_history + ios;
             }
         }
     }
 
-    lemma RefinementProof(config:ConcreteConfiguration, db:seq<DS_State>) returns (sb:seq<ServiceState>)
-        requires |db| > 0;
-        requires DS_Init(db[0], config);
-        requires forall i {:trigger DS_Next(db[i], db[i+1])} :: 0 <= i < |db| - 1 ==> DS_Next(db[i], db[i+1]);
-        ensures  |db| == |sb|;
-        ensures  Service_Init(sb[0], Collections__Maps2_s.mapdomain(db[0].servers));
-        ensures  forall i {:trigger Service_Next(sb[i], sb[i+1])} :: 0 <= i < |sb| - 1 ==> sb[i] == sb[i+1] || Service_Next(sb[i], sb[i+1]);
-        ensures  forall i :: 0 <= i < |db| ==> Service_Correspondence(db[i].environment.nextStep, sb[i]);
+    datatype HostHistory = HostHistory(states:seq<AbstractHostState>, event_seqs:seq<seq<Event>>)
 
-    /*
-    lemma UltimateRefinementProof(config:ConcreteConfiguration, qb:seq<QS_State>) returns (sb:seq<ServiceState>)
-        requires |db| > 0;
-        requires QS_Init(qb[0], config);
-        requires forall i {:trigger QS_Next(qb[i], qb[i+1])} :: 0 <= i < |qb| - 1 ==> QS_Next(qb[i], qb[i+1]);
-        ensures  |qb| == |sb|;
-        ensures  Service_Init(sb[0], Collections__Maps2_s.mapdomain(qb[0].servers));
-        ensures  forall i {:trigger Service_Next(sb[i], sb[i+1])} :: 0 <= i < |sb| - 1 ==> sb[i] == sb[i+1] || Service_Next(sb[i], sb[i+1]);
-        ensures  forall i :: 0 <= i < |qb| ==> Service_Correspondence(qb[i].environment.sentPackets, sb[i]);
+    predicate IsValidHostHistory(config:ConcreteConfiguration, h:HostHistory, actor:Actor)
+    {
+          |h.states| == |h.event_seqs| + 1
+        && HostInit(h.states[0], config, actor)
+        && forall i {:trigger h.event_seqs[i]} :: 0 <= i < |h.event_seqs| ==> HostNext(h.states[i], h.states[i+1], h.event_seqs[i])
+    }
 
-    lemma SecondStepRefinementProof(config:ConcreteConfiguration, db:seq<DS_State>) returns (sb:seq<ServiceState>, cm:seq<int>)
-        requires |db| > 0;
-        requires DS_Init(db[0], config);
-        requires forall i {:trigger DS_Next(db[i], db[i+1])} :: 0 <= i < |db| - 1 ==> DS_Next(db[i], db[i+1]);
-        ensures  |db| == |sb|;
-        ensures  Service_Init(sb[0], Collections__Maps2_s.mapdomain(db[0].servers));
-        ensures  forall i {:trigger Service_Next(sb[i], sb[i+1])} :: 0 <= i < |sb| - 1 ==> sb[i] == sb[i+1] || Service_Next(sb[i], sb[i+1]);
-        ensures  forall i :: 0 <= i < |db| ==> Service_Correspondence(db[i].environment.sentPackets, sb[cm[i]]);
-        */
+    function ConcatenateEventSequences(event_seqs:seq<seq<Event>>) : seq<Event>
+    {
+        if |event_seqs| == 0 then [] else event_seqs[0] + ConcatenateEventSequences(event_seqs[1..])
+    }
 
+    function EventSequenceToTrace(events:seq<Event>, actor:Actor) : RealTrace
+        ensures |EventSequenceToTrace(events, actor)| == |events|;
+        ensures forall i {:trigger EventSequenceToTrace(events, actor)[i]} :: 0 <= i < |events| ==>
+                    EventSequenceToTrace(events, actor)[i] == Entry(actor, RealActionEvent(events[i]));
+    {
+        if |events| == 0 then [] else [Entry(actor, RealActionEvent(events[0]))] + EventSequenceToTrace(events[1..], actor)
+    }
+
+    lemma RefinementProof(
+        config:ConcreteConfiguration,
+        trace:RealTrace,
+        host_histories:map<Actor, HostHistory>,
+        rb:seq<RealSystemState>
+        )
+        requires ConcreteConfigurationInvariants(config);
+        requires IsValidSystemTraceAndBehavior(config, trace, rb);
+        requires forall entry :: entry in trace ==> IsValidActor(entry.actor);
+        requires forall actor :: actor in TrackedActorsInConfig(config) ==>
+                        IsValidActor(actor)
+                     && !actor.NoActor?
+                     && actor in host_histories
+                     && IsValidHostHistory(config, host_histories[actor], actor)
+                     && EventSequenceToTrace(ConcatenateEventSequences(host_histories[actor].event_seqs), actor) ==
+                        RestrictTraceToActor(trace, actor);
+        ensures  BehaviorRefinesSpec(rb, GetSpec(config), GetRealSystemSpecRefinementRelation());
 }

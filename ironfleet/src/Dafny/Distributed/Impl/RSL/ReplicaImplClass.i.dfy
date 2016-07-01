@@ -124,17 +124,17 @@ class ReplicaImpl
         }
     }
 
-    predicate ReceivedPacketProperties(cpacket:CPacket, udpEvent0:UdpEvent, io0:RslIo)
+    predicate ReceivedPacketProperties(cpacket:CPacket, udpEvent0:Event, io0:RslIo)
         reads this;
         requires CPaxosConfigurationIsValid(replica.constants.all.config);
     {
            CPacketIsSendable(cpacket)
         && PaxosEndPointIsValid(cpacket.src, replica.constants.all.config)
         && io0.LIoOpReceive?
-        && UdpEventIsAbstractable(udpEvent0)
-        && io0 == AbstractifyUdpEventToRslIo(udpEvent0)
-        && UdpEventIsAbstractable(udpEvent0)
-        && udpEvent0.LIoOpReceive? && AbstractifyCPacketToRslPacket(cpacket) == AbstractifyUdpPacketToRslPacket(udpEvent0.r)
+        && EventIsAbstractable(udpEvent0)
+        && io0 == AbstractifyEventToRslIo(udpEvent0)
+        && EventIsAbstractable(udpEvent0)
+        && udpEvent0.UdpReceiveEvent? && AbstractifyCPacketToRslPacket(cpacket) == AbstractifyUdpPacketToRslPacket(udpEvent0.r)
     }
 }
 

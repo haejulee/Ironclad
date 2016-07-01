@@ -21,17 +21,17 @@ import opened LiveRSL__UdpRSL_i
 import opened LiveRSL__CClockReading_i
 
     lemma lemma_ReplicaNoReceiveReadClockNextHelper2(
-        oldHistory:seq<UdpEvent>,
-        preDeliveryHistory:seq<UdpEvent>,
-        finalHistory:seq<UdpEvent>,
-        log_head:seq<UdpEvent>,
-        log_tail:seq<UdpEvent>,
-        log_head_and_tail:seq<UdpEvent>
+        oldHistory:seq<Event>,
+        preDeliveryHistory:seq<Event>,
+        finalHistory:seq<Event>,
+        log_head:seq<Event>,
+        log_tail:seq<Event>,
+        log_head_and_tail:seq<Event>
         )
         requires preDeliveryHistory == oldHistory + log_head;
         requires finalHistory == preDeliveryHistory + log_tail;
         requires log_head_and_tail == log_head + log_tail;
-        requires forall io :: io in log_head ==> !io.LIoOpSend?;
+        requires forall io :: io in log_head ==> !io.UdpSendEvent?;
         requires OnlySentMarshallableData(log_tail);
         ensures  finalHistory == oldHistory + log_head_and_tail;
         ensures  OnlySentMarshallableData(log_head_and_tail);
@@ -55,7 +55,7 @@ import opened LiveRSL__CClockReading_i
     method {:fuel ReplicaStateIsValid,0,0}{:timeLimitMultiplier 3} ReplicaNoReceiveReadClockNextMaybeNominateValueAndSend2a(r:ReplicaImpl)
         returns
         (ok:bool,
-         ghost udpEventLog:seq<UdpEvent>,
+         ghost udpEventLog:seq<Event>,
          ghost ios:seq<RslIo>)
         requires r != null;
         requires r.nextActionIndex == 3;
@@ -71,7 +71,7 @@ import opened LiveRSL__CClockReading_i
             && Q_LReplica_NoReceive_Next(old(r.AbstractifyToLReplica()), int(r.nextActionIndex), r.AbstractifyToLReplica(), ios)
             && OnlySentMarshallableData(udpEventLog)
             && RawIoConsistentWithSpecIO(udpEventLog, ios)
-            && old(r.Env().udp.history()) + udpEventLog == r.Env().udp.history());
+            && old(r.Env().events.history()) + udpEventLog == r.Env().events.history());
     {
         ghost var replica_old := r.replica;
         var clock,udpEvent0 := ReadClock(r.udpClient);
@@ -82,7 +82,7 @@ import opened LiveRSL__CClockReading_i
         lemma_RevealQFromReplicaNextMaybeNominateValueAndSend2aPostconditions(replica_old, r.replica, clock, sent_packets);
 
         assert r.Valid();
-        ghost var preDeliveryHistory := r.Env().udp.history();
+        ghost var preDeliveryHistory := r.Env().events.history();
         ghost var log_tail, ios_tail;
         ok, log_tail, ios_tail := DeliverOutboundPackets(r, sent_packets);
         if (!ok) { return; }
@@ -92,7 +92,7 @@ import opened LiveRSL__CClockReading_i
         ios := ios_head + ios_tail;
         udpEventLog := log_head + log_tail;
 
-        lemma_ReplicaNoReceiveReadClockNextHelper2(old(r.Env().udp.history()), preDeliveryHistory, r.Env().udp.history(),
+        lemma_ReplicaNoReceiveReadClockNextHelper2(old(r.Env().events.history()), preDeliveryHistory, r.Env().events.history(),
                                                    log_head, log_tail, udpEventLog);
         lemma_ReplicaNoReceiveReadClockNextHelper(
             old(r.replica), r.replica, clock, sent_packets, int(r.nextActionIndex),
@@ -117,7 +117,7 @@ import opened LiveRSL__CClockReading_i
     method {:fuel ReplicaStateIsValid,0,0}{:timeLimitMultiplier 4} ReplicaNoReceiveReadClockNextCheckForViewTimeout(r:ReplicaImpl)
         returns
         (ok:bool,
-         ghost udpEventLog:seq<UdpEvent>,
+         ghost udpEventLog:seq<Event>,
          ghost ios:seq<RslIo>)
         requires r != null;
         requires r.nextActionIndex == 7;
@@ -133,7 +133,7 @@ import opened LiveRSL__CClockReading_i
             && Q_LReplica_NoReceive_Next(old(r.AbstractifyToLReplica()), int(r.nextActionIndex), r.AbstractifyToLReplica(), ios)
             && OnlySentMarshallableData(udpEventLog)
             && RawIoConsistentWithSpecIO(udpEventLog, ios)
-            && old(r.Env().udp.history()) + udpEventLog == r.Env().udp.history());
+            && old(r.Env().events.history()) + udpEventLog == r.Env().events.history());
     {
         ghost var replica_old := r.replica;
         var clock,udpEvent0 := ReadClock(r.udpClient);
@@ -144,7 +144,7 @@ import opened LiveRSL__CClockReading_i
         lemma_RevealQFromReplicaNextCheckForViewTimeoutPostconditions(replica_old, r.replica, clock, sent_packets);
 
         assert r.Valid();
-        ghost var preDeliveryHistory := r.Env().udp.history();
+        ghost var preDeliveryHistory := r.Env().events.history();
         ghost var log_tail, ios_tail;
         ok, log_tail, ios_tail := DeliverOutboundPackets(r, sent_packets);
         if (!ok) { return; }
@@ -154,7 +154,7 @@ import opened LiveRSL__CClockReading_i
         ios := ios_head + ios_tail;
         udpEventLog := log_head + log_tail;
 
-        lemma_ReplicaNoReceiveReadClockNextHelper2(old(r.Env().udp.history()), preDeliveryHistory, r.Env().udp.history(),
+        lemma_ReplicaNoReceiveReadClockNextHelper2(old(r.Env().events.history()), preDeliveryHistory, r.Env().events.history(),
                                                    log_head, log_tail, udpEventLog);
         lemma_ReplicaNoReceiveReadClockNextHelper(
             old(r.replica), r.replica, clock, sent_packets, int(r.nextActionIndex),
@@ -179,7 +179,7 @@ import opened LiveRSL__CClockReading_i
     method {:fuel ReplicaStateIsValid,0,0}{:timeLimitMultiplier 10} ReplicaNoReceiveReadClockNextCheckForQuorumOfViewSuspicions(r:ReplicaImpl)
         returns
         (ok:bool,
-         ghost udpEventLog:seq<UdpEvent>,
+         ghost udpEventLog:seq<Event>,
          ghost ios:seq<RslIo>)
         requires r != null;
         requires r.nextActionIndex == 8;
@@ -195,7 +195,7 @@ import opened LiveRSL__CClockReading_i
             && Q_LReplica_NoReceive_Next(old(r.AbstractifyToLReplica()), int(r.nextActionIndex), r.AbstractifyToLReplica(), ios)
             && OnlySentMarshallableData(udpEventLog)
             && RawIoConsistentWithSpecIO(udpEventLog, ios)
-            && old(r.Env().udp.history()) + udpEventLog == r.Env().udp.history());
+            && old(r.Env().events.history()) + udpEventLog == r.Env().events.history());
     {
         ghost var replica_old := r.replica;
         var clock,udpEvent0 := ReadClock(r.udpClient);
@@ -206,7 +206,7 @@ import opened LiveRSL__CClockReading_i
         lemma_RevealQFromReplicaNextCheckForQuorumOfViewSuspicionsPostconditions(replica_old, r.replica, clock, sent_packets);
         
         assert r.Valid();
-        ghost var preDeliveryHistory := r.Env().udp.history();
+        ghost var preDeliveryHistory := r.Env().events.history();
         ghost var log_tail, ios_tail;
         ok, log_tail, ios_tail := DeliverOutboundPackets(r, sent_packets);
         if (!ok) { return; }
@@ -216,7 +216,7 @@ import opened LiveRSL__CClockReading_i
         ios := ios_head + ios_tail;
         udpEventLog := log_head + log_tail;
 
-        lemma_ReplicaNoReceiveReadClockNextHelper2(old(r.Env().udp.history()), preDeliveryHistory, r.Env().udp.history(),
+        lemma_ReplicaNoReceiveReadClockNextHelper2(old(r.Env().events.history()), preDeliveryHistory, r.Env().events.history(),
                                                    log_head, log_tail, udpEventLog);
         lemma_ReplicaNoReceiveReadClockNextHelper(
             old(r.replica), r.replica, clock, sent_packets, int(r.nextActionIndex),
@@ -241,7 +241,7 @@ import opened LiveRSL__CClockReading_i
     method {:fuel ReplicaStateIsValid,0,0}{:timeLimitMultiplier 3} ReplicaNoReceiveReadClockNextMaybeSendHeartbat(r:ReplicaImpl)
         returns
         (ok:bool,
-         ghost udpEventLog:seq<UdpEvent>,
+         ghost udpEventLog:seq<Event>,
          ghost ios:seq<RslIo>)
         requires r != null;
         requires r.nextActionIndex == 9;
@@ -257,7 +257,7 @@ import opened LiveRSL__CClockReading_i
             && Q_LReplica_NoReceive_Next(old(r.AbstractifyToLReplica()), int(r.nextActionIndex), r.AbstractifyToLReplica(), ios)
             && OnlySentMarshallableData(udpEventLog)
             && RawIoConsistentWithSpecIO(udpEventLog, ios)
-            && old(r.Env().udp.history()) + udpEventLog == r.Env().udp.history());
+            && old(r.Env().events.history()) + udpEventLog == r.Env().events.history());
     {
         ghost var replica_old := r.replica;
         var clock,udpEvent0 := ReadClock(r.udpClient);
@@ -268,7 +268,7 @@ import opened LiveRSL__CClockReading_i
         lemma_RevealQFromReplicaNextMaybeSendHeartbeatPostconditions(replica_old, r.replica, clock, sent_packets);
 
         assert r.Valid();
-        ghost var preDeliveryHistory := r.Env().udp.history();
+        ghost var preDeliveryHistory := r.Env().events.history();
         ghost var log_tail, ios_tail;
         ok, log_tail, ios_tail := DeliverOutboundPackets(r, sent_packets);
         if (!ok) { return; }
@@ -278,7 +278,7 @@ import opened LiveRSL__CClockReading_i
         ios := ios_head + ios_tail;
         udpEventLog := log_head + log_tail;
 
-        lemma_ReplicaNoReceiveReadClockNextHelper2(old(r.Env().udp.history()), preDeliveryHistory, r.Env().udp.history(),
+        lemma_ReplicaNoReceiveReadClockNextHelper2(old(r.Env().events.history()), preDeliveryHistory, r.Env().events.history(),
                                                    log_head, log_tail, udpEventLog);
         lemma_ReplicaNoReceiveReadClockNextHelper(
             old(r.replica), r.replica, clock, sent_packets, int(r.nextActionIndex),
@@ -289,7 +289,7 @@ import opened LiveRSL__CClockReading_i
     method {:fuel ReplicaStateIsValid,0,0} Replica_NoReceive_ReadClock_Next(r:ReplicaImpl)
         returns
         (ok:bool,
-         ghost udpEventLog:seq<UdpEvent>,
+         ghost udpEventLog:seq<Event>,
          ghost ios:seq<RslIo>)
         requires r != null;
         requires r.nextActionIndex == 3 || 7<=r.nextActionIndex<=9;
@@ -305,7 +305,7 @@ import opened LiveRSL__CClockReading_i
             && Q_LReplica_NoReceive_Next(old(r.AbstractifyToLReplica()), int(r.nextActionIndex), r.AbstractifyToLReplica(), ios)
             && OnlySentMarshallableData(udpEventLog)
             && RawIoConsistentWithSpecIO(udpEventLog, ios)
-            && old(r.Env().udp.history()) + udpEventLog == r.Env().udp.history());
+            && old(r.Env().events.history()) + udpEventLog == r.Env().events.history());
     {
         if r.nextActionIndex == 3 {
             ok, udpEventLog, ios := ReplicaNoReceiveReadClockNextMaybeNominateValueAndSend2a(r);

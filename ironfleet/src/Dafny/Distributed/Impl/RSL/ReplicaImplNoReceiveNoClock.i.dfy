@@ -34,7 +34,7 @@ import opened LiveRSL__CClockReading_i
     }
 
     method {:timeLimitMultiplier 2} ReplicaNoReceiveNoClockNextSpontaneousMaybeEnterNewViewAndSend1a(r:ReplicaImpl)
-        returns (ok:bool, ghost udpEventLog:seq<UdpEvent>, ghost ios:seq<RslIo>)
+        returns (ok:bool, ghost udpEventLog:seq<Event>, ghost ios:seq<RslIo>)
         requires r != null;
         requires r.nextActionIndex==1;
         requires r.Valid();
@@ -48,7 +48,7 @@ import opened LiveRSL__CClockReading_i
             && Q_LReplica_NoReceive_Next(old(r.AbstractifyToLReplica()), int(r.nextActionIndex), r.AbstractifyToLReplica(), ios)
             && RawIoConsistentWithSpecIO(udpEventLog, ios)
             && OnlySentMarshallableData(udpEventLog)
-            && old(r.Env().udp.history()) + udpEventLog == r.Env().udp.history());
+            && old(r.Env().events.history()) + udpEventLog == r.Env().events.history());
     {
         ghost var replica_old := r.replica;
         var sent_packets;
@@ -57,7 +57,7 @@ import opened LiveRSL__CClockReading_i
 
         ok, udpEventLog, ios := DeliverOutboundPackets(r, sent_packets);
         if (!ok) { return; }
-        assert old(r.Env().udp.history()) + udpEventLog == r.Env().udp.history(); // deleteme
+        assert old(r.Env().events.history()) + udpEventLog == r.Env().events.history(); // deleteme
 
         assert SpontaneousIos(ios, 0);
         assert AbstractifyOutboundCPacketsToSeqOfRslPackets(sent_packets) == ExtractSentPacketsFromIos(ios);
@@ -80,7 +80,7 @@ import opened LiveRSL__CClockReading_i
     }
 
     method ReplicaNoReceiveNoClockNextSpontaneousMaybeEnterPhase2(r:ReplicaImpl)
-        returns (ok:bool, ghost udpEventLog:seq<UdpEvent>, ghost ios:seq<RslIo>)
+        returns (ok:bool, ghost udpEventLog:seq<Event>, ghost ios:seq<RslIo>)
         requires r != null;
         requires r.nextActionIndex==2;
         requires r.Valid();
@@ -94,7 +94,7 @@ import opened LiveRSL__CClockReading_i
             && Q_LReplica_NoReceive_Next(old(r.AbstractifyToLReplica()), int(r.nextActionIndex), r.AbstractifyToLReplica(), ios)
             && RawIoConsistentWithSpecIO(udpEventLog, ios)
             && OnlySentMarshallableData(udpEventLog)
-            && old(r.Env().udp.history()) + udpEventLog == r.Env().udp.history());
+            && old(r.Env().events.history()) + udpEventLog == r.Env().events.history());
     {
         ghost var replica_old := r.replica;
         var sent_packets;
@@ -103,7 +103,7 @@ import opened LiveRSL__CClockReading_i
 
         ok, udpEventLog, ios := DeliverOutboundPackets(r, sent_packets);
         if (!ok) { return; }
-        assert old(r.Env().udp.history()) + udpEventLog == r.Env().udp.history(); // deleteme
+        assert old(r.Env().events.history()) + udpEventLog == r.Env().events.history(); // deleteme
 
         assert SpontaneousIos(ios, 0);
         assert AbstractifyOutboundCPacketsToSeqOfRslPackets(sent_packets) == ExtractSentPacketsFromIos(ios);
@@ -126,7 +126,7 @@ import opened LiveRSL__CClockReading_i
     }
 
     method ReplicaNoReceiveNoClockNextSpontaneousTruncateLogBasedOnCheckpoints(r:ReplicaImpl)
-        returns (ok:bool, ghost udpEventLog:seq<UdpEvent>, ghost ios:seq<RslIo>)
+        returns (ok:bool, ghost udpEventLog:seq<Event>, ghost ios:seq<RslIo>)
         requires r != null;
         requires r.nextActionIndex==4;
         requires r.Valid();
@@ -140,7 +140,7 @@ import opened LiveRSL__CClockReading_i
             && Q_LReplica_NoReceive_Next(old(r.AbstractifyToLReplica()), int(r.nextActionIndex), r.AbstractifyToLReplica(), ios)
             && RawIoConsistentWithSpecIO(udpEventLog, ios)
             && OnlySentMarshallableData(udpEventLog)
-            && old(r.Env().udp.history()) + udpEventLog == r.Env().udp.history());
+            && old(r.Env().events.history()) + udpEventLog == r.Env().events.history());
     {
         ghost var replica_old := r.replica;
         var sent_packets;
@@ -149,7 +149,7 @@ import opened LiveRSL__CClockReading_i
 
         ok, udpEventLog, ios := DeliverOutboundPackets(r, sent_packets);
         if (!ok) { return; }
-        assert old(r.Env().udp.history()) + udpEventLog == r.Env().udp.history(); // deleteme
+        assert old(r.Env().events.history()) + udpEventLog == r.Env().events.history(); // deleteme
 
         assert SpontaneousIos(ios, 0);
         assert AbstractifyOutboundCPacketsToSeqOfRslPackets(sent_packets) == ExtractSentPacketsFromIos(ios);
@@ -172,7 +172,7 @@ import opened LiveRSL__CClockReading_i
     }
 
     method ReplicaNoReceiveNoClockNextSpontaneousMaybeMakeDecision(r:ReplicaImpl)
-        returns (ok:bool, ghost udpEventLog:seq<UdpEvent>, ghost ios:seq<RslIo>)
+        returns (ok:bool, ghost udpEventLog:seq<Event>, ghost ios:seq<RslIo>)
         requires r != null;
         requires r.nextActionIndex==5;
         requires r.Valid();
@@ -186,7 +186,7 @@ import opened LiveRSL__CClockReading_i
             && Q_LReplica_NoReceive_Next(old(r.AbstractifyToLReplica()), int(r.nextActionIndex), r.AbstractifyToLReplica(), ios)
             && RawIoConsistentWithSpecIO(udpEventLog, ios)
             && OnlySentMarshallableData(udpEventLog)
-            && old(r.Env().udp.history()) + udpEventLog == r.Env().udp.history());
+            && old(r.Env().events.history()) + udpEventLog == r.Env().events.history());
     {
         ghost var replica_old := r.replica;
         var sent_packets;
@@ -195,7 +195,7 @@ import opened LiveRSL__CClockReading_i
 
         ok, udpEventLog, ios := DeliverOutboundPackets(r, sent_packets);
         if (!ok) { return; }
-        assert old(r.Env().udp.history()) + udpEventLog == r.Env().udp.history(); // deleteme
+        assert old(r.Env().events.history()) + udpEventLog == r.Env().events.history(); // deleteme
 
         assert SpontaneousIos(ios, 0);
         assert AbstractifyOutboundCPacketsToSeqOfRslPackets(sent_packets) == ExtractSentPacketsFromIos(ios);
@@ -218,7 +218,7 @@ import opened LiveRSL__CClockReading_i
     }
 
     method {:timeLimitMultiplier 6} ReplicaNoReceiveNoClockNextSpontaneousMaybeExecute(r:ReplicaImpl)
-        returns (ok:bool, ghost udpEventLog:seq<UdpEvent>, ghost ios:seq<RslIo>)
+        returns (ok:bool, ghost udpEventLog:seq<Event>, ghost ios:seq<RslIo>)
         requires r != null;
         requires r.nextActionIndex==6;
         requires r.Valid();
@@ -232,7 +232,7 @@ import opened LiveRSL__CClockReading_i
             && Q_LReplica_NoReceive_Next(old(r.AbstractifyToLReplica()), int(r.nextActionIndex), r.AbstractifyToLReplica(), ios)
             && RawIoConsistentWithSpecIO(udpEventLog, ios)
             && OnlySentMarshallableData(udpEventLog)
-            && old(r.Env().udp.history()) + udpEventLog == r.Env().udp.history());
+            && old(r.Env().events.history()) + udpEventLog == r.Env().events.history());
     {
         ghost var replica_old := r.replica;
         var sent_packets;
@@ -241,7 +241,7 @@ import opened LiveRSL__CClockReading_i
 
         ok, udpEventLog, ios := DeliverOutboundPackets(r, sent_packets);
         if (!ok) { return; }
-        assert old(r.Env().udp.history()) + udpEventLog == r.Env().udp.history(); // deleteme
+        assert old(r.Env().events.history()) + udpEventLog == r.Env().events.history(); // deleteme
 
         assert SpontaneousIos(ios, 0);
         assert AbstractifyOutboundCPacketsToSeqOfRslPackets(sent_packets) == ExtractSentPacketsFromIos(ios);
@@ -250,7 +250,7 @@ import opened LiveRSL__CClockReading_i
         lemma_EstablishQLReplicaNoReceiveNextFromNoClock(old(r.AbstractifyToLReplica()), r.AbstractifyToLReplica(), AbstractifyOutboundCPacketsToSeqOfRslPackets(sent_packets), int(r.nextActionIndex), ios);
     }
 
-    method Replica_NoReceive_NoClock_Next(r:ReplicaImpl) returns (ok:bool, ghost udpEventLog:seq<UdpEvent>, ghost ios:seq<RslIo>)
+    method Replica_NoReceive_NoClock_Next(r:ReplicaImpl) returns (ok:bool, ghost udpEventLog:seq<Event>, ghost ios:seq<RslIo>)
         requires r != null;
         requires r.nextActionIndex==1 || r.nextActionIndex==2 || r.nextActionIndex==4 || r.nextActionIndex==5 || r.nextActionIndex==6;
         requires r.Valid();
@@ -264,7 +264,7 @@ import opened LiveRSL__CClockReading_i
             && Q_LReplica_NoReceive_Next(old(r.AbstractifyToLReplica()), int(r.nextActionIndex), r.AbstractifyToLReplica(), ios)
             && RawIoConsistentWithSpecIO(udpEventLog, ios)
             && OnlySentMarshallableData(udpEventLog)
-            && old(r.Env().udp.history()) + udpEventLog == r.Env().udp.history());
+            && old(r.Env().events.history()) + udpEventLog == r.Env().events.history());
     {
         if r.nextActionIndex == 1 {
             ok, udpEventLog, ios := ReplicaNoReceiveNoClockNextSpontaneousMaybeEnterNewViewAndSend1a(r);

@@ -466,7 +466,7 @@ function {:opaque} AbstractifyCVotesToVotes(votes:CVotes) : Votes
 {
     var newDomain := set i | i in votes.v :: AbstractifyCOperationNumberToOperationNumber(i);
     lemma_AbstractifyMapOfThings(votes.v, newDomain);
-    map i | i in newDomain :: AbstractifyCVoteToVote(votes.v[COperationNumber(uint64(i))])
+    map i {:trigger AbstractifyCVoteToVote(votes.v[COperationNumber(uint64(i))])} | i in newDomain :: AbstractifyCVoteToVote(votes.v[COperationNumber(uint64(i))])
 }
 
 lemma lemma_VotesInjective(v1:CVotes, v2:CVotes)

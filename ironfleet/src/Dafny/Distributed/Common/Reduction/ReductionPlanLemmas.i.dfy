@@ -1,9 +1,11 @@
 include "ReductionPlan.i.dfy"
-include "../Common/Collections/Maps.i.dfy"
+include "../Collections/Maps2.s.dfy"
+include "../Collections/Maps.i.dfy"
 
 module ReductionPlanLemmasModule {
 
     import opened ReductionPlanModule
+    import opened Collections__Maps2_s
     import opened Collections__Maps_i
 
     function CountInnerNodesPlan(plan:ReductionPlan) : int

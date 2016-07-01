@@ -382,6 +382,23 @@ method{:timeLimitMultiplier 2} RemoveAllSatisfiedCRequestsInSequenceIter(
 lemma lemma_RemoveAllSatisfiedCRequestsProducesCRequestSubset(requests:seq<CRequest>, r:CRequest)
     ensures  forall r' :: r' in RemoveAllSatisfiedCRequestsInSequence(requests, r) ==> r' in requests;
 {
+    forall r' | r' in RemoveAllSatisfiedCRequestsInSequence(requests, r)
+        ensures r' in requests;
+    {
+        if |requests| == 0 {
+            assert false;
+        }
+        else if CRequestSatisfiedBy(requests[0], r) {
+            lemma_RemoveAllSatisfiedCRequestsProducesCRequestSubset(requests[1..], r);
+            assert r' in requests[1..];
+            assert r' in requests;
+        }
+        else if r' != requests[0] {
+            lemma_RemoveAllSatisfiedCRequestsProducesCRequestSubset(requests[1..], r);
+            assert r' in requests[1..];
+            assert r' in requests;
+        }
+    }
 }
 
 lemma lemma_RemoveAllSatisfiedCRequestsProducesHeaderSubset(

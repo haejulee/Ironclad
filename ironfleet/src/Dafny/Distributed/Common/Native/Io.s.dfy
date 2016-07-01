@@ -161,7 +161,7 @@ class SharedStateIfc
         modifies env.events;
         ensures  env.events.history() == old(env.events.history()) + [WritePtrEvent(ToUPtr(ptr), ToU(v))];
    
-    static method {:axiom} ReadPtrAssume<T>(ptr:Ptr<T>, ghost assumption:iset<SharedHeap>, ghost env:HostEnvironment) 
+    static method {:axiom} ReadPtrAssume<T>(ptr:Ptr<T>, ghost assumption:set<SharedHeap>, ghost env:HostEnvironment) 
         returns (v:T, ghost h:SharedHeap)
         requires IsValidPtr(ptr);
         requires env != null && env.Valid();
@@ -171,7 +171,7 @@ class SharedStateIfc
         ensures  ToU(v) == h[ToU(ptr)];
         ensures  h in assumption;
         ensures  env.events.history() == old(env.events.history()) 
-                                       + [AssumeHeapEvent (assumption)]
+                                       + [AssumeHeapEvent(assumption)]
                                        + [ReadPtrEvent(ToUPtr(ptr), ToU(v))];
     
     static method {:axiom} MakeArray<T>(len:int, v:T, ghost arr_invariant:iset<T>, ghost env:HostEnvironment) 
@@ -203,7 +203,7 @@ class SharedStateIfc
         modifies env.events;
         ensures  env.events.history() == old(env.events.history()) + [WriteArrayEvent(ToUArray(arr), index, ToU(v))];
 
-    static method {:axiom} ReadArrayAssume<T>(arr:Array<T>, index:int, ghost assumption:iset<SharedHeap>, ghost env:HostEnvironment)
+    static method {:axiom} ReadArrayAssume<T>(arr:Array<T>, index:int, ghost assumption:set<SharedHeap>, ghost env:HostEnvironment)
         returns (v:T, ghost h:SharedHeap)
         requires IsValidArray(arr);
         requires 0 <= index < Length(arr);
@@ -214,7 +214,7 @@ class SharedStateIfc
         ensures  exists s:seq<T> :: h[ToU(arr)] == ToU(s) && |s| == Length(arr) && v == s[index];
         ensures  h in assumption;
         ensures  env.events.history() == old(env.events.history()) 
-                                       + [AssumeHeapEvent   (assumption)]
+                                       + [AssumeHeapEvent(assumption)]
                                        + [ReadArrayEvent(ToUArray(arr), index, ToU(v))];
 } 
 
@@ -313,7 +313,8 @@ class UdpClient
         requires env != null && env.Valid();
         requires env.ok.ok();
         requires localEP != null;
-        requires localEP.Address() == env.constants.LocalAddress();
+// TODO:  Require that we can't create a UDP client that doesn't match our address.
+//        requires localEP.Address() == env.constants.LocalAddress();
         requires ValidPhysicalPort(localEP.Port());
         modifies env.ok;
         ensures  env.ok.ok() == ok;
@@ -610,13 +611,13 @@ class FileStream
     function{:axiom} IsOpen():bool reads this;
     constructor{:axiom} () requires false;
 
-    static method FileExists(name:array<char>, ghost env:HostEnvironment) returns(result:bool)
+    static method {:axiom} FileExists(name:array<char>, ghost env:HostEnvironment) returns(result:bool)
         requires env != null && env.Valid();
         requires env.ok.ok();
         requires name != null;       
         ensures  result <==> old(name[..]) in env.files.state();        
 
-    static method FileLength(name:array<char>, ghost env:HostEnvironment) returns(success:bool, len:int32)
+    static method {:axiom} FileLength(name:array<char>, ghost env:HostEnvironment) returns(success:bool, len:int32)
         requires env != null && env.Valid();
         requires env.ok.ok();
         requires name != null;       
@@ -625,7 +626,7 @@ class FileStream
         ensures  env.ok.ok() == success;
         ensures  success ==> int(len) == |env.files.state()[name[..]]|;
 
-    static method Open(name:array<char>, ghost env:HostEnvironment) returns(ok:bool, f:FileStream)
+    static method {:axiom} Open(name:array<char>, ghost env:HostEnvironment) returns(ok:bool, f:FileStream)
         requires env != null && env.Valid();
         requires env.ok.ok();
         requires name != null;
@@ -639,7 +640,7 @@ class FileStream
         ensures ok ==> env.events.history() == old(env.events.history()) + [FIopOpenEvent(name)];
 
         
-    method Close() returns(ok:bool)
+    method {:axiom} Close() returns(ok:bool)
         requires env != null && env.Valid();
         requires env.ok.ok();
         requires IsOpen();
@@ -651,7 +652,7 @@ class FileStream
         ensures  !IsOpen();
         ensures ok ==> env.events.history() == old(env.events.history()) + [FIopCloseEvent(Name())];
 
-    method Read(file_offset:nat32, buffer:array<byte>, start:int32, num_bytes:int32) returns(ok:bool)      
+    method {:axiom} Read(file_offset:nat32, buffer:array<byte>, start:int32, num_bytes:int32) returns(ok:bool)      
         requires env != null && env.Valid();
         requires env.ok.ok();
         requires IsOpen();
@@ -672,7 +673,7 @@ class FileStream
         ensures  ok ==> buffer[..] == buffer[..start] + env.files.state()[Name()][file_offset..int(file_offset)+int(num_bytes)] + buffer[int(start)+int(num_bytes)..];
         ensures ok ==> env.events.history() == old(env.events.history()) + [FIopReadEvent(Name(), buffer[..])];
             
-   method Write(file_offset:nat32, buffer:array<byte>, start:int32, num_bytes:int32) returns(ok:bool)        
+    method {:axiom} Write(file_offset:nat32, buffer:array<byte>, start:int32, num_bytes:int32) returns(ok:bool)        
         requires env != null && env.Valid();
         requires env.ok.ok();
         requires IsOpen();
@@ -695,7 +696,7 @@ class FileStream
                                                                         else old_file[int(file_offset)+int(num_bytes)..]];
 }
 
-static function method{:axiom} CharToUShort(c:char):uint16
-static function method{:axiom} UShortToChar(u:uint16):char
-static function method{:axiom} UInt32ToBytes(u:uint32):array<byte>
+function method{:axiom} CharToUShort(c:char):uint16
+function method{:axiom} UShortToChar(u:uint16):char
+function method{:axiom} UInt32ToBytes(u:uint32):array<byte>
 } 

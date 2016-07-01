@@ -8,8 +8,8 @@ import opened Native__Io_s
 
 function Workaround_CastHostEnvironmentToObject(env:HostEnvironment) : object {env}
 function Workaround_CastOkStateToObject(okState:OkState) : object {okState}
+function Workaround_CastEventsToObject(events:Events) : object {events}
 function Workaround_CastNowStateToObject(nowState:NowState) : object {nowState}
-function Workaround_CastUdpStateToObject(udpState:UdpState) : object {udpState}
 function Workaround_CastIPEndPointToObject(ip:IPEndPoint) : object {ip}
 function Workaround_CastUdpClientToObject(udpc:UdpClient) : object {udpc}
 
@@ -17,11 +17,10 @@ function HostEnvironmentDefaultFrame(env:HostEnvironment) : set<object>
     reads env;
     reads if env != null then {env.now} else {};
     reads if env != null then {env.ok} else {};
-    reads if env != null then {env.udp} else {};
     reads if env != null then {env} else {};
 {
     (if env != null then
-        {Workaround_CastOkStateToObject(env.ok), Workaround_CastNowStateToObject(env.now), Workaround_CastUdpStateToObject(env.udp)}
+        {Workaround_CastOkStateToObject(env.ok), Workaround_CastNowStateToObject(env.now), Workaround_CastEventsToObject(env.events)}
     else
         {})
 }
@@ -45,7 +44,6 @@ predicate HostEnvironmentIsValid(env:HostEnvironment)
     && env.now != null
     && env.ok != null
     && env.ok.ok()
-    && env.udp != null
 }
 
 predicate UdpClientOk(udpc:UdpClient)

@@ -1,4 +1,4 @@
-include "GeneralRefinement.i.dfy"
+include "../Framework/GeneralRefinement.s.dfy"
 
 module GeneralRefinementLemmasModule {
 

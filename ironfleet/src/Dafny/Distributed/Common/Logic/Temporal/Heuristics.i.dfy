@@ -40,7 +40,6 @@ import opened Collections__Maps2_i
             ensures sat(i, eventual(x)) == (exists j :: TLe(i, j) && sat(j, x));
         {
             reveal_eventual();
-            assert sat(i, stepmap(imap ii :: exists j :: ii <= j && sat(j, x))) == (imap ii :: exists j :: ii <= j && sat(j, x))[i];
         }
     }
     

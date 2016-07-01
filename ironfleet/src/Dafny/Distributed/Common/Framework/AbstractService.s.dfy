@@ -1,18 +1,32 @@
 //- The high-level spec is written in the form of a state-machine
 //- The states and transition functions are instantiated on a per-service basis
 
-include "../Native/Io.s.dfy"
-include "Environment.s.dfy"
+include "System.s.dfy"
+include "GeneralRefinement.s.dfy"
+include "Host.s.dfy"
 
-abstract module AbstractService_s {
-import opened Native__Io_s
-import opened Environment_s 
+abstract module AbstractServiceModule {
 
-type ServiceState 
+    import opened SystemModule
+    import opened GeneralRefinementModule
+    import opened HostModule
 
-predicate Service_Init(s:ServiceState, serverAddresses:set<EndPoint>) 
-predicate Service_Next(s:ServiceState, s':ServiceState) 
+    type RealSystemState = SystemState<ConcreteConfiguration>
 
-predicate Service_Correspondence(concrete_step:LEnvStep<EndPoint, seq<byte>>, serviceState:ServiceState)
+    type SpecState(==)
+
+    predicate SpecInit(config:ConcreteConfiguration, s:SpecState)
+    predicate SpecNext(s:SpecState, s':SpecState) 
+    predicate SpecCorrespondence(real_state:RealSystemState, spec_state:SpecState)
+
+    function GetSpec(config:ConcreteConfiguration) : Spec<SpecState>
+    {
+        Spec(iset s | SpecInit(config, s), iset p:(SpecState, SpecState) | SpecNext(p.0, p.1))
+    }
+
+    function GetRealSystemSpecRefinementRelation() : RefinementRelation<RealSystemState, SpecState>
+    {
+        iset p:RefinementPair<RealSystemState, SpecState> | SpecCorrespondence(p.low, p.high)
+    }
 
 }

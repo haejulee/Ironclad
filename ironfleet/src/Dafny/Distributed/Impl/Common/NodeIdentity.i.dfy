@@ -69,6 +69,10 @@ lemma lemma_AbstractifySeqOfUint64sToSetOfInts_append(original_seq:seq<uint64>, 
         lemma_AbstractifySeqOfUint64sToSetOfInts_properties(appended_seq);
         lemma_AbstractifySeqOfUint64sToSetOfInts_properties(original_seq);
         reveal_AbstractifySeqOfUint64sToSetOfInts();
+        if rId in r_original_set {
+            var x :| x in original_seq && rId == int(x);
+            assert x in appended_seq;
+        }
     }
 }
 

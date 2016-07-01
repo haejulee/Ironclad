@@ -18,7 +18,7 @@ import opened LiveRSL__ReplicaImplClass_i
 import opened LiveRSL__UdpRSL_i
 import opened LiveRSL__CClockReading_i
 
-    method DeliverPacket(r:ReplicaImpl, packets:OutboundPackets) returns (ok:bool, ghost udpEventLog:seq<UdpEvent>, ghost ios:seq<RslIo>)
+    method DeliverPacket(r:ReplicaImpl, packets:OutboundPackets) returns (ok:bool, ghost udpEventLog:seq<Event>, ghost ios:seq<RslIo>)
         requires r != null;
         requires r.Valid();
         requires packets.OutboundPacket?;
@@ -36,7 +36,7 @@ import opened LiveRSL__CClockReading_i
             && AbstractifyOutboundCPacketsToSeqOfRslPackets(packets) == ExtractSentPacketsFromIos(ios)
             && OnlySentMarshallableData(udpEventLog)
             && RawIoConsistentWithSpecIO(udpEventLog, ios)
-            && old(r.Env().udp.history()) + udpEventLog == r.Env().udp.history());
+            && old(r.Env().events.history()) + udpEventLog == r.Env().events.history());
     {
         var start_time := Time.GetDebugTimeTicks();
         ok, udpEventLog := SendPacket(r.udpClient, packets, r.localAddr);
@@ -52,7 +52,7 @@ import opened LiveRSL__CClockReading_i
         } 
     }
 
-    method {:timeLimitMultiplier 2} DeliverPacketSequence(r:ReplicaImpl, packets:OutboundPackets) returns (ok:bool, ghost udpEventLog:seq<UdpEvent>, ghost ios:seq<RslIo>)
+    method {:timeLimitMultiplier 2} DeliverPacketSequence(r:ReplicaImpl, packets:OutboundPackets) returns (ok:bool, ghost udpEventLog:seq<Event>, ghost ios:seq<RslIo>)
         requires r != null;
         requires r.Valid();
         requires packets.PacketSequence?;
@@ -71,7 +71,7 @@ import opened LiveRSL__CClockReading_i
             && AbstractifyOutboundCPacketsToSeqOfRslPackets(packets) == ExtractSentPacketsFromIos(ios)
             && OnlySentMarshallableData(udpEventLog)
             && RawIoConsistentWithSpecIO(udpEventLog, ios)
-            && old(r.Env().udp.history()) + udpEventLog == r.Env().udp.history());
+            && old(r.Env().events.history()) + udpEventLog == r.Env().events.history());
     {
         var start_time := Time.GetDebugTimeTicks();
         ok, udpEventLog := SendPacketSequence(r.udpClient, packets, r.localAddr);
@@ -83,7 +83,7 @@ import opened LiveRSL__CClockReading_i
         RecordTimingSeq("DeliverPacketSequence", start_time, end_time);
     }
 
-    method{:timeLimitMultiplier 8} DeliverBroadcast(r:ReplicaImpl, broadcast:CBroadcast) returns (ok:bool, ghost udpEventLog:seq<UdpEvent>, ghost ios:seq<RslIo>)
+    method{:timeLimitMultiplier 8} DeliverBroadcast(r:ReplicaImpl, broadcast:CBroadcast) returns (ok:bool, ghost udpEventLog:seq<Event>, ghost ios:seq<RslIo>)
         requires r != null;
         requires r.Valid();
         requires CBroadcastIsValid(broadcast);
@@ -100,7 +100,7 @@ import opened LiveRSL__CClockReading_i
             && AbstractifyCBroadcastToRlsPacketSeq(broadcast) == ExtractSentPacketsFromIos(ios)
             && OnlySentMarshallableData(udpEventLog)
             && RawIoConsistentWithSpecIO(udpEventLog, ios)
-            && old(r.Env().udp.history()) + udpEventLog == r.Env().udp.history());
+            && old(r.Env().events.history()) + udpEventLog == r.Env().events.history());
     {
         var start_time := Time.GetDebugTimeTicks();
         ok, udpEventLog := SendBroadcast(r.udpClient, broadcast, r.localAddr);
@@ -109,8 +109,8 @@ import opened LiveRSL__CClockReading_i
         ios := MapBroadcastToIos(broadcast);
         lemma_MapBroadcastToIosExtractSentPacketsFromIosEquivalence(broadcast, ios);
         
-        lemma_UdpEventLogToBroadcastRefinable(udpEventLog, broadcast);
-        assert UdpEventLogIsAbstractable(udpEventLog);
+        lemma_EventLogToBroadcastRefinable(udpEventLog, broadcast);
+        assert EventLogIsAbstractable(udpEventLog);
         if broadcast.CBroadcastNop? {
             assert RawIoConsistentWithSpecIO(udpEventLog, ios);
         } else {
@@ -128,8 +128,8 @@ import opened LiveRSL__CClockReading_i
                         {
                            calc {
                                AbstractifyRawLogToIos(udpEventLog)[i];
-                               AbstractifyUdpEventToRslIo(udpEventLog[i]);
-                                 { lemma_UdpEventLogToBroadcast(udpEventLog, broadcast, i); }
+                               AbstractifyEventToRslIo(udpEventLog[i]);
+                                 { lemma_EventLogToBroadcast(udpEventLog, broadcast, i); }
                                LIoOpSend(AbstractifyCBroadcastToRlsPacketSeq(broadcast)[i]);
                                LIoOpSend(BuildLBroadcast(AbstractifyEndPointToNodeIdentity(broadcast.src), 
                                                          AbstractifyEndPointsToNodeIdentities(broadcast.dsts), 
@@ -175,7 +175,7 @@ import opened LiveRSL__CClockReading_i
         }
     }
     
-    method DeliverOutboundPackets(r:ReplicaImpl, packets:OutboundPackets) returns (ok:bool, ghost udpEventLog:seq<UdpEvent>, ghost ios:seq<RslIo>)
+    method DeliverOutboundPackets(r:ReplicaImpl, packets:OutboundPackets) returns (ok:bool, ghost udpEventLog:seq<Event>, ghost ios:seq<RslIo>)
         requires r != null;
         requires r.Valid();
         requires OutboundPacketsIsValid(packets);
@@ -194,7 +194,7 @@ import opened LiveRSL__CClockReading_i
             && OnlySentMarshallableData(udpEventLog)
             && RawIoConsistentWithSpecIO(udpEventLog, ios)
             && OnlySentMarshallableData(udpEventLog)
-            && old(r.Env().udp.history()) + udpEventLog == r.Env().udp.history());
+            && old(r.Env().events.history()) + udpEventLog == r.Env().events.history());
     {
         match packets {
             case Broadcast(broadcast) => ok, udpEventLog, ios := DeliverBroadcast(r, broadcast);
