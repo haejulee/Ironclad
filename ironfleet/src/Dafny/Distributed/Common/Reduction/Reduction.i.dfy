@@ -512,7 +512,6 @@ module ReductionModule
             GetLeafEntriesForest(trees[..index]) + GetLeafEntries(trees[index]) + GetLeafEntriesForest(trees[index+1..]); 
                 { lemma_ReduceTreeLeaves(tree, designator); }
             GetLeafEntriesForest(trees[..index]) + GetLeafEntriesForest(trees[index].children) + GetLeafEntriesForest(trees[index+1..]); 
-                { assume false; }
               GetLeafEntriesForestPrefix(trees, index, designator) 
             + reduced_leaves 
             + GetLeafEntriesForestSuffix(trees, index, designator);

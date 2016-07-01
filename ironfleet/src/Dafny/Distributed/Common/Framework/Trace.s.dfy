@@ -42,7 +42,7 @@ module TraceModule {
             RestrictTraceToActor(t[1..], a)
     }
 
-    function RestrictRealTraceToTrackedEvents(t:RealTrace) : Trace
+    function RestrictRealTraceToTrackedEvents(t:RealTrace) : RealTrace
     {
         if |t| == 0 then
             []

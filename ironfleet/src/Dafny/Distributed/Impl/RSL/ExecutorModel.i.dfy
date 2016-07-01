@@ -590,7 +590,6 @@ method {:timeLimitMultiplier 15} ExecutorExecute(cs:ExecutorState, reply_cache_m
     ensures  cs.constants == cs'.constants;
     ensures  cs'.reply_cache == MutableMap.MapOf(reply_cache_mutable);
 {
-    assume false;
     var cv := cs.next_op_to_execute.v;
     //var start_time := Time.GetDebugTimeTicks();
     ghost var s := AbstractifyExecutorStateToLExecutor(cs);
