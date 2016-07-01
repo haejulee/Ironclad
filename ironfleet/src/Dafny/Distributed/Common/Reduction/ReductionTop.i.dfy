@@ -460,6 +460,7 @@ module ReductionTopModule {
         )
         requires ConcreteConfigurationInvariants(config);
         requires IsValidExtendedSystemTraceAndBehaviorSlice(ltrace, lb);
+        requires forall actor :: actor in TrackedActorsInConfig(config) ==> IsValidActor(actor) && !actor.NoActor?;
         requires forall entry :: entry in ltrace ==> IsValidActor(entry.actor);
         requires SystemInit(config, lb[0].ss);
         requires IsValidReductionPlan(config, plan);
@@ -551,7 +552,7 @@ module ReductionTopModule {
         requires ConcreteConfigurationInvariants(config);
         requires IsValidExtendedSystemTraceAndBehaviorSlice(ltrace, lb);
         requires SystemInit(config, lb[0].ss);
-        requires forall actor :: actor in TrackedActorsInConfig(config) ==> IsValidActor(actor);
+        requires forall actor :: actor in TrackedActorsInConfig(config) ==> IsValidActor(actor) && !actor.NoActor?;
         requires forall entry :: entry in ltrace ==> IsValidActor(entry.actor);
         requires IsValidReductionPlan(config, plan);
         requires forall actor :: actor in TrackedActorsInConfig(config) ==>

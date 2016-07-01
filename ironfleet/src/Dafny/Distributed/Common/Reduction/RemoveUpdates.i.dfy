@@ -257,7 +257,7 @@ module RemoveUpdatesModule {
         requires SystemInit(config, lb[0].ss);
         requires forall entry :: entry in ltrace ==> IsValidActor(entry.actor);
         requires IsValidReductionPlan(config, plan);
-        requires forall actor :: actor in TrackedActorsInConfig(config) ==> IsValidActor(actor);
+        requires forall actor :: actor in TrackedActorsInConfig(config) ==> IsValidActor(actor) && !actor.NoActor?;
         requires forall entry :: entry in ltrace ==> IsRealExtendedAction(entry.action);
         requires forall actor :: actor in TrackedActorsInConfig(config) ==>
                      RestrictTraceToActor(RestrictTraceToTrackedActions(ltrace), actor) <= GetLeafEntriesForest(plan[actor].trees);

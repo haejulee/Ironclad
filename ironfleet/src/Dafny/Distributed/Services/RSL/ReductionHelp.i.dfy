@@ -94,12 +94,11 @@ module ReductionHelpModule {
 
     predicate ExtendedEntryIsAbstractable(entry:ExtendedEntry)
     {
-        IsValidActor(entry.actor) &&
         match entry.action
-            case ExtendedActionEvent(e) => EventIsAbstractable(e)
-            case ExtendedActionUntrackedEvent(u) => UntrackedEventIsAbstractable(u)
-            case ExtendedActionPerformIos(ios) => EventLogIsAbstractable(ios)
-            case ExtendedActionHostNext(ios) => EventLogIsAbstractable(ios)
+            case ExtendedActionEvent(e) => entry.actor.FixedEndPointActor? && EventIsAbstractable(e)
+            case ExtendedActionUntrackedEvent(u) => IsValidActor(entry.actor) && UntrackedEventIsAbstractable(u)
+            case ExtendedActionPerformIos(ios) => entry.actor.FixedEndPointActor? && EventLogIsAbstractable(ios)
+            case ExtendedActionHostNext(ios) => entry.actor.FixedEndPointActor? && EventLogIsAbstractable(ios)
     }
     
     function AbstractifyExtendedEntry(entry:ExtendedEntry) : LEnvStep<NodeIdentity, RslMessage>
@@ -308,6 +307,7 @@ module ReductionHelpModule {
         i:int
         )
         requires IsValidExtendedSystemTraceAndBehavior(config, trace, eb);
+        requires forall actor :: actor in TrackedActorsInConfig(config) ==> IsValidActor(actor) && !actor.NoActor?;
         requires forall actor :: actor in TrackedActorsInConfig(config) ==> actor in eb[0].states;
         requires forall entry :: entry in trace ==> IsValidActor(entry.actor);
         requires forall entry :: entry in trace ==> if entry.actor in TrackedActorsInConfig(config) then entry.action.ExtendedActionHostNext? else IsRealExtendedAction(entry.action);
@@ -327,6 +327,7 @@ module ReductionHelpModule {
         )
         requires ConcreteConfigurationInvariants(config);
         requires IsValidExtendedSystemTraceAndBehavior(config, trace, eb);
+        requires forall actor :: actor in TrackedActorsInConfig(config) ==> IsValidActor(actor) && !actor.NoActor?;
         requires forall actor :: actor in TrackedActorsInConfig(config) ==> actor in eb[0].states;
         requires forall entry :: entry in trace ==> IsValidActor(entry.actor);
         requires forall entry :: entry in trace ==> if entry.actor in TrackedActorsInConfig(config) then entry.action.ExtendedActionHostNext? else IsRealExtendedAction(entry.action);
@@ -762,6 +763,7 @@ module ReductionHelpModule {
         )
         requires ConcreteConfigurationInvariants(config);
         requires IsValidExtendedSystemTraceAndBehavior(config, trace, eb);
+        requires forall actor :: actor in TrackedActorsInConfig(config) ==> IsValidActor(actor) && !actor.NoActor?;
         requires forall actor :: actor in TrackedActorsInConfig(config) ==> actor in eb[0].states;
         requires forall entry :: entry in trace ==> IsValidActor(entry.actor);
         requires forall entry :: entry in trace ==> if entry.actor in TrackedActorsInConfig(config) then entry.action.ExtendedActionHostNext? else IsRealExtendedAction(entry.action);

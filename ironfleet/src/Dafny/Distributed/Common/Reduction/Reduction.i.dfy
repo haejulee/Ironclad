@@ -475,7 +475,6 @@ module ReductionModule
         decreases |designator|;
         ensures var tree := trees[index];
                 var old_leaves := GetLeafEntriesForest(trees); 
-                var reduced_trees := ReduceTreeForest(trees, index, designator);
                 var sub_tree := LookupTreeDesignator(designator, tree);
                 var reduced_leaves := GetLeafEntries(sub_tree);
                 var prefix := GetLeafEntriesForestPrefix(trees, index, designator);
@@ -484,7 +483,6 @@ module ReductionModule
     {
         var tree := trees[index];
         var old_leaves := GetLeafEntriesForest(trees); 
-        var reduced_trees := ReduceTreeForest(trees, index, designator);
         var sub_tree := LookupTreeDesignator(designator, tree);
         var reduced_leaves := GetLeafEntries(sub_tree);
         var prefix := GetLeafEntriesForestPrefix(trees, index, designator);
@@ -511,15 +509,16 @@ module ReductionModule
             GetLeafEntriesForest(trees[..index]) + GetLeafEntriesForest([trees[index]]) + GetLeafEntriesForest(trees[index+1..]); 
             GetLeafEntriesForest(trees[..index]) + GetLeafEntries(trees[index]) + GetLeafEntriesForest(trees[index+1..]); 
                 { lemma_ReduceTreeLeaves(tree, designator); }
-            GetLeafEntriesForest(trees[..index]) + GetLeafEntriesForest(trees[index].children) + GetLeafEntriesForest(trees[index+1..]); 
+            GetLeafEntriesForest(trees[..index]) + GetLeafEntriesForest(trees[index].children) + GetLeafEntriesForest(trees[index+1..]);
+            GetLeafEntriesForest(trees[..index]) + GetLeafEntriesForest(tree.children) + GetLeafEntriesForest(trees[index+1..]);
+            { if |designator| > 0 { lemma_ReduceTreeLeavesForestOld(tree.children, designator[0], designator[1..]); } }
               GetLeafEntriesForestPrefix(trees, index, designator) 
             + reduced_leaves 
             + GetLeafEntriesForestSuffix(trees, index, designator);
             prefix + reduced_leaves + suffix;
         }
-        
     }    
-    
+
     lemma {:timeLimitMultiplier 6} lemma_ReduceTreeLeavesForestNew(trees:seq<Tree>, index:int, designator:seq<int>)
         requires 0 <= index < |trees|;
         requires ReduceTree.requires(trees[index], designator)

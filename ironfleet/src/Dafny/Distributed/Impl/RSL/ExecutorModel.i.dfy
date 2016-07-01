@@ -503,7 +503,7 @@ lemma lemma_ExistsReqIdx(len:int, replies:seq<CReply>, reply_cache:CReplyCache, 
 }
 
 
-method GetPacketsFromRepliesImpl(me:EndPoint, requests:CRequestBatch, replies:seq<CReply>) returns (cout_seq:seq<CPacket>)
+method {:timeLimitMultiplier 2} GetPacketsFromRepliesImpl(me:EndPoint, requests:CRequestBatch, replies:seq<CReply>) returns (cout_seq:seq<CPacket>)
     requires |requests| == |replies| < 0x1_0000_0000_0000_0000;
     requires forall r :: r in requests ==> ValidRequest(r);
     requires forall r :: r in replies ==> ValidReply(r) && CReplyIsAbstractable(r);
@@ -701,6 +701,23 @@ method {:timeLimitMultiplier 15} ExecutorExecute(cs:ExecutorState, reply_cache_m
         }
     assert out == GetPacketsFromReplies(s.constants.all.config.replica_ids[s.constants.my_index], s.next_op_to_execute.v, replies);
     assert AbstractifyExecutorStateToLExecutor(cs').ops_complete == AbstractifyExecutorStateToLExecutor(cs).ops_complete + 1;
+
+    ghost var batch := s.next_op_to_execute.v;
+    forall client | client in s'.reply_cache
+        ensures (   (client in s.reply_cache && s'.reply_cache[client] == s.reply_cache[client])
+                 || (exists req_idx :: 0 <= req_idx < |batch| && replies[req_idx].client == client && s'.reply_cache[client] == replies[req_idx]));
+    {
+        assert client in newReplyCache;
+        if client in cs.reply_cache && newReplyCache[client] == cs.reply_cache[client] {
+            assert client in s.reply_cache && s'.reply_cache[client] == s.reply_cache[client];
+        }
+        else {
+            var req_idx :| 0 <= req_idx < |cv| && creplies[req_idx].client == client && newReplyCache[client] == creplies[req_idx];
+            assert 0 <= req_idx < |batch|;
+            assert replies[req_idx].client == client;
+            assert s'.reply_cache[client] == replies[req_idx];
+        }
+    }
 }
 
 lemma lemma_BatchAndRequestSeqEquivalence(s:seq<CRequest>)

@@ -18,7 +18,7 @@ module UltimateRefinementModule {
         requires IsValidExtendedSystemTraceAndBehaviorSlice(trace, lb);
         requires SystemInit(config, lb[0].ss);
         requires IsValidReductionPlan(config, plan);
-        requires forall actor :: actor in TrackedActorsInConfig(config) ==> IsValidActor(actor);
+        requires forall actor :: actor in TrackedActorsInConfig(config) ==> IsValidActor(actor) && !actor.NoActor?;
         requires forall entry :: entry in trace ==> IsValidActor(entry.actor);
         requires forall entry :: entry in trace ==> IsRealExtendedAction(entry.action);
         requires forall actor :: actor in TrackedActorsInConfig(config) ==>

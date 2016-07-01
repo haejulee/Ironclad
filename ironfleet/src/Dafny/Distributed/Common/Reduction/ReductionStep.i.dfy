@@ -916,7 +916,7 @@ module ReductionStepModule {
         lemma_SystemSystemRefinementConvolutionPure(lb, mb, hb);
     }
 
-    lemma lemma_ApplyReductionWithChildrenInMiddle(
+    lemma {:timeLimitMultiplier 3} lemma_ApplyReductionWithChildrenInMiddle(
         config:ConcreteConfiguration,
         ltrace:ExtendedTrace,
         lb:seq<ExtendedSystemState>,
@@ -1007,7 +1007,7 @@ module ReductionStepModule {
         lemma_SystemSystemRefinementConvolutionPure(lb, mb, hb);
     }
 
-    lemma {:timeLimitMultiplier 3} lemma_ApplyReductionWithChildrenAtEndIncludingPivotHelper(
+    lemma {:timeLimitMultiplier 5} lemma_ApplyReductionWithChildrenAtEndIncludingPivotHelper(
         config:ConcreteConfiguration,
         ltrace:ExtendedTrace,
         actor:Actor,

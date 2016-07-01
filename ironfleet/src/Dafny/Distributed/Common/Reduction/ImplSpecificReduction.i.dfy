@@ -93,6 +93,7 @@ abstract module ImplSpecificReductionModule {
         )
         requires ConcreteConfigurationInvariants(config);
         requires IsValidExtendedSystemTraceAndBehavior(config, trace, eb);
+        requires forall actor :: actor in TrackedActorsInConfig(config) ==> IsValidActor(actor) && !actor.NoActor?;
         requires forall actor :: actor in TrackedActorsInConfig(config) ==> actor in eb[0].states;
         requires forall entry :: entry in trace ==> IsValidActor(entry.actor);
         requires forall entry :: entry in trace ==> if entry.actor in TrackedActorsInConfig(config) then entry.action.ExtendedActionHostNext?
