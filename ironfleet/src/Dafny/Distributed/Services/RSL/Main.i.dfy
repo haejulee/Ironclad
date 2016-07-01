@@ -1,5 +1,6 @@
 include "../../Common/Framework/Main.s.dfy"
 include "ImplSpecificReduction.i.dfy"
+include "../../Common/Reduction/UltimateRefinement.i.dfy"
 
 module Main_i exclusively refines Main_s {
 
@@ -8,10 +9,10 @@ module Main_i exclusively refines Main_s {
     lemma RefinementProof(
         config:ConcreteConfiguration,
         trace:RealTrace,
-        host_traces:map<Actor, HostHistory>,
+        host_histories:map<Actor, HostHistory>,
         rb:seq<RealSystemState>
         )
     {
-        assume false;
+        lemma_RefinementProofByReduction(config, trace, host_histories, rb);
     }
 }

@@ -84,7 +84,6 @@ module Host_i exclusively refines HostModule {
 
     method {:timeLimitMultiplier 4} HostInitImpl(ghost env:HostEnvironment) returns (ok:bool, host_state:HostState, config:ConcreteConfiguration, ghost servers:set<Actor>, ghost clients:set<Actor>, id:Actor)
     {
-        assume false;
         var pconfig:CPaxosConfiguration, my_index;
         ok, pconfig, my_index := parse_cmd_line(env);
         if !ok { return; }
@@ -166,7 +165,6 @@ module Host_i exclusively refines HostModule {
     method {:timeLimitMultiplier 3} HostNextImpl(ghost env:HostEnvironment, host_state:HostState)
         returns (ok:bool, host_state':HostState, ghost ios:seq<Event>)
     {
-        assume false;
         var okay, udpEventLog, abstract_ios := Replica_Next_main(host_state.replica_impl);
         if okay {
             calc { 

@@ -1,5 +1,5 @@
 include "ReductionBasic.i.dfy"
-include "RefinementConvolution.i.dfy"
+include "../Framework/RefinementConvolution.i.dfy"
 include "ReductionPlan.i.dfy"
 include "SystemLemmas.i.dfy"
 include "ReductionPlanLemmas.i.dfy"

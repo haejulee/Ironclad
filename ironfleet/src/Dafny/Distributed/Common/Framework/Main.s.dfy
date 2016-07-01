@@ -72,7 +72,7 @@ abstract module Main_s {
                      && !actor.NoActor?
                      && actor in host_histories
                      && IsValidHostHistory(config, host_histories[actor], actor)
-                     && EventSequenceToTrace(ConcatenateEventSequences(host_histories[actor].event_seqs), actor) ==
-                        RestrictTraceToActor(trace, actor);
+                     && RestrictTraceToActor(RestrictRealTraceToTrackedEvents(trace), actor) <=
+                        EventSequenceToTrace(ConcatenateEventSequences(host_histories[actor].event_seqs), actor);
         ensures  BehaviorRefinesSpec(rb, GetSpec(config), GetRealSystemSpecRefinementRelation());
 }

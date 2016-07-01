@@ -1,9 +1,9 @@
 include "Reduction.i.dfy"
-include "RefinementConvolution.i.dfy"
 include "SystemRefinement.i.dfy"
 include "ReductionPlan.i.dfy"
 include "ReductionTop.i.dfy"
 include "../Collections/Maps.i.dfy"
+include "../Framework/RefinementConvolution.i.dfy"
 
 module MatchTreesToTraceModule {
 

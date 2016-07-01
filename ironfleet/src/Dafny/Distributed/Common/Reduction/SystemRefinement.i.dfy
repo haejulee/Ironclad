@@ -1,4 +1,4 @@
-include "RefinementConvolution.i.dfy"
+include "../Framework/RefinementConvolution.i.dfy"
 include "ExtendedTrace.i.dfy"
 include "../Collections/Maps.i.dfy"
 include "../Collections/Seqs.i.dfy"
