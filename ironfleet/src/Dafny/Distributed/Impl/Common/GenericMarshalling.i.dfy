@@ -796,7 +796,7 @@ lemma lemma_parse_Array_contents_len(data:seq<byte>, eltType:G, len:uint64)
     }
 }
 
-lemma lemma_parse_Val_view_Array_contents(data:seq<byte>, vs:seq<V>, grammar:G, index:int, bound:int, len:uint64)
+lemma {:fuel parse_Array_contents,2} lemma_parse_Val_view_Array_contents(data:seq<byte>, vs:seq<V>, grammar:G, index:int, bound:int, len:uint64)
     requires |data| < 0x1_0000_0000_0000_0000;
     requires forall v :: v in vs ==> ValInGrammar(v, grammar);
     requires ValidGrammar(grammar);
@@ -907,6 +907,15 @@ lemma lemma_parse_Val_view_Array(data:seq<byte>, v:V, grammar:G, index:int, boun
     var bound_tuple := parse_Array(data[index..bound], grammar.elt);
     var narrow_len_tuple := parse_Uint64(data[index..index+SizeOfV(v)]);
     var bound_len_tuple := parse_Uint64(data[index..bound]);
+
+    calc {
+        uint64(|data[index..index+SizeOfV(v)]|);
+        uint64(SizeOfV(v));
+        uint64(8 + SeqSum(v.a));
+        >= uint64(8);
+        Uint64Size();
+    }
+
     var narrow_contents_tuple := parse_Array_contents(narrow_len_tuple.1, grammar.elt, narrow_len_tuple.0.v.u);
     var bound_contents_tuple := parse_Array_contents(bound_len_tuple.1, grammar.elt, bound_len_tuple.0.v.u);
 
@@ -925,7 +934,7 @@ lemma lemma_parse_Val_view_Array(data:seq<byte>, v:V, grammar:G, index:int, boun
     }
 }
 
-lemma lemma_parse_Val_view_Tuple_contents(data:seq<byte>, vs:seq<V>, grammar:seq<G>, index:int, bound:int)
+lemma {:fuel parse_Tuple_contents,2} lemma_parse_Val_view_Tuple_contents(data:seq<byte>, vs:seq<V>, grammar:seq<G>, index:int, bound:int)
     requires |data| < 0x1_0000_0000_0000_0000;
     requires |vs| == |grammar|;
     requires forall i :: 0 <= i < |vs| ==> ValInGrammar(vs[i], grammar[i]);
@@ -1398,7 +1407,7 @@ method{:timeLimitMultiplier 15} MarshallArrayContents(contents:seq<V>, eltType:G
     size := cur_index - index;
 }
 
-method MarshallArray(val:V, grammar:G, data:array<byte>, index:uint64) returns (size:uint64)
+method {:fuel parse_Val,2} MarshallArray(val:V, grammar:G, data:array<byte>, index:uint64) returns (size:uint64)
     requires data != null;
     requires val.VArray?;
     requires ValInGrammar(val, grammar);
@@ -1417,9 +1426,26 @@ method MarshallArray(val:V, grammar:G, data:array<byte>, index:uint64) returns (
 {
     //assert{:split_here} true;
     reveal_parse_Val();
+
+    calc {
+        int(index) + int(Uint64Size());
+        int(index) + 8;
+        <= int(index) + 8 + SeqSum(val.a);
+        == int(index) + SizeOfV(val);
+        <= data.Length;
+    }
     MarshallUint64(uint64(|val.a|), data, index);
 
     ghost var tuple := parse_Uint64(data[index..int(index) + SizeOfV(val)]);
+
+    calc {
+        uint64(|data[index..int(index) + SizeOfV(val)]|);
+        uint64(SizeOfV(val));
+        uint64(8 + SeqSum(val.a));
+        >= uint64(8);
+        Uint64Size();
+    }
+
     ghost var len := tuple.0;
     ghost var rest := tuple.1;
     assert !len.None?;
@@ -1513,7 +1539,7 @@ lemma lemma_marshall_tuple_contents(contents:seq<V>, eltTypes:seq<G>, marshalled
     }
 }
 
-method{:timeLimitMultiplier 2} MarshallTupleContents(contents:seq<V>, eltTypes:seq<G>, data:array<byte>, index:uint64) returns (size:uint64)
+method{:timeLimitMultiplier 2}{:fuel parse_Tuple_contents,2}{:fuel SeqSum,2} MarshallTupleContents(contents:seq<V>, eltTypes:seq<G>, data:array<byte>, index:uint64) returns (size:uint64)
     requires data != null;
     requires |contents| == |eltTypes|;
     requires forall i :: 0 <= i < |contents| ==> ValInGrammar(contents[i], eltTypes[i]);

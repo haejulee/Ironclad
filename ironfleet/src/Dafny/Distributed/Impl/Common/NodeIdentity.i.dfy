@@ -339,7 +339,7 @@ lemma lemma_AbstractifyEndPointsToNodeIdentities_properties(endpoints:seq<EndPoi
     }
 }
 
-lemma lemma_AbstractifyEndPointsToNodeIdentities_injective_elements(s1:seq<EndPoint>, s2:seq<EndPoint>)
+lemma {:fuel AbstractifyEndPointsToNodeIdentities,2} lemma_AbstractifyEndPointsToNodeIdentities_injective_elements(s1:seq<EndPoint>, s2:seq<EndPoint>)
     requires forall e :: e in s1 ==> EndPointIsValidIPV4(e);
     requires forall e :: e in s2 ==> EndPointIsValidIPV4(e);
     requires AbstractifyEndPointsToNodeIdentities(s1) == AbstractifyEndPointsToNodeIdentities(s2);
@@ -349,7 +349,7 @@ lemma lemma_AbstractifyEndPointsToNodeIdentities_injective_elements(s1:seq<EndPo
     lemma_AbstractifyEndPointToNodeIdentity_injective_forall();
 }
 
-lemma lemma_AbstractifyEndPointsToNodeIdentities_injective(s1:seq<EndPoint>, s2:seq<EndPoint>)
+lemma {:fuel AbstractifyEndPointsToNodeIdentities,2} lemma_AbstractifyEndPointsToNodeIdentities_injective(s1:seq<EndPoint>, s2:seq<EndPoint>)
     requires forall e :: e in s1 ==> EndPointIsValidIPV4(e);
     requires forall e :: e in s2 ==> EndPointIsValidIPV4(e);
     requires AbstractifyEndPointsToNodeIdentities(s1) == AbstractifyEndPointsToNodeIdentities(s2);

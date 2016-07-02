@@ -320,7 +320,7 @@ lemma lemma_BEByteSeqToInt_BEUintToSeqByte_invertability()
 }
 
 
-function method Uint64ToSeqByte(u:uint64) : seq<byte>
+function method {:timeLimitMultiplier 2} Uint64ToSeqByte(u:uint64) : seq<byte>
     ensures Uint64ToSeqByte(u) == BEUintToSeqByte(int(u), 8);
 {
     ghost var pv := 256;

@@ -141,7 +141,7 @@ module ReductionStepModule {
         assert ExtendedSystemNextEntry(mini_mb[0], mini_mb[|entries|], entry);
     }
 
-    lemma lemma_UpdatePlanViaReduction(
+    lemma {:timeLimitMultiplier 2} lemma_UpdatePlanViaReduction(
         config:ConcreteConfiguration,
         actor:Actor,
         aplan:ActorReductionPlan,

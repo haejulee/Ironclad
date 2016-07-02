@@ -148,7 +148,7 @@ module Host_i exclusively refines HostModule {
         reveal_Q_LScheduler_Next();
     }
 
-    lemma lemma_EventsRespectReduction(s:LScheduler, s':LScheduler, ios:seq<RslIo>, events:seq<Event>)
+    lemma {:fuel AbstractifyRawLogToIos,2} lemma_EventsRespectReduction(s:LScheduler, s':LScheduler, ios:seq<RslIo>, events:seq<Event>)
         requires LIoOpSeqCompatibleWithReduction(ios);
         requires RawIoConsistentWithSpecIO(events, ios);
         ensures EventsReductionCompatible(events);

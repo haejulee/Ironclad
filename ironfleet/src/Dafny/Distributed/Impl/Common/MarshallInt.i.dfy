@@ -31,7 +31,7 @@ method MarshallUint32_guts(n:uint32, data:array<byte>, index:uint64)
 }
 */
 
-method MarshallUint64_guts(n:uint64, data:array<byte>, index:uint64)
+method {:timeLimitMultiplier 2} MarshallUint64_guts(n:uint64, data:array<byte>, index:uint64)
     requires data != null;
     requires int(index) + int(Uint64Size()) <= data.Length;
     requires 0 <= int(index) + int(Uint64Size()) < 0x1_0000_0000_0000_0000;  // Needed to prevent overflow on the next line
