@@ -511,7 +511,14 @@ module ReductionModule
                 { lemma_ReduceTreeLeaves(tree, designator); }
             GetLeafEntriesForest(trees[..index]) + GetLeafEntriesForest(trees[index].children) + GetLeafEntriesForest(trees[index+1..]);
             GetLeafEntriesForest(trees[..index]) + GetLeafEntriesForest(tree.children) + GetLeafEntriesForest(trees[index+1..]);
-            { if |designator| > 0 { lemma_ReduceTreeLeavesForestOld(tree.children, designator[0], designator[1..]); } }
+        }
+
+        if |designator| > 0 {
+            lemma_ReduceTreeLeavesForestOld(tree.children, designator[0], designator[1..]);
+        }
+
+        calc {
+            GetLeafEntriesForest(trees[..index]) + GetLeafEntriesForest(tree.children) + GetLeafEntriesForest(trees[index+1..]);
               GetLeafEntriesForestPrefix(trees, index, designator) 
             + reduced_leaves 
             + GetLeafEntriesForestSuffix(trees, index, designator);
