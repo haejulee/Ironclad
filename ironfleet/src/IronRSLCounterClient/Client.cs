@@ -82,10 +82,11 @@ namespace IronRSLCounterClient
         if (ps.verbose) {
           Console.WriteLine("Received increment reply with counter {0}", reply.counterValue);
         }
-        Console.WriteLine("#req {0} {1} {2}",
+        Console.WriteLine("#req {0} {1} {2} {3}",
                           id,
                           requestNum,
-                          HiResTimer.TicksToMilliseconds(endTime - startTime));
+                          HiResTimer.TicksToMilliseconds(endTime - startTime),
+                          DateTime.Now.ToString("HH:mm:ss.fff"));
       }
     }
   }
