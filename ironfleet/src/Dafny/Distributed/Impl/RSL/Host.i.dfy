@@ -25,7 +25,7 @@ import opened Common__SeqIsUnique_i
 import opened Common__SeqIsUniqueDef_i
 
 datatype CScheduler = CScheduler(ghost sched:LScheduler, replica_impl:ReplicaImpl)
-datatype MScheduler = MScheduler(csched: CScheduler)
+datatype MScheduler = MScheduler(csched:CScheduler, groups:seq<CScheduler>)
 
 type HostState = MScheduler
 type ConcreteConfiguration = ConstantsState
@@ -92,7 +92,7 @@ method {:timeLimitMultiplier 4} HostInitImpl(ghost env:HostEnvironment) returns 
 
   var lschedule:LScheduler;
   var repImpl:ReplicaImpl := new ReplicaImpl(); 
-  host_state := MScheduler(CScheduler(lschedule,repImpl));
+  host_state := MScheduler(CScheduler(lschedule,repImpl), []);
 
   if !ok { return; }
   assert env.constants == old(env.constants);
@@ -114,7 +114,7 @@ method {:timeLimitMultiplier 4} HostInitImpl(ghost env:HostEnvironment) returns 
 
   ok := scheduler.Replica_Init(constants, env);
   if !ok { return; }
-  host_state := MScheduler(CScheduler(scheduler.AbstractifyToLScheduler(), scheduler));
+  host_state := MScheduler(CScheduler(scheduler.AbstractifyToLScheduler(), scheduler), []);
   config := constants.all;
   servers := set e | e in constants.all.config.replica_ids;
   clients := {};
@@ -231,7 +231,7 @@ method {:timeLimitMultiplier 3} HostNextImpl(ghost env:HostEnvironment, host_sta
 {
   var lschedule:LScheduler;
   var repImpl:ReplicaImpl := new ReplicaImpl(); 
-  host_state' := MScheduler(CScheduler(lschedule,repImpl));
+  host_state' := MScheduler(CScheduler(lschedule,repImpl), []);
 
   var okay, netEventLog, abstract_ios := Replica_Next_main(host_state.csched.replica_impl);
   if okay {
@@ -250,7 +250,7 @@ method {:timeLimitMultiplier 3} HostNextImpl(ghost env:HostEnvironment, host_sta
     recvs, clocks, sends := PartitionEvents(netEventLog);
     ios := recvs + clocks + sends; //abstract_ios;
     assert ios == netEventLog;
-    host_state' := MScheduler(CScheduler(host_state.csched.replica_impl.AbstractifyToLScheduler(), host_state.csched.replica_impl));
+    host_state' := MScheduler(CScheduler(host_state.csched.replica_impl.AbstractifyToLScheduler(), host_state.csched.replica_impl), []);
   } else {
     recvs := [];
     clocks := [];
