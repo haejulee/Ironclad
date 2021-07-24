@@ -105,11 +105,11 @@ function AbstractifyConcreteReplicas(replicas:map<EndPoint,HostState>, replica_o
   requires forall r :: r in replica_order ==> r in replicas
   ensures  |AbstractifyConcreteReplicas(replicas, replica_order)| == |replica_order|
   ensures  forall i :: 0 <= i < |replica_order| ==>
-             AbstractifyConcreteReplicas(replicas, replica_order)[i] == replicas[replica_order[i]].sched
+             AbstractifyConcreteReplicas(replicas, replica_order)[i] == replicas[replica_order[i]].csched.sched
 {
   if replica_order == [] then []
   else
-    [replicas[replica_order[0]].sched] + AbstractifyConcreteReplicas(replicas, replica_order[1..])
+    [replicas[replica_order[0]].csched.sched] + AbstractifyConcreteReplicas(replicas, replica_order[1..])
 }
 
 function AbstractifyConcreteClients(clients:set<EndPoint>) : set<NodeIdentity>
@@ -204,11 +204,11 @@ lemma {:timeLimitMultiplier 2} lemma_DsConstantsAllConsistent(config:ConcreteCon
   requires 0 <= i < |db|
   requires id in db[i].servers
   ensures  db[i].config == config
-  ensures  db[i].servers[id].sched.replica.constants.all == AbstractifyConstantsStateToLConstants(config)
-  ensures  db[i].servers[id].sched.replica.proposer.constants.all == AbstractifyConstantsStateToLConstants(config)
-  ensures  db[i].servers[id].sched.replica.acceptor.constants.all == AbstractifyConstantsStateToLConstants(config)
-  ensures  db[i].servers[id].sched.replica.learner.constants.all == AbstractifyConstantsStateToLConstants(config)
-  ensures  db[i].servers[id].sched.replica.executor.constants.all == AbstractifyConstantsStateToLConstants(config)
+  ensures  db[i].servers[id].csched.sched.replica.constants.all == AbstractifyConstantsStateToLConstants(config)
+  ensures  db[i].servers[id].csched.sched.replica.proposer.constants.all == AbstractifyConstantsStateToLConstants(config)
+  ensures  db[i].servers[id].csched.sched.replica.acceptor.constants.all == AbstractifyConstantsStateToLConstants(config)
+  ensures  db[i].servers[id].csched.sched.replica.learner.constants.all == AbstractifyConstantsStateToLConstants(config)
+  ensures  db[i].servers[id].csched.sched.replica.executor.constants.all == AbstractifyConstantsStateToLConstants(config)
 {
   if i == 0
   {
@@ -224,8 +224,8 @@ lemma {:timeLimitMultiplier 2} lemma_DsConstantsAllConsistent(config:ConcreteCon
 
   lemma_DsConstantsAllConsistent(config, db, i-1, id);
 
-  var s := db[i-1].servers[id].sched;
-  var s' := db[i].servers[id].sched;
+  var s := db[i-1].servers[id].csched.sched;
+  var s' := db[i].servers[id].csched.sched;
 
   if s' == s
   {
@@ -547,8 +547,8 @@ lemma lemma_IgnoringCertainMessageTypesFromNonServerIsLSchedulerNext(
   requires 0 <= i < |db| - 1
   requires id in db[i].servers
   requires id in db[i+1].servers
-  requires s == db[i].servers[id].sched
-  requires s' == db[i+1].servers[id].sched
+  requires s == db[i].servers[id].csched.sched
+  requires s' == db[i+1].servers[id].csched.sched
   requires s.nextActionIndex == 0
   requires s' == s.(nextActionIndex := (s.nextActionIndex + 1) % LReplicaNumActions())
   requires |ios| == 1
@@ -581,9 +581,9 @@ lemma lemma_HostNextIgnoreUnsendableIsLSchedulerNext(
   requires id in db[i+1].servers
   requires LEnvironment_Next(db[i].environment, db[i+1].environment)
   requires ValidPhysicalEnvironmentStep(db[i].environment.nextStep)
-  requires HostNextIgnoreUnsendable(db[i].servers[id].sched, db[i+1].servers[id].sched, ios)
+  requires HostNextIgnoreUnsendable(db[i].servers[id].csched.sched, db[i+1].servers[id].csched.sched, ios)
   requires NetEventLogIsAbstractable(ios)
-  ensures  LSchedulerNext(db[i].servers[id].sched, db[i+1].servers[id].sched, AbstractifyRawLogToIos(ios))
+  ensures  LSchedulerNext(db[i].servers[id].csched.sched, db[i+1].servers[id].csched.sched, AbstractifyRawLogToIos(ios))
 {
   var p := ios[0].r;
   var rp := AbstractifyNetPacketToRslPacket(p);
@@ -607,8 +607,8 @@ lemma lemma_HostNextIgnoreUnsendableIsLSchedulerNext(
   assert |rios| == 1;
   assert rios[0].r == rp;
 
-  var s := db[i].servers[id].sched;
-  var s' := db[i+1].servers[id].sched;
+  var s := db[i].servers[id].csched.sched;
+  var s' := db[i+1].servers[id].csched.sched;
 
   assert s.nextActionIndex == 0;
   calc {
@@ -679,13 +679,13 @@ lemma {:timeLimitMultiplier 2} lemma_RslNext(
 
   assert ls.environment.nextStep == LEnvStepHostIos(id, r_ios);
 
-  assert || LSchedulerNext(ds.servers[id].sched, ds'.servers[id].sched, r_ios)
-         || HostNextIgnoreUnsendable(ds.servers[id].sched, ds'.servers[id].sched, ios);
-  if HostNextIgnoreUnsendable(ds.servers[id].sched, ds'.servers[id].sched, ios)
+  assert || LSchedulerNext(ds.servers[id].csched.sched, ds'.servers[id].csched.sched, r_ios)
+         || HostNextIgnoreUnsendable(ds.servers[id].csched.sched, ds'.servers[id].csched.sched, ios);
+  if HostNextIgnoreUnsendable(ds.servers[id].csched.sched, ds'.servers[id].csched.sched, ios)
   {
     lemma_HostNextIgnoreUnsendableIsLSchedulerNext(config, db, i, id, ios);
   }
-  assert LSchedulerNext(ds.servers[id].sched, ds'.servers[id].sched, r_ios);
+  assert LSchedulerNext(ds.servers[id].csched.sched, ds'.servers[id].csched.sched, r_ios);
 
   assert LEnvironment_Next(ds.environment, ds'.environment);
   lemma_LEnvironmentNextHost(ds.environment, ls.environment, ds'.environment, ls'.environment);
