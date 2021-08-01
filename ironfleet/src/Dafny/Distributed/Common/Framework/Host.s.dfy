@@ -14,6 +14,9 @@ predicate HostInit(host_state:HostState, config:ConcreteConfiguration, id:EndPoi
   reads *
 predicate HostNext(host_state:HostState, host_state':HostState, ios:seq<LIoOp<EndPoint, seq<byte>>>)
   reads *
+
+predicate HostGroupSize(host_state:HostState)
+
 predicate ConcreteConfigInit(config:ConcreteConfiguration, servers:set<EndPoint>, clients:set<EndPoint>)
 
 predicate HostStateInvariants(host_state:HostState, env:HostEnvironment)
