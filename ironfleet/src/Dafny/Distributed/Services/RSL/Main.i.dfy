@@ -104,14 +104,14 @@ function AbstractifyConcreteEnvironment(ds_env:LEnvironment<EndPoint,seq<byte>>)
 function AbstractifyConcreteReplicas(replicas:map<EndPoint,HostState>, replica_order:seq<EndPoint>) : seq<LScheduler>
   requires forall r :: r in replica_order ==> r in replicas
   requires forall i :: 0 <= i < |replica_order| ==>
-             |replicas[replica_order[i]].groups| == 1
+             DS_s.H_s.HostGroupSize(replicas[replica_order[i]])
   ensures  |AbstractifyConcreteReplicas(replicas, replica_order)| == |replica_order|
   ensures  forall i :: 0 <= i < |replica_order| ==>
-             AbstractifyConcreteReplicas(replicas, replica_order)[i] == replicas[replica_order[i]].groups[0].sched
+             AbstractifyConcreteReplicas(replicas, replica_order)[i] == Host.LeadingGroup(replicas[replica_order[i]]).sched
 {
   if replica_order == [] then []
   else
-    [replicas[replica_order[0]].groups[0].sched] + AbstractifyConcreteReplicas(replicas, replica_order[1..])
+    [Host.LeadingGroup(replicas[replica_order[0]]).sched] + AbstractifyConcreteReplicas(replicas, replica_order[1..])
 }
 
 function AbstractifyConcreteClients(clients:set<EndPoint>) : set<NodeIdentity>
@@ -129,7 +129,7 @@ predicate DsStateIsAbstractable(ds:DS_State)
 function AbstractifyDsState(ds:DS_State) : RslState
   requires DsStateIsAbstractable(ds)
   requires forall i :: 0 <= i < |ds.config.config.replica_ids| ==>
-             |ds.servers[ds.config.config.replica_ids[i]].groups| == 1
+             DS_s.H_s.HostGroupSize(ds.servers[ds.config.config.replica_ids[i]])
 {
   RslState(AbstractifyConstantsStateToLConstants(ds.config),
            AbstractifyConcreteEnvironment(ds.environment),
@@ -211,11 +211,11 @@ lemma {:timeLimitMultiplier 2} lemma_DsConstantsAllConsistent(config:ConcreteCon
             forall k :: k in db[j].servers ==>
               DS_s.H_s.HostGroupSize(db[j].servers[k]);
   ensures  db[i].config == config
-  ensures  db[i].servers[id].groups[0].sched.replica.constants.all == AbstractifyConstantsStateToLConstants(config)
-  ensures  db[i].servers[id].groups[0].sched.replica.proposer.constants.all == AbstractifyConstantsStateToLConstants(config)
-  ensures  db[i].servers[id].groups[0].sched.replica.acceptor.constants.all == AbstractifyConstantsStateToLConstants(config)
-  ensures  db[i].servers[id].groups[0].sched.replica.learner.constants.all == AbstractifyConstantsStateToLConstants(config)
-  ensures  db[i].servers[id].groups[0].sched.replica.executor.constants.all == AbstractifyConstantsStateToLConstants(config)
+  ensures  Host.LeadingGroup(db[i].servers[id]).sched.replica.constants.all == AbstractifyConstantsStateToLConstants(config)
+  ensures  Host.LeadingGroup(db[i].servers[id]).sched.replica.proposer.constants.all == AbstractifyConstantsStateToLConstants(config)
+  ensures  Host.LeadingGroup(db[i].servers[id]).sched.replica.acceptor.constants.all == AbstractifyConstantsStateToLConstants(config)
+  ensures  Host.LeadingGroup(db[i].servers[id]).sched.replica.learner.constants.all == AbstractifyConstantsStateToLConstants(config)
+  ensures  Host.LeadingGroup(db[i].servers[id]).sched.replica.executor.constants.all == AbstractifyConstantsStateToLConstants(config)
 {
   if i == 0
   {
@@ -231,8 +231,8 @@ lemma {:timeLimitMultiplier 2} lemma_DsConstantsAllConsistent(config:ConcreteCon
 
   lemma_DsConstantsAllConsistent(config, db, i-1, id);
 
-  var s := db[i-1].servers[id].groups[0].sched;
-  var s' := db[i].servers[id].groups[0].sched;
+  var s := Host.LeadingGroup(db[i-1].servers[id]).sched;
+  var s' := Host.LeadingGroup(db[i].servers[id]).sched;
 
   if s' == s
   {
@@ -557,8 +557,8 @@ lemma lemma_IgnoringCertainMessageTypesFromNonServerIsLSchedulerNext(
   requires forall j :: 0 <= j < |db| ==>
             forall id :: id in db[j].servers ==>
               DS_s.H_s.HostGroupSize(db[j].servers[id]);
-  requires s == db[i].servers[id].groups[0].sched
-  requires s' == db[i+1].servers[id].groups[0].sched
+  requires s == Host.LeadingGroup(db[i].servers[id]).sched
+  requires s' == Host.LeadingGroup(db[i+1].servers[id]).sched
   requires s.nextActionIndex == 0
   requires s' == s.(nextActionIndex := (s.nextActionIndex + 1) % LReplicaNumActions())
   requires |ios| == 1
@@ -594,9 +594,9 @@ lemma lemma_HostNextIgnoreUnsendableIsLSchedulerNext(
               DS_s.H_s.HostGroupSize(db[j].servers[id]);
   requires LEnvironment_Next(db[i].environment, db[i+1].environment)
   requires ValidPhysicalEnvironmentStep(db[i].environment.nextStep)
-  requires HostNextIgnoreUnsendable(db[i].servers[id].groups[0].sched, db[i+1].servers[id].groups[0].sched, ios)
+  requires HostNextIgnoreUnsendable(Host.LeadingGroup(db[i].servers[id]).sched, Host.LeadingGroup(db[i+1].servers[id]).sched, ios)
   requires NetEventLogIsAbstractable(ios)
-  ensures  LSchedulerNext(db[i].servers[id].groups[0].sched, db[i+1].servers[id].groups[0].sched, AbstractifyRawLogToIos(ios))
+  ensures  LSchedulerNext(Host.LeadingGroup(db[i].servers[id]).sched, Host.LeadingGroup(db[i+1].servers[id]).sched, AbstractifyRawLogToIos(ios))
 {
   var p := ios[0].r;
   var rp := AbstractifyNetPacketToRslPacket(p);
@@ -620,8 +620,8 @@ lemma lemma_HostNextIgnoreUnsendableIsLSchedulerNext(
   assert |rios| == 1;
   assert rios[0].r == rp;
 
-  var s := db[i].servers[id].groups[0].sched;
-  var s' := db[i+1].servers[id].groups[0].sched;
+  var s := Host.LeadingGroup(db[i].servers[id]).sched;
+  var s' := Host.LeadingGroup(db[i+1].servers[id]).sched;
 
   assert s.nextActionIndex == 0;
   calc {
@@ -695,15 +695,15 @@ lemma {:timeLimitMultiplier 2} lemma_RslNext(
 
   assert ls.environment.nextStep == LEnvStepHostIos(id, r_ios);
 
-  assert (id in ds.servers) && (id in ds'.servers) && (|ds.servers[id].groups| == 1) && (|ds'.servers[id].groups| == 1);
+  assert (id in ds.servers) && (id in ds'.servers) && (DS_s.H_s.HostGroupSize(ds.servers[id])) && (DS_s.H_s.HostGroupSize(ds'.servers[id]));
 
-  assert || LSchedulerNext(ds.servers[id].groups[0].sched, ds'.servers[id].groups[0].sched, r_ios)
-         || HostNextIgnoreUnsendable(ds.servers[id].groups[0].sched, ds'.servers[id].groups[0].sched, ios);
-  if HostNextIgnoreUnsendable(ds.servers[id].groups[0].sched, ds'.servers[id].groups[0].sched, ios)
+  assert || LSchedulerNext(Host.LeadingGroup(ds.servers[id]).sched, Host.LeadingGroup(ds'.servers[id]).sched, r_ios)
+         || HostNextIgnoreUnsendable(Host.LeadingGroup(ds.servers[id]).sched, Host.LeadingGroup(ds'.servers[id]).sched, ios);
+  if HostNextIgnoreUnsendable(Host.LeadingGroup(ds.servers[id]).sched, Host.LeadingGroup(ds'.servers[id]).sched, ios)
   {
     lemma_HostNextIgnoreUnsendableIsLSchedulerNext(config, db, i, id, ios);
   }
-  assert LSchedulerNext(ds.servers[id].groups[0].sched, ds'.servers[id].groups[0].sched, r_ios);
+  assert LSchedulerNext(Host.LeadingGroup(ds.servers[id]).sched, Host.LeadingGroup(ds'.servers[id]).sched, r_ios);
 
   assert LEnvironment_Next(ds.environment, ds'.environment);
   lemma_LEnvironmentNextHost(ds.environment, ls.environment, ds'.environment, ls'.environment);

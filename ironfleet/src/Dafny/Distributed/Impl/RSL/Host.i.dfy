@@ -25,10 +25,16 @@ import opened Common__SeqIsUnique_i
 import opened Common__SeqIsUniqueDef_i
 
 datatype CScheduler = CScheduler(ghost sched:LScheduler, replica_impl:ReplicaImpl)
-datatype MScheduler = MScheduler(groups:seq<CScheduler>)
+datatype MScheduler = MScheduler(groups:seq<CScheduler>, my_index:int)
 
 type HostState = MScheduler
 type ConcreteConfiguration = ConstantsState
+
+function method LeadingGroup(host_state:HostState) : CScheduler
+  requires HostGroupSize(host_state)
+{
+  host_state.groups[host_state.my_index]
+}
 
 predicate ConcreteConfigurationInvariants(config:ConcreteConfiguration) 
 {
@@ -37,35 +43,43 @@ predicate ConcreteConfigurationInvariants(config:ConcreteConfiguration)
 
 predicate HostStateInvariants(host_state:HostState, env:HostEnvironment)
 {
-  && |host_state.groups| == 1
-  && host_state.groups[0].replica_impl.Valid() 
-  && host_state.groups[0].replica_impl.Env() == env
-  && host_state.groups[0].sched == host_state.groups[0].replica_impl.AbstractifyToLScheduler()
+  && HostGroupSize(host_state)
+  && LeadingGroup(host_state).replica_impl.Valid() 
+  && LeadingGroup(host_state).replica_impl.Env() == env
+  && LeadingGroup(host_state).sched == LeadingGroup(host_state).replica_impl.AbstractifyToLScheduler()
 }
 
 predicate HostInit(host_state:HostState, config:ConcreteConfiguration, id:EndPoint)
 {
-  && |host_state.groups| == 1
-  && host_state.groups[0].replica_impl.Valid()
-  && host_state.groups[0].replica_impl.replica.constants.all == config
-  && config.config.replica_ids[host_state.groups[0].replica_impl.replica.constants.my_index] == id
-  && LSchedulerInit(host_state.groups[0].sched, 
-                   AbstractifyReplicaConstantsStateToLReplicaConstants(host_state.groups[0].replica_impl.replica.constants))
+  && HostGroupSize(host_state)
+  && LeadingGroup(host_state).replica_impl.Valid()
+  && LeadingGroup(host_state).replica_impl.replica.constants.all == config
+  && config.config.replica_ids[LeadingGroup(host_state).replica_impl.replica.constants.my_index] == id
+  && LSchedulerInit(LeadingGroup(host_state).sched, 
+                   AbstractifyReplicaConstantsStateToLReplicaConstants(LeadingGroup(host_state).replica_impl.replica.constants))
 }
 
 predicate HostNext(host_state:HostState, host_state':HostState, ios:seq<LIoOp<EndPoint, seq<byte>>>)
 {
-  && |host_state.groups| == 1
-  && |host_state'.groups| == 1
+  && HostGroupSize(host_state)
+  && HostGroupSize(host_state')
+  && HostNextGroupSize(host_state, host_state')
   && NetEventLogIsAbstractable(ios)
   && OnlySentMarshallableData(ios)
-  && (|| LSchedulerNext(host_state.groups[0].sched, host_state'.groups[0].sched, AbstractifyRawLogToIos(ios))
-     || HostNextIgnoreUnsendable(host_state.groups[0].sched, host_state'.groups[0].sched, ios))
+  && (|| LSchedulerNext(LeadingGroup(host_state).sched, LeadingGroup(host_state').sched, AbstractifyRawLogToIos(ios))
+     || HostNextIgnoreUnsendable(LeadingGroup(host_state).sched, LeadingGroup(host_state').sched, ios))
 }
 
 predicate HostGroupSize(host_state:HostState)
 {
-  |host_state.groups| == 1
+  && |host_state.groups| >= 1
+  && 0 <= host_state.my_index < |host_state.groups|
+}
+
+predicate HostNextGroupSize(host_state:HostState, host_state':HostState)
+{
+  && |host_state'.groups| == |host_state.groups|
+  && host_state'.my_index == host_state.my_index
 }
 
 predicate ConcreteConfigInit(config:ConcreteConfiguration, servers:set<EndPoint>, clients:set<EndPoint>)
@@ -101,7 +115,7 @@ method {:timeLimitMultiplier 4} HostInitImpl(ghost env:HostEnvironment) returns 
 
   var lschedule:LScheduler;
   var repImpl:ReplicaImpl := new ReplicaImpl(); 
-  host_state := MScheduler([CScheduler(lschedule,repImpl)]);
+  host_state := MScheduler([CScheduler(lschedule,repImpl)], 0);
 
   if !ok { return; }
   assert env.constants == old(env.constants);
@@ -117,13 +131,23 @@ method {:timeLimitMultiplier 4} HostInitImpl(ghost env:HostEnvironment) returns 
     my_index as int;
   }
 
+  assert |pconfig.replica_ids| >= 1;
+  assert |constants.all.config.replica_ids| >= 1;
+
   assert env.Valid() && env.ok.ok();
   assert ReplicaConstantsState_IsValid(constants);
   assert WellFormedLConfiguration(AbstractifyReplicaConstantsStateToLReplicaConstants(constants).all.config);
 
   ok := scheduler.Replica_Init(constants, env);
   if !ok { return; }
-  host_state := MScheduler([CScheduler(scheduler.AbstractifyToLScheduler(), scheduler)]);
+
+  var groups := new CScheduler[|pconfig.replica_ids|](i => CScheduler(lschedule, repImpl));
+  var index := 0;
+  groups[index] := CScheduler(scheduler.AbstractifyToLScheduler(), scheduler);
+  host_state := MScheduler(groups[..], index);
+
+  assert HostGroupSize(host_state);
+
   config := constants.all;
   servers := set e | e in constants.all.config.replica_ids;
   clients := {};
@@ -137,7 +161,6 @@ method {:timeLimitMultiplier 4} HostInitImpl(ghost env:HostEnvironment) returns 
   assert servers == parsed_servers; 
   assert clients == parsed_clients;
   assert ConcreteConfigInit(parsed_config, parsed_servers, parsed_clients);
-  assert |host_state.groups| == 1;
 }
 
 predicate EventsConsistent(recvs:seq<NetEvent>, clocks:seq<NetEvent>, sends:seq<NetEvent>) 
@@ -239,29 +262,32 @@ method {:timeLimitMultiplier 3} HostNextImpl(ghost env:HostEnvironment, host_sta
            ghost recvs:seq<NetEvent>, ghost clocks:seq<NetEvent>, ghost sends:seq<NetEvent>, 
            ghost ios:seq<LIoOp<EndPoint, seq<byte>>>)
 {
-  assert |host_state.groups| == 1;
+  assert HostGroupSize(host_state);
   var lschedule:LScheduler;
   var repImpl:ReplicaImpl := new ReplicaImpl(); 
-  host_state' := MScheduler([CScheduler(lschedule,repImpl)]);
+  host_state' := MScheduler([CScheduler(lschedule,repImpl)], 0);
 
-  var okay, netEventLog, abstract_ios := Replica_Next_main(host_state.groups[0].replica_impl);
+  var okay, netEventLog, abstract_ios := Replica_Next_main(LeadingGroup(host_state).replica_impl);
   if okay {
     calc { 
-      Q_LScheduler_Next(host_state.groups[0].sched, host_state.groups[0].replica_impl.AbstractifyToLScheduler(), abstract_ios);
+      Q_LScheduler_Next(LeadingGroup(host_state).sched, LeadingGroup(host_state).replica_impl.AbstractifyToLScheduler(), abstract_ios);
         { reveal Q_LScheduler_Next(); }
-      LSchedulerNext(host_state.groups[0].sched, host_state.groups[0].replica_impl.AbstractifyToLScheduler(), abstract_ios);
+      LSchedulerNext(LeadingGroup(host_state).sched, LeadingGroup(host_state).replica_impl.AbstractifyToLScheduler(), abstract_ios);
     }
 
     assert AbstractifyRawLogToIos(netEventLog) == abstract_ios;
-    if LSchedulerNext(host_state.groups[0].sched, host_state.groups[0].replica_impl.AbstractifyToLScheduler(), abstract_ios)
+    if LSchedulerNext(LeadingGroup(host_state).sched, LeadingGroup(host_state).replica_impl.AbstractifyToLScheduler(), abstract_ios)
     {
-      lemma_ProtocolIosRespectReduction(host_state.groups[0].sched, host_state.groups[0].replica_impl.AbstractifyToLScheduler(), abstract_ios);
+      lemma_ProtocolIosRespectReduction(LeadingGroup(host_state).sched, LeadingGroup(host_state).replica_impl.AbstractifyToLScheduler(), abstract_ios);
     }
-    lemma_NetEventsRespectReduction(host_state.groups[0].sched, host_state.groups[0].replica_impl.AbstractifyToLScheduler(), abstract_ios, netEventLog);
+    lemma_NetEventsRespectReduction(LeadingGroup(host_state).sched, LeadingGroup(host_state).replica_impl.AbstractifyToLScheduler(), abstract_ios, netEventLog);
     recvs, clocks, sends := PartitionEvents(netEventLog);
     ios := recvs + clocks + sends; //abstract_ios;
     assert ios == netEventLog;
-    host_state' := MScheduler([CScheduler(host_state.groups[0].replica_impl.AbstractifyToLScheduler(), host_state.groups[0].replica_impl)]);
+
+    var groups := new CScheduler[|host_state.groups|](i => CScheduler(lschedule, repImpl));
+    groups[host_state.my_index] := CScheduler(LeadingGroup(host_state).replica_impl.AbstractifyToLScheduler(), LeadingGroup(host_state).replica_impl);
+    host_state' := MScheduler(groups[..], host_state.my_index);
   } else {
     recvs := [];
     clocks := [];
@@ -269,8 +295,8 @@ method {:timeLimitMultiplier 3} HostNextImpl(ghost env:HostEnvironment, host_sta
   }
   ok := okay;
   reveal Q_LScheduler_Next();
-  assert host_state.groups[0].replica_impl.Env() == env;
-  assert |host_state.groups| == 1 && |host_state'.groups| == 1;
+  assert LeadingGroup(host_state).replica_impl.Env() == env;
+  assert HostGroupSize(host_state) && HostGroupSize(host_state');
 }
 
 }
